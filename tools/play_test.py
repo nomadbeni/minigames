@@ -280,9 +280,20 @@ async def sc_kit(page):
     check(steps == [2, 2, 2, 2, 1, 1, 1, 1, 0], f"long words are split until mastered: {steps}")
 
 
+async def sc_kit_weighting(page):
+    # 'ritka' was never read right, the others 8 times: it must come much more often, and never twice in a row
+    res = await page.evaluate("""(() => { const L = ['ritka', 'fék', 'lánc', 'nyereg'];
+        let n = 0, prev = null, twice = 0;
+        for (let i = 0; i < 400; i++) { const w = K.pickWord(L); if (w === 'ritka') n++; if (w === prev) twice++; prev = w; }
+        return {n, twice}; })()""")
+    check(res["twice"] == 0, f"the same word came twice in a row {res['twice']} times")
+    check(res["n"] > 150, f"the rarely read word should come most often: {res['n']} of 400")
+
+
 async def sc_bike_shop(page):
     zones = {"első gumi": "elso", "hátsó gumi": "hatso", "küllő": "hatso", "fék": "fek", "lánc": "lanc", "nyereg": "nyereg",
-             "kormány": "kormany", "váltó": "valto", "lámpa": "lampa", "pedál": "pedal", "csengő": "csengo", "akku": "akku"}
+             "kormány": "kormany", "váltó": "valto", "lámpa": "lampa", "pedál": "pedal", "csengő": "csengo", "akku": "akku",
+             "első kerék": "elso", "első szelep": "elso", "macska": "lampa"}
     complaint = await txt(page, "#complaint")
     zone = next((z for k, z in zones.items() if k in complaint), None)
     check(zone, f"complaint understood: {complaint}")
@@ -323,7 +334,7 @@ async def sc_dungeon(page):
         await hold(page, k, 60)
         await page.wait_for_timeout(200)
     await page.locator('.icons button[data-e="gomba"]').click()
-    check("Iránytű" in await txt(page, "#ovc"), "the right picture turns on the compass")
+    check("a célhoz bekapcsolva" in await txt(page, "#ovc"), "the right picture turns on the compass")
     await page.locator("#ok").click()
     check("Hozz 3 gombát" in await txt(page, "#quest"), "the quest shows in the quest bar")
 
@@ -378,6 +389,35 @@ async def sc_tank(page):
     await hold(page, "Space", 500)
     shots = await page.locator("#score").get_attribute("data-shots")
     check(int(shots or 0) >= 1, f"the tank fires: {shots}")
+
+
+PAD = """window.__pad = {id: 'test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+  buttons: Array.from({length: 17}, () => ({pressed: false, value: 0}))};
+Object.defineProperty(navigator, 'getGamepads', {value: () => [window.__pad], configurable: true});"""
+
+
+async def pad(page, button, ms=120):
+    await page.evaluate(f"__pad.buttons[{button}].pressed = true; __pad.buttons[{button}].value = 1")
+    await page.wait_for_timeout(ms)
+    await page.evaluate(f"__pad.buttons[{button}].pressed = false; __pad.buttons[{button}].value = 0")
+    await page.wait_for_timeout(120)
+
+
+async def sc_tank_gamepad(page):
+    await page.add_init_script(PAD)
+    await page.reload()
+    await page.evaluate("dispatchEvent(new Event('gamepadconnected'))")
+    await page.wait_for_timeout(200)
+    check(await page.locator("text=Kontroller csatlakoztatva").count() == 1, "the connected note shows")
+    await pad(page, 0)                                   # A in the menu presses the highlighted button
+    check(await page.locator("#ov").is_hidden(), "the A button starts the battle from the menu")
+    await page.wait_for_timeout(1500)
+    x0 = await page.evaluate("__tank.S.player.x")
+    await pad(page, 15, 700)                             # d-pad right drives the tank
+    check(await page.evaluate("__tank.S.player.x") != x0, "the d-pad moves the tank")
+    await pad(page, 0, 500)                              # A fires
+    shots = await page.locator("#score").get_attribute("data-shots")
+    check(int(shots or 0) >= 1, f"the A button fires: {shots}")
 
 
 async def sc_tank_over(page):
@@ -678,14 +718,19 @@ async def sc_maze_over(page):
 
 async def sc_maze_walk(page):
     await page.click("#bStart")
-    # a busy test machine drops frames, so keep walking (longer each time) until the player has moved
+    # stop at the first step that moved the player (a walk could lead back to the start in some mazes);
+    # a busy test machine drops frames, so the keys are held longer on each round
+    moved = "(()=>{const s=JSON.parse(localStorage.getItem('e-utveszto-save')||'{}');return s.px!==1||s.py!==1})()"
     for ms in (260, 400, 600):
-        for key in ["ArrowRight", "ArrowDown", "ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 3:
+        for key in ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 2:
             await hold(page, key, ms)
-        await page.wait_for_timeout(1300)
-        before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
-        if (before["px"], before["py"]) != (1, 1):
+            await page.wait_for_timeout(250)
+            if await page.evaluate(moved):
+                break
+        if await page.evaluate(moved):
             break
+    await page.wait_for_timeout(1300)
+    before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
     check((before["px"], before["py"]) != (1, 1), "the keys do not move the player")
     await page.reload()
     await page.wait_for_timeout(400)
@@ -701,6 +746,8 @@ SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
              "olvaso:mastery": {"fék": 3, "rossz": "x", "negatív": -2, "x" * 80: 1}})),
+    ("bunyo", "reading kit: a rarely read word comes more often, never twice in a row", sc_kit_weighting,
+     save(**{"olvaso:mastery": {"fék": 8, "lánc": 8, "nyereg": 8}})),
     ("bringa-muhely", "Bike Shop: a full repair job pays", sc_bike_shop,
      save(**{"bringa-muhely:save": {"intro": True}, "bringa:penz": 0})),
     ("kocka-kert", "Farm Empire: an exact delivery pays double", sc_farm_delivery,
@@ -717,6 +764,7 @@ SCENARIOS = [
     ("dobozmester", "Sokoban: push the crate onto the target and save the level", sc_sokoban, None),
     ("tankorseg", "Tank Guard: start a battle and fire a shot", sc_tank, None),
     ("tankorseg", "Tank Guard: losing the last tank ends the game, New game closes the window", sc_tank_over, None),
+    ("tankorseg", "Tank Guard: a game controller starts the battle, drives and fires", sc_tank_gamepad, None),
     ("kokori-kaland", "Stone Age Quest: the caveman walks and the run is saved", sc_caveman, None),
     ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
     ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),

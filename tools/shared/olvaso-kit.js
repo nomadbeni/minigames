@@ -109,5 +109,16 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
