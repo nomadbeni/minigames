@@ -30,7 +30,7 @@ SKIP = {"tools", "assets", "_site"}
 HOME_LINK = (
     '<a class="home-link" href="../index.html" style="display:inline-flex;'
     'align-self:flex-start;width:fit-content;align-items:center;gap:6px;'
-    'margin:0 0 10px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;'
+    'margin:0 0 10px;min-height:44px;box-sizing:border-box;padding:6px 14px;border-radius:999px;border:1px solid currentColor;'
     'color:inherit;opacity:.75;text-decoration:none;'
     'font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a>'
 )
@@ -64,6 +64,11 @@ class HeadReader(HTMLParser):
             self.title += data
         if self._script is not None:
             self._script.append(data)
+
+
+def game_pages():
+    """The index.html of every game folder (never the built _site or the tools)."""
+    return sorted(p for p in ROOT.glob("*/index.html") if p.parent.name not in SKIP and not p.parent.name.startswith("."))
 
 
 def read_page(page):
@@ -120,7 +125,7 @@ def check_scripts():
     node = shutil.which("node")
     if not node:
         sys.exit("Node.js is required for the script check (--check / --out) but 'node' was not found.")
-    pages = [ROOT / "index.html"] + sorted(ROOT.glob("*/index.html"))
+    pages = [ROOT / "index.html"] + game_pages()
     errors = 0
     with tempfile.TemporaryDirectory() as tmp:
         for page in pages:
@@ -147,7 +152,42 @@ POLICY = [
     (r"google-analytics|googletagmanager|gtag\(|plausible|matomo|hotjar|facebook\.net|doubleclick|adsbygoogle",
      "analytics or ads"),
     (r"\beval\s*\(|new\s+Function\s*\(", "eval / new Function"),
+    (r"\.src\s*=\s*[`'\"]\s*(?:https?:)?//", "image or media loaded from another site"),
+    (r"window\.open\s*\(", "window.open"),
+    (r"navigator\.clipboard\.read|readText\s*\(", "reading the clipboard"),
+    (r"\bimport\s*\(", "dynamic import()"),
+    (r"url\(\s*['\"]?\s*(?:https?:)?//|@import\s", "CSS loaded from another site (url(http…) or @import)"),
+    (r"navigator\.serviceWorker|importScripts\s*\(", "service worker"),
 ]
+# A file may use one rule's pattern on purpose; the reason is written next to it.
+POLICY_ALLOW = {
+    ("cornholescore/index.html", "service worker"): "installable offline app, caches only its own files (sw.js)",
+    ("cornholescore/sw.js", "service worker"): "the offline cache itself, it requests nothing from other sites",
+}
+
+# Every page carries this Content-Security-Policy, so the browser itself blocks requests to other sites.
+# 'unsafe-inline' is needed because every game is a single HTML file with inline script and style.
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; "
+       "object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'")
+# Pages that may use more (the owner's decision): Google Fonts, and the Cornhole offline app.
+CSP_EXTRA = {
+    "falbonto/index.html": {"style-src": "https://fonts.googleapis.com", "font-src": "https://fonts.gstatic.com"},
+    "kincsvadasz/index.html": {"style-src": "https://fonts.googleapis.com", "font-src": "https://fonts.gstatic.com"},
+    "betubanya/index.html": {"style-src": "https://fonts.googleapis.com", "font-src": "https://fonts.gstatic.com"},
+    "cornholescore/index.html": {"worker-src": "'self'", "manifest-src": "'self'"},
+}
+
+
+def csp_for(rel):
+    parts = dict(d.split(" ", 1) for d in CSP.split("; "))
+    for k, v in CSP_EXTRA.get(rel, {}).items():
+        parts[k] = v if parts.get(k, "'none'") == "'none'" else parts[k] + " " + v
+    return "; ".join(f"{k} {v}" for k, v in parts.items())
+
+
+def csp_meta(rel):
+    return f'<meta http-equiv="Content-Security-Policy" content="{csp_for(rel)}">'
 
 
 def check_policy():
@@ -162,6 +202,8 @@ def check_policy():
         for pattern, what in POLICY:
             if rel in {"AGENTS.md", "CLAUDE.md"}:
                 break  # the rules document names the forbidden things on purpose
+            if (rel, what) in POLICY_ALLOW:
+                continue
             for m in re.finditer(pattern, text):
                 line = text.count("\n", 0, m.start()) + 1
                 errors.append(f"{rel}:{line}: {what}: {m.group(0)[:60]}")
@@ -171,7 +213,7 @@ def check_policy():
                     errors.append(f"{rel}: external host not allowed: {host}")
             if re.search(r"<script[^>]+src\s*=", text):
                 errors.append(f"{rel}: external <script src> is not allowed, inline the code")
-    for page in sorted(ROOT.glob("*/index.html")):
+    for page in game_pages():
         rel = page.relative_to(ROOT).as_posix()
         text = page.read_text(encoding="utf-8")
         r = read_page(page)
@@ -189,6 +231,26 @@ def check_policy():
             errors.append(f"{rel}: uses the hidden attribute but has no [hidden]{{display:none!important}} rule")
         if 'lang="hu"' not in text[:300]:
             errors.append(f"{rel}: <html lang=\"hu\"> missing")
+    for page in [ROOT / "index.html", ROOT / "404.html"] + game_pages():
+        rel = page.relative_to(ROOT).as_posix()
+        if not page.exists():
+            continue
+        if csp_meta(rel) not in page.read_text(encoding="utf-8"):
+            errors.append(f"{rel}: missing or changed Content-Security-Policy meta; it must be exactly:\n      "
+                          + csp_meta(rel) + "\n      (the rules are CSP and CSP_EXTRA in tools/build_site.py)")
+    # Code shared by several games must match its master copy in tools/shared/ (see tools/sync_shared.py).
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sync_shared
+    for rel, name, msg in sync_shared.differences():
+        errors.append(f"{rel}: shared block '{name}': {msg} (fix the master copy, then run tools/sync_shared.py)")
+    # The README table lists exactly the game folders.
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    listed = set(re.findall(r"^\|\s*\[[^\]]+\]\(([a-z0-9-]+)/\)\s*\|", readme, re.M))
+    folders = {g["slug"] for g in collect()}
+    for slug in sorted(folders - listed):
+        errors.append(f"README.md: the game table has no row for {slug}/")
+    for slug in sorted(listed - folders):
+        errors.append(f"README.md: the game table lists {slug}/, but there is no such game folder")
     if errors:
         print("Policy check failed:\n  " + "\n  ".join(errors))
         sys.exit(1)
@@ -199,7 +261,9 @@ def build_site(out):
         shutil.rmtree(out)
     shutil.copytree(
         ROOT, out,
-        ignore=shutil.ignore_patterns(".git", ".github", "tools", "_site", "*.py", "AGENTS.md", "CLAUDE.md"),
+        # Tests and the folders' own README files are for the repository, not for the published site.
+        ignore=shutil.ignore_patterns(".git", ".github", "tools", "_site", "*.py", "AGENTS.md", "CLAUDE.md",
+                                      "README.md", "tests", "*.test.*"),
     )
     # A game added without a back link still gets one on the published site.
     for page in out.glob("*/index.html"):

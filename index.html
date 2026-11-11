@@ -2,6 +2,7 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,9 +30,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font
 .wrap{max-width:1040px;margin:0 auto;padding-block:32px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:40px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .lang{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
-.lang button{font:700 13px/1 var(--body);letter-spacing:.08em;padding:8px 12px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.lang button{font:700 13px/1 var(--body);letter-spacing:.08em;min-height:44px;min-width:44px;padding:8px 12px;border:0;background:transparent;color:var(--muted);cursor:pointer}
 .lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
-.gh{display:inline-flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.gh{display:inline-flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;min-height:44px;box-sizing:border-box;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .gh svg{width:18px;height:18px;fill:currentColor}
 a:focus-visible,button:focus-visible{outline:2px solid var(--gem);outline-offset:2px}
 .mast{display:flex;flex-direction:column;gap:12px}
@@ -50,7 +51,7 @@ h2 small{white-space:nowrap;font-family:var(--body);font-size:14px;color:var(--m
 .card>a:focus-visible{outline:none}
 .card:has(>a:focus-visible){outline:2px solid var(--gem);outline-offset:2px}
 .card .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.star{position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:700 14px/1 var(--body);cursor:pointer}
+.star{position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:700 14px/1 var(--body);cursor:pointer}
 .star svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
 .star[aria-pressed="true"]{color:var(--gold);border-color:var(--gold)}
 .star[aria-pressed="true"] svg{fill:currentColor}
@@ -67,8 +68,13 @@ h2 small{white-space:nowrap;font-family:var(--body);font-size:14px;color:var(--m
 .card p{margin:0;color:var(--muted);font-size:15px;min-width:0}
 .card .go{font-weight:700;font-size:14px;color:var(--gem)}
 footer{border-top:1px solid var(--line);padding-top:20px;display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:14px}
-footer a{color:inherit}
+footer a{color:inherit;display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px}
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+.search{display:flex;flex-direction:column;gap:6px;margin-bottom:-16px}
+.search label{font-weight:700;font-size:15px}
+.search input{width:100%;min-height:48px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:16px/1.3 var(--body)}
+.search input:focus-visible{outline:2px solid var(--gem);outline-offset:2px}
+.nomatch{color:var(--muted);margin:0}
 </style>
 </head>
 <body>
@@ -89,6 +95,11 @@ footer a{color:inherit}
     <h1 data-i18n="title">Játéktár</h1>
     <p class="lede" data-i18n="lede">Böngészőben futó játékok és Minecraft építési tervek. Nincs telepítés, nincs regisztráció: koppints egyre, és már indul is, telefonon és gépen egyaránt.</p>
   </header>
+
+  <div class="search" role="search">
+    <label for="q" data-i18n="search">Keresés</label>
+    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Név vagy leírás, például: zombi, vár, logikai">
+  </div>
 
   <main id="shelves"></main>
 
@@ -320,13 +331,15 @@ const T={
       ai:"A tárolóban minden kódot, játékot és leírást teljes egészében mesterséges intelligencia (Claude, Anthropic) készített, az ellenőrzést egy másik MI végezte.",
       jatek:"Játékok",minecraft:"Minecraft építési tervek",other:"Egyéb",play:"Indítás →",open:"Megnyitás →",count:n=>n+" db",
       fav:"Kedvencek",favCount:n=>n+" / 10",favEmpty:"Még nincs kedvenc. Koppints a ☆ Kedvenc gombra egy játék alján, és ide kerül, abban a sorrendben, ahogy csillagozod. Legfeljebb 10 fér el.",
-      star:"Kedvenc",starOn:"Kedvenc",add:t=>t+" hozzáadása a kedvencekhez",remove:t=>t+" törlése a kedvencek közül",full:"Tele van a 10 hely. Előbb vegyél ki egy kedvencet."},
+      star:"Kedvenc",starOn:"Kedvenc",add:t=>t+" hozzáadása a kedvencekhez",remove:t=>t+" törlése a kedvencek közül",full:"Tele van a 10 hely. Előbb vegyél ki egy kedvencet.",
+      search:"Keresés",searchPh:"Név vagy leírás, például: zombi, vár, logikai",recent:"Folytatás",none:"Nincs ilyen játék. Próbálj egy másik szót!",found:n=>n+" találat"},
   en:{title:"Game Shelf",lede:"Games and Minecraft build plans that run in your browser. Nothing to install, no sign-up: tap one and it starts, on phone or desktop.",
       gh:"Source on GitHub",license:"Free to use under the MIT License.",licenseLink:"License",
       ai:"All code, games and text in this repository were created entirely by AI (Claude, Anthropic) and reviewed by another AI.",
       jatek:"Games",minecraft:"Minecraft build plans",other:"Other",play:"Play →",open:"Open →",count:n=>n===1?"1 item":n+" items",
       fav:"Favourites",favCount:n=>n+" / 10",favEmpty:"No favourites yet. Tap ☆ Favourite at the bottom of a game and it lands here, in the order you star them. Up to 10.",
-      star:"Favourite",starOn:"Favourite",add:t=>"Add "+t+" to favourites",remove:t=>"Remove "+t+" from favourites",full:"All 10 spots are taken. Remove a favourite first."}
+      star:"Favourite",starOn:"Favourite",add:t=>"Add "+t+" to favourites",remove:t=>"Remove "+t+" from favourites",full:"All 10 spots are taken. Remove a favourite first.",
+      search:"Search",searchPh:"Name or description, e.g. zombie, castle, puzzle",recent:"Continue",none:"No game like that. Try another word!",found:n=>n===1?"1 match":n+" matches"}
 };
 const games=JSON.parse(document.getElementById('games-data').textContent||'[]');
 const order=['jatek','minecraft'];
@@ -354,6 +367,30 @@ function loadFavs(){
 }
 function saveFavs(){try{localStorage.setItem(FAV_KEY,JSON.stringify(favs))}catch(e){}}
 let favs=loadFavs(), note='';
+
+// "Folytatás" shelf: the last 3 games opened from this page (only known folder names are kept).
+const MAX_RECENT=3, RECENT_KEY='games-recent';
+function loadRecent(){
+  try{
+    const v=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');
+    if(!Array.isArray(v))return [];
+    const out=[];
+    for(const x of v){if(typeof x==='string'&&slugs.has(x)&&!out.includes(x)&&out.length<MAX_RECENT)out.push(x)}
+    return out;
+  }catch(e){return []}
+}
+let recent=loadRecent();
+function remember(slug){
+  if(!slugs.has(slug))return;
+  recent=[slug,...recent.filter(s=>s!==slug)].slice(0,MAX_RECENT);
+  try{localStorage.setItem(RECENT_KEY,JSON.stringify(recent))}catch(e){}
+}
+
+// Search: accent- and case-insensitive, in both languages, over names and descriptions.
+const fold=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const hay=Object.fromEntries(games.map(g=>[g.slug,fold([g.title,g.title_en,g.desc,g.desc_en].join(' '))]));
+let query='';
+function matches(g){const q=fold(query).trim();return !q||q.split(/\s+/).every(w=>hay[g.slug].includes(w))}
 const STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.7 6.3.9-4.55 4.43 1.07 6.27L12 17.13 6.38 20.1l1.07-6.27L2.9 9.4l6.3-.9z"/></svg>';
 
 function card(g,t,lang,rank){
@@ -369,6 +406,7 @@ function render(lang,focusSlug,focusFav){
   document.documentElement.lang=lang;
   document.title=lang==='en'?'Nomadbeni Game Shelf':'Nomadbeni Játéktár';
   document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t[el.dataset.i18n]});
+  document.getElementById('q').placeholder=t.searchPh;
   document.querySelectorAll('.lang button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.lang===lang));
   const bySlug=Object.fromEntries(games.map(g=>[g.slug,g]));
   const favList=favs.map(s=>bySlug[s]);
@@ -376,9 +414,14 @@ function render(lang,focusSlug,focusFav){
     `<p class="note" role="status" aria-live="polite">${esc(note)}</p>`+
     (favList.length?`<div class="grid">${favList.map((g,i)=>card(g,t,lang,i+1)).join('')}</div>`:`<p class="empty">${esc(t.favEmpty)}</p>`)+
     `</section>`;
+  const recentList=recent.map(s=>bySlug[s]).filter(matches);
+  const recentHtml=recentList.length?`<section class="recent"><h2>▶ ${esc(t.recent)}</h2><div class="grid">${recentList.map(g=>card(g,t,lang,0)).join('')}</div></section>`:'';
   const cats=[...new Set(games.map(g=>g.category))].sort((a,b)=>(order.indexOf(a)+99)%99-(order.indexOf(b)+99)%99||a.localeCompare(b));
-  document.getElementById('shelves').innerHTML=favHtml+cats.map(cat=>{
-    const list=games.filter(g=>g.category===cat);
+  const total=games.filter(matches).length;
+  const status=query.trim()?`<p class="nomatch" role="status">${esc(total?t.found(total):t.none)}</p>`:'';
+  document.getElementById('shelves').innerHTML=status+(query.trim()?'':favHtml)+recentHtml+cats.map(cat=>{
+    const list=games.filter(g=>g.category===cat&&matches(g));
+    if(!list.length)return '';
     return `<section><h2>${esc(t[cat]||t.other)} <small>${t.count(list.length)}</small></h2><div class="grid">`+
       list.map(g=>card(g,t,lang,0)).join('')+`</div></section>`;
   }).join('');
@@ -386,11 +429,13 @@ function render(lang,focusSlug,focusFav){
   document.querySelectorAll('.card>a').forEach(a=>a.setAttribute('aria-label',a.parentElement.querySelector('h3').textContent));
   if(focusSlug){
     const sel=`.star[data-slug="${CSS.escape(focusSlug)}"]`;
-    const el=(focusFav?document.querySelector('.fav '+sel):null)||document.querySelector('section:not(.fav) '+sel);
+    const el=(focusFav?document.querySelector('.fav '+sel):null)||document.querySelector('section:not(.fav):not(.recent) '+sel);
     if(el)el.focus({preventScroll:true});
   }
 }
 document.getElementById('shelves').addEventListener('click',e=>{
+  const a=e.target.closest('.card>a');
+  if(a){const st=a.parentElement.querySelector('.star');if(st)remember(st.dataset.slug);return}
   const b=e.target.closest('.star');if(!b)return;
   e.preventDefault();
   const s=b.dataset.slug, i=favs.indexOf(s), inFav=!!b.closest('.fav');
@@ -406,6 +451,8 @@ if(!T[lang])lang='en';
 document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',()=>{
   lang=b.dataset.lang;try{localStorage.setItem('games-lang',lang)}catch(e){}render(lang);
 }));
+const q=document.getElementById('q');
+q.addEventListener('input',()=>{query=q.value.slice(0,60);render(lang)});
 render(lang);
 })();
 </script>

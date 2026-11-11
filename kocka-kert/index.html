@@ -2,6 +2,7 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -24,7 +25,7 @@ html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:18px;line-height:1.5;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 #app{max-width:720px;margin:0 auto;padding-block:10px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
 .bar{display:flex;align-items:center;gap:6px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-variant-numeric:tabular-nums}
 .sp{flex:1}
 .ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:20px;cursor:pointer}
 button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -62,14 +63,14 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .order .rw{font-size:14px;color:var(--muted)}
 .btn{font:700 18px/1.2 var(--font);padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
 .btn.hot{background:var(--accent);border-color:var(--accent);color:#2b2000}
-.btn.sm{padding:8px 12px;font-size:16px}
+.btn.sm{padding:8px 12px;font-size:16px;min-height:44px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .order .btn{background:var(--accent);border-color:var(--accent);color:#1a1400}
 .basket{display:flex;flex-wrap:wrap;gap:8px}
 .it{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:var(--panel2);font-weight:600}
 .it b{font-variant-numeric:tabular-nums}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;z-index:20;max-width:calc(100% - 32px);text-align:center}
-#ov{position:fixed;inset:0;background:rgba(8,12,4,.82);display:grid;place-items:center;padding:16px;z-index:9}
+#ov{position:fixed;inset:0;background:rgba(8,12,4,.82);display:grid;place-items:center;padding:calc(64px + env(safe-area-inset-top,0px)) 16px 16px;z-index:9}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 20px;width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;display:flex;flex-direction:column;gap:12px}
 .card h1,.card h2{margin:0;color:var(--accent);line-height:1.15}
 .card h1{font-size:32px}.card h2{font-size:24px}
@@ -91,7 +92,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .w .p0{color:var(--p0,#ffb347)}
 .w .p1{color:var(--p1,#5ad1ff)}
 .w .dot{opacity:.55;margin:0 .1em;font-style:normal}
-.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say{display:inline-grid;place-items:center;width:44px;height:44px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
 .say:disabled{opacity:.35;cursor:not-allowed}
 .say.talking{outline:2px solid var(--p1,#5ad1ff)}
 
@@ -110,7 +111,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 </head>
 <body>
 <div id="app">
-  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
   <div class="bar">
     <span class="chip">🪙 <span id="money">0</span></span>
     <span class="chip">🏭 <span>Farm <span id="lvl">1</span></span></span>
@@ -138,6 +139,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 <div class="toast" id="toast" hidden></div>
 <script>
 /* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+/* @shared olvaso-kit */
 const K=(()=>{
   /* storage: a saved value must have the same shape as the default, or the default is used.
      For objects, each default key with a wrong type is put back to its default. */
@@ -251,6 +253,7 @@ const K=(()=>{
   api.pick=a=>a[Math.random()*a.length|0];
   return api;
 })();
+/* @end olvaso-kit */
 </script>
 <script>
 (()=>{
@@ -434,7 +437,7 @@ $('#landBtn').onclick=()=>{
     for(let r=0;r<m;r++)for(let c=0;c<m;c++)nt.push(r<n&&c<n?old[r*n+c]:{s:'grass'});
     S.tiles=nt;ensureTiles();S.money-=price;S.size++;save();closeOv();all();K.good()};
 };
-function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus({preventScroll:true})}
 function closeOv(){$('#ov').hidden=true}
 $('#setBtn').onclick=function settings(){
   overlay(`<h2>⚙️ Beállítások</h2><p>Hosszú szavak bontása:</p>

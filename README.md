@@ -13,7 +13,7 @@ Böngészőben futó, egyfájlos HTML játékok és Minecraft építési tervek.
 | [Kőkori Kaland](kokori-kaland/) | Oldalnézetes pixeles ugrálós játék a kőkorban, a régi ősemberes platformjátékok mintájára: bunkó, dínók, tüskés sünök, békák, repülő gyíkok, szétüthető kőfalak, mozgó farönkök. Öt pálya (erdő, mocsár, jégbarlang, tűzhegy), a végén a Nagy Mamut. |
 | [Gyémántbánya](gyemantbanya/) | Kockás logikai játék: soronként, oszloponként és blokkfajtánként egy gyémánt, ami nem érhet a többihez. Véletlen, egyértelmű megoldású pályák, 3 nehézség (6×6, 8×8, 10×10). |
 | [Kincsvadász](kincsvadasz/) | Ugyanez a logikai játék 8-bites RPG-kaland stílusban: kincsesládák tájakon, párbeszédablak, XP és szintlépés. 3 nehézség (Kezdő, Hős, Legenda). |
-| [Téglatörő Swipe](teglatoro/) | Swipe-típusú téglatörő álló telefonra: célozz, lőj ki egy sorozat labdát, gyűjts +1 labdákat. Sor-, oszlop- és bombatéglák, másképp pattanó téglák (véletlen irányba lökő, átengedő, visszaküldő, kettéosztó és ragacsos), Shotgun-legyezőlövés, irányváltó pontok (balra, jobbra, fel, le, ferdén vagy kettéosztva; a lilák körönként irányt váltanak), 3–4 körönként fajtát váltó rombolók, és 50–60, 100–110, … között egy kerülendő Felező (÷2). |
+| [Téglatörő Swipe](teglatoro/) | Swipe-típusú téglatörő álló telefonra: célozz, lőj ki egy sorozat labdát, gyűjts +1 labdákat. Sor-, oszlop- és bombatéglák, másképp pattanó téglák (véletlen irányba lökő, átengedő, visszaküldő, kettéosztó és ragacsos), Shotgun-legyezőlövés, irányváltó pontok (balra, jobbra, fel, le, ferdén vagy kettéosztva; a lilák körönként irányt váltanak), 3–4 körönként fajtát váltó rombolók, és 50–60, 100–110, … között egy kerülendő Felező (÷2). Hangok némító gombbal, gépen nyilakkal és szóközzel is játszható. |
 | [E-Útvesztő](e-utveszto/) | Retró labirintus a régi mobiltelefonok E-Maze játékának mintájára, zöld LCD-kijelzőn: a görgő útvesztőből kell kitalálni, mielőtt lejár az idő. E-érmék plusz időért, a 3. szinttől kóborló árnyékok, pályánként egy térkép-pillantás, telefonos 2-4-6-8 gombok vagy húzás. Minden szint nagyobb. |
 | [Falbontó](falbonto/) | Klasszikus ütős téglatörő álló telefonra: ütő, visszapattanó labda, lehulló kapszulák (lézer, nagy ütő, ragacs, több labda, lassítás, átütő labda, élet). Ezüst és arany téglák, bombák, 10 tervezett pálya, utána végtelen. |
 | [Bike Shop](bringa-muhely/) | Saját bringás műhely: a riderek leírják a hibát, te megtalálod, leveszed a jó alkatrészt a polcról, és beszereled. Szerszám, nagyobb műhely, saját versenybringa. |
@@ -39,7 +39,9 @@ A Bike Shop, Downhill, Farm Empire, Arena, Dungeon, Invázió, Bunyó, Horda és
 
 A játékok nem gyűjtenek adatot: nincs regisztráció, analitika, süti, hirdetés vagy követés, és a játék semmit nem küld el sehova. Az állás és a rekord csak a böngésződben marad (`localStorage`), a böngésző adatainak törlésével eltűnik. A betűtípusok a saját oldalról töltődnek (`assets/fonts/`). Kivétel a Falbontó, a Kincsvadász és a Betűbánya néhány betűtípusa (Audiowide, Press Start 2P, VT323), ezeket a Google Fonts szolgáltatja, így ennél a három játéknál a betöltéskor a Google látja a látogató IP-címét.
 
-A startlap tetején a **Kedvencek** polc: minden kártya alján a ☆ Kedvenc gombbal legfeljebb 10 játék tehető ide, abban a sorrendben, ahogy csillagozod. A lista is csak a böngészőben marad (`localStorage`).
+A startlap tetején kereső van (név és leírás szerint, ékezet nélkül is, magyarul és angolul), alatta a **Kedvencek** polc: minden kártya alján a ☆ Kedvenc gombbal legfeljebb 10 játék tehető ide, abban a sorrendben, ahogy csillagozod. Utána a **Folytatás** polc a legutóbb megnyitott 3 játékkal. Ezek a listák is csak a böngészőben maradnak (`localStorage`).
+
+Minden oldal Content-Security-Policy szabályt hordoz, így a böngésző maga tiltja le, ha egy oldal mégis más helyre próbálna kérést küldeni.
 
 Futtatás helyben: nyisd meg a gyökérben lévő `index.html`-t, vagy egy játék mappájában lévő `index.html`-t a böngészőben.
 
@@ -63,10 +65,10 @@ Helyben a listát a `python3 tools/build_site.py` frissíti a startlapon. Commit
 Minden push és pull request előtt lefut, és a közzététel csak akkor indul, ha minden zöld:
 
 - **Minden játék** (`tools/play_test.py`): betölt, elindul és játszható gépen (billentyű, egér) és telefonon (érintés) szkripthiba nélkül; nem kér le semmit más oldalról; telefonon nincs oldalra görgetés; sérült, kézzel átírt vagy rossz alakú mentéssel sem omlik össze.
-- **Valódi játékmenetek** (ugyanott): az olvasós játékokban egy-egy rövid, értelmes részt végigjátszik, és az eredményt is ellenőrzi (fizetés, szállítás, küldetés, pálya teljesítése, mentés).
-- **Pályagenerátorok** (ugyanott): a Gyémántbánya és a Kincsvadász generátora több száz véletlen pályát készít, mindegyiknek érvényesnek és pontosan egy megoldásúnak kell lennie (független megoldóval ellenőrizve).
+- **Valódi játékmenetek** (ugyanott): minden játékban egy-egy rövid, értelmes részt végigjátszik, és az eredményt is ellenőrzi (fizetés, szállítás, küldetés, pálya teljesítése, életvesztés, játék vége, mentés újratöltés után, tanári PIN, némítás, fekvő telefon, csökkentett mozgás).
+- **Pályagenerátorok** (ugyanott): a Gyémántbánya és a Kincsvadász generátora több száz véletlen pályát készít, mindegyiknek érvényesnek és pontosan egy megoldásúnak kell lennie (független megoldóval ellenőrizve). A Dobozmester mind a 44 pályájáról egy megoldó igazolja, hogy megoldható.
 
-Mellette fut a telefonos füstteszt (`tools/smoke_test.py`), a szabályellenőrzés (`tools/build_site.py --check`) és a Cornhole pontozó szabálytesztjei (`cd cornholescore && node --test`).
+Mellette fut a telefonos füstteszt (`tools/smoke_test.py`, 400×860 és 360×640 méretben: nem takar el semmit a felső sáv, minden gomb elérhető és legalább 44×44 px), a szabályellenőrzés (`tools/build_site.py --check`) és a Cornhole pontozó szabálytesztjei (`cd cornholescore && node --test`).
 
 Helyben: `pip install playwright && python3 -m playwright install chromium`, majd `python3 tools/play_test.py` (gyorsabban: `--quick`, egy játék: `python3 tools/play_test.py horda`).
 
@@ -84,7 +86,7 @@ The games themselves are in Hungarian. See the table above for the list. Bike Sh
 
 **Privacy:** the games collect no data: no sign-up, analytics, cookies, ads or tracking, and nothing is sent anywhere. Progress and records stay in your browser (`localStorage`). Typefaces load from this site (`assets/fonts/`), except three in Falbontó, Kincsvadász and Betűbánya (Audiowide, Press Start 2P, VT323), which come from Google Fonts; for those three games Google sees the visitor's IP address when they load.
 
-**Favourites:** the start page has a Favourites shelf at the top. Tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them and stored only in your browser (`localStorage`).
+**Search, Favourites, Continue:** the start page has a search box (names and descriptions, accents optional, Hungarian and English), then a Favourites shelf: tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them. A Continue shelf shows the last 3 games you opened. Both lists stay only in your browser (`localStorage`). Every page carries a Content-Security-Policy, so the browser itself blocks any request to another site.
 
 **Adding a game:** create a folder with an `index.html`, add the `<head>` tags shown above, and push to `main`. The GitHub Actions workflow rebuilds the start page and deploys the site. Pages without a back button get one added on deploy.
 
