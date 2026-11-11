@@ -85,7 +85,8 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 'use strict';
 /* ---------------------------------------------------------------- constants */
 const TS=16, ROWS=13, VH=208;
-let VW=256; /* view width follows the screen shape: narrower on a phone held upright, so the picture is bigger */
+let VW=256, DH=208; /* DH: displayed height; on a tall phone screen more sky shows above the level (the level itself is VH high) */
+let VW_=0; /* view width follows the screen shape: narrower on a phone held upright, so the picture is bigger */
 const SOLID={'#':1,'B':1,'I':1};
 const SAVE_KEY='kokori-kaland:save';
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
@@ -648,6 +649,15 @@ function stepFx(){
 /* ---------------------------------------------------------------- draw */
 function draw(){
   const th=S.th;if(!th)return;
+  const top=DH-VH;
+  if(top>0){
+    ctx.fillStyle=th.sky[0];ctx.fillRect(0,0,VW,top+1);
+    if(S.lv.theme==='forest'||S.lv.theme==='swamp'){ctx.fillStyle='rgba(255,255,255,.6)';for(let i=0;i<4;i++){const x=((i*131-S.cam*.08)%(VW+80)+VW+80)%(VW+80)-40;const y=6+(i*23)%Math.max(8,top-10);ctx.fillRect(x,y,36,6);ctx.fillRect(x+8,y-4,18,4)}}
+    else{ctx.fillStyle='rgba(255,255,255,.35)';for(let i=0;i<24;i++)ctx.fillRect((i*53+Math.floor(S.cam*.05))%VW,(i*29)%top,1,1)}
+  }
+  ctx.save();ctx.translate(0,top);drawLevel(th);ctx.restore();
+}
+function drawLevel(th){
   const g=ctx.createLinearGradient(0,0,0,VH);g.addColorStop(0,th.sky[0]);g.addColorStop(1,th.sky[1]);
   ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
   const sh=S.shake>0?(Math.random()-.5)*S.shake*.5:0;
@@ -785,9 +795,10 @@ function fit(){
   const st=$('stage'),w=st.clientWidth,h=st.clientHeight;
   if(!w||!h)return;
   const nw=Math.round(Math.max(176,Math.min(320,VH*w/h)));
-  if(nw!==VW){VW=nw;cv.width=VW;ctx.imageSmoothingEnabled=false;if(S.lv)S.cam=clampCam(S.cam)}
-  const s=Math.max(.5,Math.min(w/VW,h/VH));
-  cv.style.width=Math.floor(VW*s)+'px';cv.style.height=Math.floor(VH*s)+'px';
+  const nh=Math.round(Math.max(VH,Math.min(VH*1.6,nw*h/w)));
+  if(nw!==VW||nh!==DH){VW=nw;DH=nh;cv.width=VW;cv.height=DH;ctx.imageSmoothingEnabled=false;if(S.lv)S.cam=clampCam(S.cam)}
+  const s=Math.max(.5,Math.min(w/VW,h/DH));
+  cv.style.width=Math.floor(VW*s)+'px';cv.style.height=Math.floor(DH*s)+'px';
 }
 addEventListener('resize',fit);
 if(window.ResizeObserver)new ResizeObserver(fit).observe($('stage'));

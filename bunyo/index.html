@@ -338,11 +338,13 @@ function portrait(c){
 const realCtx=ctx;
 /* ---------- world ---------- */
 const WW=800,GROUND=0;
-let W=800,H=420,SC=1,dpr=1,VW=800,camX=0;
+let W=800,H=420,SC=1,dpr=1,VW=800,VH=400,TOPX=0,camX=0;
 function fit(){
   const r=$('#stage').getBoundingClientRect();
   VW=r.width/Math.max(1,r.height)<1.25?460:800;
-  SC=Math.min(r.width/VW,r.height/400);W=Math.floor(VW*SC);H=Math.floor(400*SC);
+  // Álló telefonon a látott világ magasabb: több égbolt felül, több utca alul. A küzdőtér és a kamera nem változik.
+  VH=Math.max(400,Math.min(760,Math.round(VW*r.height/Math.max(1,r.width))));TOPX=Math.round((VH-400)*.55);
+  SC=Math.min(r.width/VW,r.height/VH);W=Math.floor(VW*SC);H=Math.floor(VH*SC);
   dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
   realCtx.setTransform(dpr,0,0,dpr,0,0);realCtx.imageSmoothingEnabled=false;
 }
@@ -491,13 +493,19 @@ function draw(){
   c.fillStyle='#07070b';c.fillRect(0,0,W,H);
   if(!M){c.restore();return}
   const sh=M.shake>0?(Math.random()-.5)*10*SC:0;
-  c.translate(sh,0);c.scale(SC,SC);
+  c.translate(sh,0);c.scale(SC,SC);c.translate(0,TOPX);
   {const mid=(M.f[0].x+M.f[1].x)/2,want=Math.max(0,Math.min(WW-VW,mid-VW/2));camX+=(want-camX)*.15;c.translate(-camX,0)}
   // stage: dusk city rooftop
+  if(TOPX>0){const gt=c.createLinearGradient(0,-TOPX,0,0);gt.addColorStop(0,'#08050f');gt.addColorStop(1,'#1a0f2e');c.fillStyle=gt;c.fillRect(0,-TOPX,WW,TOPX+1);
+    for(let i=0;i<70;i++){const sx=(i*137)%WW,sy=-TOPX+((i*89)%Math.max(1,TOPX+120));c.fillStyle=i%7?'rgba(255,255,255,.55)':'#ffd166';c.fillRect(sx,sy,i%5?2:3,i%5?2:3)}}
   const g=c.createLinearGradient(0,0,0,400);g.addColorStop(0,'#1a0f2e');g.addColorStop(.6,'#3a1640');g.addColorStop(1,'#5a2040');c.fillStyle=g;c.fillRect(0,0,WW,400);
   c.fillStyle='#ffcf6a';c.beginPath();c.arc(620,120,40,0,7);c.fill();
   for(let i=0;i<14;i++){const bx=i*62-10,bh=80+((i*37)%90);c.fillStyle='#120a1e';c.fillRect(bx,300-bh,56,bh);c.fillStyle='#ffd166';for(let wy=300-bh+12;wy<290;wy+=18)for(let wx=bx+8;wx<bx+50;wx+=14)if(((wx*7+wy*3+i)%5)===0)c.fillRect(wx,wy,5,7)}
   c.fillStyle='#2a2030';c.fillRect(0,330,WW,70);c.fillStyle='#3a2c40';c.fillRect(0,330,WW,6);
+  const BOT=VH-400-TOPX;
+  if(BOT>0){c.fillStyle='#2a2030';c.fillRect(0,400,WW,BOT+1);c.fillStyle='#1d1522';c.fillRect(0,400+BOT*.35,WW,6);
+    c.fillStyle='#3a2c40';for(let x=0;x<WW;x+=90)c.fillRect(x,400+BOT*.6,46,5);
+    c.fillStyle='#17101c';for(let x=0;x<WW;x+=180){c.fillRect(x+20,400+BOT*.2,26,14);c.fillRect(x+24,400+BOT*.2+14,18,4)}}
   for(let x=0;x<WW;x+=40){c.fillStyle='#241a2a';c.fillRect(x,340,20,60)}
   const gy=338;
   // shots

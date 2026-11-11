@@ -36,7 +36,8 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 #msg.warn{color:var(--bad)}
 #msg.good{color:var(--ok)}
 #stage{flex:1;min-height:0;display:grid;place-items:center;position:relative;touch-action:none}
-#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:pointer}
+#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:pointer;position:relative;z-index:1;box-shadow:0 0 0 3px #120e1a,0 8px 24px rgba(0,0,0,.55)}
+#bgcv{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none}
 .pad{display:flex;justify-content:space-between;align-items:center;gap:10px;touch-action:none;padding-bottom:4px}
 .dpad{--b:min(76px,21vw);display:grid;grid-template-columns:repeat(3,var(--b));grid-template-rows:repeat(3,var(--b));gap:5px;flex:none}
 .dpad button,.pad .big{border-radius:14px;border:2px solid var(--line);background:var(--panel);color:var(--fg);font:700 26px/1 var(--disp);cursor:pointer;touch-action:none}
@@ -83,7 +84,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
     <button class="ib" id="menuBtn" aria-label="Pályák">☰</button>
   </div>
   <div id="msg">Told a ládákat a jelölt helyekre!</div>
-  <div id="stage"><canvas id="cv" aria-label="Raktár"></canvas></div>
+  <div id="stage"><canvas id="bgcv" aria-hidden="true"></canvas><canvas id="cv" aria-label="Raktár"></canvas></div>
   <div class="pad" id="pad">
     <div class="dpad">
       <button class="u" data-d="0" aria-label="Fel">▲</button>
@@ -323,7 +324,28 @@ function fit(){
   cv.width=Math.round(G.w*G.tile);cv.height=Math.round(G.h*G.tile);
   cv.style.width=(G.w*t)+'px';cv.style.height=(G.h*t)+'px';
   ctx.imageSmoothingEnabled=false;
+  drawBg(W,H,t,dpr);
   draw();
+}
+/* Raktárfal polcokkal a pálya körül: a szabad helyet tölti ki, csak átméretezéskor rajzolódik újra. */
+function drawBg(W,H,t,dpr){
+  const b=$("bgcv"),u=Math.max(2,Math.round(t/12)); /* egy „pixel” mérete, a pálya rajzához igazítva */
+  b.width=Math.round(W*dpr);b.height=Math.round(H*dpr);
+  const g=b.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.imageSmoothingEnabled=false;
+  g.fillStyle='#211a2e';g.fillRect(0,0,W,H);
+  const bw=u*8,bh=u*4;
+  for(let y=0,row=0;y<H;y+=bh,row++)for(let x=-(row%2)*bw/2;x<W;x+=bw){
+    g.fillStyle=((x/bw+row)|0)%5===0?'#2b2240':'#271f39';g.fillRect(x+u/2,y+u/2,bw-u,bh-u);
+    g.fillStyle='#30274a';g.fillRect(x+u/2,y+u/2,bw-u,u/2)}
+  const lw=G.w*t,lh=G.h*t,lx=(W-lw)/2,ly=(H-lh)/2;
+  const shelf=(y)=>{g.fillStyle='#5a3a20';g.fillRect(0,y,W,u*2);g.fillStyle='#7a5230';g.fillRect(0,y,W,u);
+    for(let x=u*6;x<W;x+=u*44){g.fillStyle='#3b2715';g.fillRect(x,y+u*2,u*2,u*5)}
+    for(let x=u*3,i=0;x<W-u*14;x+=u*(15+(i*7)%9),i++){const w=u*(9+(i*5)%5),h=u*(7+(i*3)%4);
+      g.fillStyle=i%4===3?'#6b6f7a':'#a8743a';g.fillRect(x,y-h,w,h);g.fillStyle=i%4===3?'#8a8f9c':'#c58e4c';g.fillRect(x,y-h,w,u);
+      if(i%4!==3){g.fillStyle='#d9a35c';g.fillRect(x+w/2-u/2,y-h,u,h)}else{g.fillStyle='#4d505a';g.fillRect(x,y-h/2,w,u)}}};
+  for(let y=u*14;y<ly-u*2;y+=u*20)shelf(Math.round(y));
+  for(let y=ly+lh+u*16;y<H-u*2;y+=u*20)shelf(Math.round(y));
+  g.fillStyle='rgba(0,0,0,.35)';g.fillRect(lx-u*2,ly-u*2,lw+u*4,lh+u*4);
 }
 function draw(){
   if(!G.w)return;

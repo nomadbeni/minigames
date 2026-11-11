@@ -340,8 +340,20 @@ function draw(){
   ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.setLineDash([18,22]);ctx.lineDashOffset=-(G.d*PPM)%40;
   for(let l=1;l<3;l++){const x=left+rw*l/3;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
   ctx.setLineDash([]);
-  for(let i=-1;i<H/60+2;i++){const d=Math.floor(G.d/7)*7+i*7;const y=sy(d);const side=(Math.floor(d/7)%3);
-    const tx=side?left-22-(d*13%9):left+rw+22+(d*7%9);ctx.fillStyle='#163614';ctx.beginPath();ctx.arc(tx,y,16,0,7);ctx.fill();ctx.fillStyle='#2e6e28';ctx.beginPath();ctx.arc(tx-3,y-3,12,0,7);ctx.fill()}
+  // az úton: sárfoltok és keréknyomok (helyhez kötve, a pályával együtt gördülnek)
+  for(let i=-1;i<H/50+2;i++){const d=Math.floor(G.d/5)*5+i*5,k=Math.floor(d/5),h=(k*2654435761>>>0)%100,y=sy(d);
+    if(h<22){ctx.fillStyle='rgba(70,45,20,.45)';ctx.beginPath();ctx.ellipse(left+rw*(.15+(h%7)/9),y,14+h%9,6+h%4,(h%5)/5,0,7);ctx.fill()}
+    else if(h<40){ctx.fillStyle='rgba(0,0,0,.12)';const x=left+rw*(.2+(h%6)/8);ctx.fillRect(x,y-36,2,36);ctx.fillRect(x+7,y-36,2,36)}}
+  // út széle: fák, sziklák, szalagkorlát, nézők
+  for(let i=-1;i<H/60+2;i++){const d=Math.floor(G.d/7)*7+i*7;const y=sy(d);const k=Math.floor(d/7),side=(k%3),h=(k*40503>>>0)%100;
+    const tx=side?left-22-(d*13%9):left+rw+22+(d*7%9);
+    if(h<45){ctx.fillStyle='#163614';ctx.beginPath();ctx.arc(tx,y,16,0,7);ctx.fill();ctx.fillStyle='#2e6e28';ctx.beginPath();ctx.arc(tx-3,y-3,12,0,7);ctx.fill()}
+    else if(h<62){ctx.fillStyle='#55534f';ctx.beginPath();ctx.ellipse(tx,y,14,10,.3,0,7);ctx.fill();ctx.fillStyle='#77746e';ctx.beginPath();ctx.ellipse(tx-4,y-3,7,4,.3,0,7);ctx.fill()}
+    else if(h<80){const cols=['#e94f37','#3f88c5','#ffd166','#f2f2f2'];for(let j=0;j<3;j++){const px=tx-12+j*12;ctx.fillStyle=cols[(h+j)%4];ctx.fillRect(px-4,y-4,8,9);ctx.fillStyle='#f0c39a';ctx.beginPath();ctx.arc(px,y-8,4,0,7);ctx.fill()}}
+    else{const ex=side?left-8:left+rw+8;ctx.fillStyle='#ddd';ctx.fillRect(ex-1.5,y-30,3,32);ctx.fillRect(ex-1.5,y+12,3,30)}}
+  // szalagkorlát a kanyarok előtt: piros-fehér csík az út két szélén
+  {const seg=40,off=((G.d*PPM)%seg+seg)%seg;for(let y=-seg+off;y<H;y+=seg){const k=Math.floor((G.d*PPM+H-y)/240);if(k%4!==1)continue;
+    ctx.fillStyle='#e94f37';ctx.fillRect(left-9,y,3,seg/2);ctx.fillRect(left+rw+6,y,3,seg/2);ctx.fillStyle='#fff';ctx.fillRect(left-9,y+seg/2,3,seg/2);ctx.fillRect(left+rw+6,y+seg/2,3,seg/2)}}
   // finish line
   const fy=sy(G.T.len);if(fy>-20&&fy<H+20){for(let i=0;i<12;i++){ctx.fillStyle=i%2?'#fff':'#111';ctx.fillRect(left+i*rw/12,fy-8,rw/12,8);ctx.fillStyle=i%2?'#111':'#fff';ctx.fillRect(left+i*rw/12,fy,rw/12,8)}}
   // objects
@@ -364,6 +376,8 @@ function draw(){
   const air=G.jump>0?Math.sin((1-G.jump/1.4)*Math.PI):0;
   const shake=G.crash>0?(Math.random()-.5)*6:0;
   bike(laneX(G.x)+shake,py,own.szin,1,air);
+  if(G.boost>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){ctx.fillStyle='rgba(255,255,255,.35)';
+    for(let i=0;i<10;i++){const x=(i*97+Math.random()*40)%W,y=Math.random()*H;ctx.fillRect(x,y,2,30+Math.random()*40)}}
   if(G.boost>0){ctx.fillStyle='rgba(255,209,102,.6)';for(let i=0;i<4;i++)ctx.fillRect(laneX(G.x)-6+Math.random()*12,py+28+i*8,3,10)}
   if(G.mud>0){ctx.fillStyle='rgba(120,80,40,.7)';for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(laneX(G.x)-14+Math.random()*28,py+26+Math.random()*16,3,0,7);ctx.fill()}}
   G.fx.forEach((f,i)=>{ctx.globalAlpha=Math.min(1,f.life);ctx.fillStyle=f.c;ctx.font='800 24px Lexend, Verdana, sans-serif';ctx.textAlign='center';ctx.fillText(f.t,W/2,py-150-i*30-(1.2-f.life)*30);ctx.textAlign='left';ctx.globalAlpha=1});

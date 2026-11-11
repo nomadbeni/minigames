@@ -37,6 +37,15 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .tile.grass{background-color:#5aa33a;background-image:linear-gradient(45deg,#4d9431 25%,transparent 25% 75%,#4d9431 75%),linear-gradient(45deg,#4d9431 25%,transparent 25% 75%,#4d9431 75%);background-position:0 0,12.5% 12.5%;box-shadow:inset 0 -6px 0 #3f7d29}
 .tile.soil{background-color:#7a5233;background-image:linear-gradient(0deg,#6a4529 2px,transparent 2px);background-size:100% 25%;box-shadow:inset 0 -6px 0 #5a3a22}
 .tile.wet{background-color:#5a3a22;background-image:linear-gradient(0deg,#4a2f1b 2px,transparent 2px);background-size:100% 25%}
+/* a föld állapotai jól megkülönböztethetők: fű, felásott, bevetett de száraz (repedezett, világos), megöntözött (sötét, fényes) */
+.tile.soil{background-image:linear-gradient(0deg,#5e3d24 3px,transparent 3px),linear-gradient(0deg,#8c6040 1px,transparent 1px);background-size:100% 25%,100% 25%;background-position:0 0,0 6px}
+.tile.dry{background-color:#a27448;background-image:linear-gradient(0deg,#8a5f38 2px,transparent 2px),linear-gradient(60deg,transparent 46%,#7b5230 46% 50%,transparent 50%),linear-gradient(-30deg,transparent 47%,#7b5230 47% 50%,transparent 50%);background-size:100% 25%,50% 50%,40% 60%;box-shadow:inset 0 -6px 0 #7b5230}
+.tile.wet{background-image:linear-gradient(0deg,#4a2f1b 2px,transparent 2px),linear-gradient(-20deg,transparent 30%,rgba(190,215,255,.16) 30% 36%,transparent 36%),linear-gradient(-20deg,transparent 62%,rgba(190,215,255,.12) 62% 66%,transparent 66%);background-size:100% 25%,100% 100%,100% 100%;box-shadow:inset 0 -6px 0 #3c2616}
+/* apró változatosság csempénként: virágok és kavicsok a füvön, eltérő árnyalat */
+.tile.grass.v1{background-color:#60a83f}
+.tile.grass.v2::after,.tile.grass.v3::after{content:"";position:absolute;width:8%;height:8%;left:22%;top:28%;background:#ffe066;box-shadow:calc(var(--tw,40px)*.45) calc(var(--tw,40px)*.3) 0 #fff,calc(var(--tw,40px)*.2) calc(var(--tw,40px)*.45) 0 #ff8fb1;pointer-events:none}
+.tile.grass.v3::after{left:58%;top:18%;background:#c9c9c9}
+.tile.soil.v1,.tile.dry.v1{filter:brightness(1.06)}.tile.soil.v2,.tile.dry.v2{filter:brightness(.95)}
 .tile .drop{position:absolute;top:2px;right:4px;font-size:.45em}
 .tile>img.px{width:70%!important;height:auto!important}
 .it img.px,.pickgrid img.px{width:28px!important;height:auto!important}
@@ -329,9 +338,10 @@ function renderField(){
   for(let i=0;i<n*n;i++){
     const t=S.tiles[i];let cls='tile ',inner='';
     if(t.s==='grass')cls+='grass';
-    else{cls+=t.s==='crop'&&!t.dry?'wet':'soil';
+    else{cls+=t.s!=='crop'?'soil':t.dry?'dry':'wet';
       if(t.s==='crop'){inner=cropLook(t);if(t.dry)inner+=`<span class="drop">💧</span>`;
         if(t.g<1)inner+=`<span class="bar2"><i style="width:${(t.g*100).toFixed(0)}%"></i></span>`;else cls+=' ripe'}}
+    cls+=' v'+((i*7+(i>>2)*3)%4);
     h+=`<button class="${cls}" data-i="${i}" aria-label="Föld ${i+1}">${inner}</button>`;
   }
   f.innerHTML=h;

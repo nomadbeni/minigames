@@ -31,8 +31,9 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-s
 .sp{flex:1;min-width:0}
 .ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:17px;cursor:pointer;flex:none}
 button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#stage{flex:1;min-height:0;display:grid;place-items:center}
-#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;border:3px solid #2c2c34;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.6);touch-action:none}
+#stage{flex:1;min-height:0;display:grid;place-items:center;position:relative}
+#bgcv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#cv{position:relative;z-index:1;display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;border:3px solid #2c2c34;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.6);touch-action:none}
 .pad{display:flex;justify-content:space-between;align-items:center;gap:10px;touch-action:none;padding-bottom:4px}
 .dpad{--b:min(80px,20vw);position:relative;width:calc(var(--b)*2.9);height:calc(var(--b)*2.9);flex:none;touch-action:none}
 .dpad button{position:absolute;width:var(--b);height:var(--b);border-radius:16px;border:2px solid var(--line);background:var(--panel);color:var(--fg);font:700 26px/1 var(--disp);touch-action:none;cursor:pointer}
@@ -78,7 +79,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
     <span class="sp"></span>
     <button class="ib" id="pauseBtn" aria-label="Szünet">❚❚</button>
   </div>
-  <div id="stage"><canvas id="cv" width="208" height="208" aria-label="Csatatér"></canvas></div>
+  <div id="stage"><canvas id="bgcv" aria-hidden="true"></canvas><canvas id="cv" width="208" height="208" aria-label="Csatatér"></canvas></div>
   <div class="pad" id="pad">
     <div class="dpad" id="dpad">
       <button class="u" data-d="0" aria-label="Fel">▲</button>
@@ -625,6 +626,28 @@ $('pauseBtn').addEventListener('click',()=>{audio();if(S.mode==='play')pause();e
 function fit(){
   const st=$('stage'),w=st.clientWidth-6,h=st.clientHeight-6;if(w<=0||h<=0)return;
   const s=Math.max(1,Math.min(w,h)/W);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(W*s)+'px';
+  drawCabinet(st.clientWidth,st.clientHeight,Math.floor(W*s));
+}
+/* Játékgép-szekrény a csatatér körül: felirat felül, hangszóró és érmebedobó alul. Csak átméretezéskor rajzolódik. */
+function drawCabinet(SW,SH,side){
+  const b=$('bgcv'),dpr=Math.min(2,devicePixelRatio||1);b.width=Math.round(SW*dpr);b.height=Math.round(SH*dpr);
+  const g=b.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const top=(SH-side)/2,bot=top+side,cx=SW/2;
+  const body=g.createLinearGradient(0,0,SW,0);body.addColorStop(0,'#14141a');body.addColorStop(.5,'#22222b');body.addColorStop(1,'#14141a');
+  g.fillStyle=body;g.beginPath();g.roundRect?g.roundRect(0,0,SW,SH,14):g.rect(0,0,SW,SH);g.fill();
+  g.fillStyle='#b8322a';g.fillRect(4,0,6,SH);g.fillRect(SW-10,0,6,SH);g.fillStyle='#e0a030';g.fillRect(12,0,3,SH);g.fillRect(SW-15,0,3,SH);
+  if(top>40){const mh=Math.min(70,top-14),my=(top-mh)/2;
+    const mg=g.createLinearGradient(0,my,0,my+mh);mg.addColorStop(0,'#3a1010');mg.addColorStop(1,'#1c0808');g.fillStyle=mg;g.fillRect(22,my,SW-44,mh);
+    g.strokeStyle='#e0a030';g.lineWidth=2;g.strokeRect(23,my+1,SW-46,mh-2);
+    g.fillStyle='#ffd34d';g.textAlign='center';g.textBaseline='middle';g.font=`700 ${Math.round(Math.min(30,mh*.42))}px "Bungee","Chakra Petch",system-ui,sans-serif`;
+    g.shadowColor='#ff6a00';g.shadowBlur=10;g.fillText('PÁNCÉLOS ŐRSÉG',cx,my+mh/2+1);g.shadowBlur=0;
+    for(let i=0;i<6;i++){g.fillStyle=i%2?'#e0a030':'#b8322a';g.fillRect(30+i*12,my+mh-8,8,3);g.fillRect(SW-38-i*12,my+mh-8,8,3)}}
+  if(SH-bot>40){const y0=bot+12,h=SH-bot-24;
+    g.fillStyle='#101015';g.fillRect(22,y0,SW-44,h);
+    g.fillStyle='#2c2c36';for(let y=y0+8;y<y0+h-6;y+=8)for(let x=34;x<cx-30;x+=8){g.beginPath();g.arc(x,y,2,0,7);g.fill()}
+    for(let y=y0+8;y<y0+h-6;y+=8)for(let x=cx+34;x<SW-30;x+=8){g.beginPath();g.arc(x,y,2,0,7);g.fill()}
+    const cw=34,ch=Math.min(46,h-16),cy=y0+(h-ch)/2;g.fillStyle='#3a3a44';g.fillRect(cx-cw/2,cy,cw,ch);
+    g.fillStyle='#ff4d3a';g.fillRect(cx-3,cy+8,6,Math.max(8,ch-30));g.fillStyle='#9a9aa6';g.fillRect(cx-10,cy+ch-12,20,4)}
 }
 addEventListener('resize',fit);
 if(window.ResizeObserver)new ResizeObserver(fit).observe($('stage'));

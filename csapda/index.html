@@ -247,7 +247,7 @@ for(const k of Object.keys(save.done))if(!(+k>=0&&+k<12&&Number.isInteger(+k)))d
 const persist=()=>K.store.set(SK,save);
 let L=null,lvIdx=0,paused=true,last=0,raf=0;
 function load(i){
-  lvIdx=i;const def=LV[i];
+  lvIdx=i;BG=BGS[i%BGS.length];bgKey='';const def=LV[i];
   const t=def.m.map(r=>r.split(''));
   L={t,door:null,alt:null,start:null,traps:[],falling:[],parts:[],fx:[],moved:false,dead:0,win:0,deaths:0,seenI:new Set(),time:0};
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const c=t[y][x];
@@ -339,14 +339,50 @@ function levelDone(){
   $('#nx').onclick=()=>{closeOv();load(next);paused=false};$('#mn').onclick=menu;
 }
 /* ---------- drawing ---------- */
-let TS=32,W=640,H=384,dpr=1;
-function fit(){const r=$('#stage').getBoundingClientRect();TS=Math.max(10,Math.floor(Math.min(r.width/COLS,r.height/ROWS)));W=TS*COLS;H=TS*ROWS;dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
+let TS=32,W=640,H=384,dpr=1,TOPR=0,BOTR=0,bgCache=null,bgKey='';
+function fit(){const r=$('#stage').getBoundingClientRect();TS=Math.max(10,Math.floor(Math.min(r.width/COLS,r.height/ROWS)));
+  /* Álló telefonon a pálya fölé mennyezet, alá alapozás kerül, hogy kitöltse a képernyőt. A pálya maga nem változik. */
+  const ext=Math.max(0,Math.min(24,Math.floor(r.height/TS)-ROWS));TOPR=Math.ceil(ext*.6);BOTR=ext-TOPR;bgKey='';
+  W=TS*COLS;H=TS*(ROWS+ext);dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
 addEventListener('resize',fit);
-const BG='#f2a541',INK='#1d1d1d';
+const INK='#1d1d1d';
+/* Pályánként más alapszín; a díszítés egyforma minden blokkon, így nem árulja el a csapdákat. */
+const BGS=['#f2a541','#7cc6a4','#f19a8e','#8db6ee','#e6cf62','#c4a2ee','#f2a541','#7cc6a4','#f19a8e','#8db6ee','#e6cf62','#c4a2ee'];
+let BG=BGS[0];
+function shadeHex(h,f){const n=parseInt(h.slice(1),16),c=v=>Math.max(0,Math.min(255,Math.round(v*f)));return `rgb(${c(n>>16)},${c(n>>8&255)},${c(n&255)})`}
+/* Az álló háttér (falminta, mennyezet, alapozás, háttérelemek) egyszer készül el egy képernyőn kívüli vásznon. */
+function buildBg(){
+  const key=lvIdx+':'+TS+':'+H+':'+dpr;if(bgKey===key&&bgCache)return;bgKey=key;
+  const c=bgCache||(bgCache=document.createElement('canvas'));c.width=W*dpr;c.height=H*dpr;
+  const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const top=TOPR*TS,lh=ROWS*TS;
+  g.fillStyle=BG;g.fillRect(0,0,W,H);
+  /* finom falminta: téglasorok */
+  g.fillStyle='rgba(0,0,0,.055)';const bh=Math.max(6,Math.round(TS/2));
+  for(let y=0,row=0;y<top+lh;y+=bh,row++){g.fillRect(0,y,W,1);for(let x=(row%2)*TS;x<W;x+=TS*2)g.fillRect(x,y,1,bh)}
+  /* mennyezet a pálya fölött: sötétedő sáv, csövek, lógó lámpák */
+  if(top>0){const gr=g.createLinearGradient(0,0,0,top);gr.addColorStop(0,'rgba(0,0,0,.28)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,W,top);
+    g.fillStyle=shadeHex(BG,.55);g.fillRect(0,Math.round(top*.25),W,Math.max(3,TS*.18));
+    for(let i=1;i<4;i++){const x=Math.round(W*i/4);g.fillRect(x-TS*.09,0,TS*.18,top*.25)}
+    for(let i=0;i<3;i++){const x=Math.round(W*(i*2+1)/6);g.fillStyle=INK;g.fillRect(x-1,0,2,top*.62);g.fillRect(x-TS*.35,top*.62,TS*.7,TS*.22);
+      g.fillStyle='rgba(255,250,210,.45)';g.beginPath();g.moveTo(x-TS*.3,top*.62+TS*.22);g.lineTo(x-TS*1.2,top);g.lineTo(x+TS*1.2,top);g.lineTo(x+TS*.3,top*.62+TS*.22);g.fill()}
+    for(let i=0;i<2;i++){const x=Math.round(W*(i?.6:.26)),y=Math.round(top*.32),w=TS*1.6,h=Math.min(TS*1.4,top*.5);
+      g.fillStyle=shadeHex(BG,.7);g.fillRect(x,y,w,h);g.fillStyle=shadeHex(BG,1.18);g.fillRect(x+3,y+3,w-6,h-6);g.fillStyle=shadeHex(BG,.7);g.fillRect(x+w/2-1,y,2,h);g.fillRect(x,y+h/2-1,w,2)}}
+  /* alapozás a pálya alatt */
+  if(BOTR>0){const y0=top+lh,bh2=BOTR*TS;g.fillStyle=INK;g.fillRect(0,y0,W,bh2);
+    g.fillStyle='rgba(255,255,255,.05)';for(let y=y0+bh,row=0;y<y0+bh2;y+=bh,row++){g.fillRect(0,y,W,1);for(let x=(row%2)*TS;x<W;x+=TS*2)g.fillRect(x,y,1,bh)}
+    g.fillStyle=shadeHex(BG,.6);g.fillRect(0,y0+bh2*.55,W,Math.max(3,TS*.15))}
+}
 function block(x,y,c){ctx.fillStyle=c||INK;ctx.fillRect(x*TS,y*TS,TS+.5,TS+.5)}
 function spike(x,y,h){ctx.fillStyle=INK;const n=3,w=TS/n;for(let i=0;i<n;i++){ctx.beginPath();ctx.moveTo(x*TS+i*w,(y+1)*TS);ctx.lineTo(x*TS+i*w+w/2,(y+1)*TS-TS*.7*h);ctx.lineTo(x*TS+(i+1)*w,(y+1)*TS);ctx.fill()}}
 function draw(){
-  ctx.fillStyle=BG;ctx.fillRect(0,0,W,H);if(!L)return;
+  if(!L){ctx.fillStyle=BG;ctx.fillRect(0,0,W,H);return}
+  buildBg();ctx.drawImage(bgCache,0,0,W,H);
+  ctx.save();ctx.translate(0,TOPR*TS);
+  /* árnyék minden kitöltött mező alatt (a csapdás mezők alatt is, ugyanúgy) */
+  ctx.fillStyle='rgba(0,0,0,.14)';
+  for(let y=0;y<ROWS-1;y++)for(let x=0;x<COLS;x++){const c=L.t[y][x],b=L.t[y+1][x];
+    if((c==='#'||c==='x'||c==='c'||c==='F'||c==='g'||c==='l'||c==='j')&&!(b==='#'||b==='x'||b==='c'||b==='F'||b==='g'||b==='l'||b==='j'||b==='^'))ctx.fillRect(x*TS+2,(y+1)*TS,TS-4,Math.max(3,TS*.18))}
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const c=L.t[y][x];
     if(c==='#'||c==='x'||c==='c'||c==='F'||c==='g')block(x,y);
     if(c==='l')block(x,y,'#3a3a3a');
@@ -365,6 +401,7 @@ function draw(){
     ctx.fillStyle=INK;ctx.fillRect(px-pw*sq/2,py,pw*(1+sq),ph*(1-sq*0)) ;
     ctx.fillStyle=BG;const ex=P.face>0?pw*.55:pw*.15;ctx.fillRect(px+ex,py+ph*.25,pw*.14,ph*.18);ctx.fillRect(px+ex+pw*.2,py+ph*.25,pw*.14,ph*.18)}
   for(const p of L.parts){ctx.fillStyle=p.c||INK;ctx.fillRect(p.x*TS-3,p.y*TS-3,6,6)}
+  ctx.restore();
   if(L.win){ctx.fillStyle=`rgba(255,255,255,${.6-L.win})`;ctx.fillRect(0,0,W,H)}
 }
 function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;if(!paused&&L)update(dt);draw();raf=requestAnimationFrame(loop)}

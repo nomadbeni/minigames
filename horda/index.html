@@ -339,15 +339,40 @@ function word(w,x,y,size,maxW,col){
   if(tw>maxW){size*=maxW/tw;ctx.font=`700 ${size}px Lexend, Verdana, sans-serif`;tw=parts.reduce((a,p)=>a+ctx.measureText(p.t).width,0)}
   let cx=x-tw/2;ctx.textBaseline='middle';for(const p of parts){ctx.fillStyle=p.c;ctx.fillText(p.t,cx,y);cx+=ctx.measureText(p.t).width}
 }
+const TILE_H=640;let ROAD=null,ROOFS=null;
+function buildRoad(){
+  const mk=()=>{const c=document.createElement('canvas');c.width=LW;c.height=TILE_H;const g=c.getContext('2d');return [c,g]};
+  let g;[ROOFS,g]=mk();
+  /* háttér: háztetők a két szélen */
+  g.fillStyle='#1b1f1c';g.fillRect(0,0,LW,TILE_H);
+  for(const side of [0,1])for(let y=0,i=0;y<TILE_H;i++){const h=60+(i*37)%70,x=side?LW-14:0;
+    g.fillStyle=['#2b2622','#332a24','#26231f'][i%3];g.fillRect(x,y,14,h-4);g.fillStyle='#3d332b';g.fillRect(x,y,14,3);
+    if(i%2){g.fillStyle='#15120f';g.fillRect(x+4,y+h*.4,6,6)}y+=h}
+  [ROAD,g]=mk();
+  /* úttest repedésekkel, olajfoltokkal, csatornafedéllel */
+  g.fillStyle='#2a2f2b';g.fillRect(14,0,LW-28,TILE_H);
+  g.fillStyle='#262b27';for(let i=0;i<40;i++)g.fillRect(16+(i*71)%(LW-40),(i*53)%TILE_H,8+(i%4)*6,3+(i%3));
+  g.fillStyle='#3a403b';for(let y=0;y<TILE_H;y+=40)g.fillRect(LW/2-2,y,4,20);
+  g.strokeStyle='#1a1e1b';g.lineWidth=1.5;
+  for(let i=0;i<9;i++){let x=30+(i*83)%(LW-60),y=(i*131)%TILE_H;g.beginPath();g.moveTo(x,y);for(let k=0;k<5;k++){x+=((i+k)%3-1)*7;y+=9;g.lineTo(x,y)}g.stroke()}
+  for(let i=0;i<5;i++){const x=40+(i*97)%(LW-90),y=60+(i*149)%(TILE_H-120);g.fillStyle='rgba(10,12,18,.55)';g.beginPath();g.ellipse(x,y,14+(i%3)*5,8+(i%2)*3,i,0,7);g.fill();
+    g.fillStyle='rgba(90,70,140,.18)';g.beginPath();g.ellipse(x-3,y-2,6,3,i,0,7);g.fill()}
+  g.fillStyle='#1d211e';g.beginPath();g.arc(LW*.3,TILE_H*.7,9,0,7);g.fill();g.strokeStyle='#3a403b';g.beginPath();g.arc(LW*.3,TILE_H*.7,9,0,7);g.stroke();
+  /* járdaszegély */
+  g.fillStyle='#4a4f4a';g.fillRect(14,0,3,TILE_H);g.fillRect(LW-17,0,3,TILE_H);
+  /* roncsok az út szélén: kiégett autók, kidőlt kukák */
+  const car=(x,y,flip)=>{g.fillStyle='#1c1a18';g.fillRect(x,y,20,38);g.fillStyle='#3b2e25';g.fillRect(x+2,y+2,16,34);g.fillStyle='#14110f';g.fillRect(x+4,y+8,12,8);g.fillRect(x+4,y+24,12,7);
+    g.fillStyle='#5a3a24';g.fillRect(x+(flip?14:2),y+18,4,5);g.fillStyle='#0d0d0d';g.fillRect(x-2,y+5,3,8);g.fillRect(x+19,y+5,3,8);g.fillRect(x-2,y+26,3,8);g.fillRect(x+19,y+26,3,8)};
+  const bin=(x,y)=>{g.fillStyle='#2e4a34';g.fillRect(x,y,10,14);g.fillStyle='#24392a';g.fillRect(x,y,10,3);g.fillStyle='#4a4436';g.fillRect(x+10,y+4,6,4);g.fillRect(x+12,y+10,5,3)};
+  car(19,90,0);car(LW-41,330,1);car(19,470,1);bin(20,250);bin(LW-32,560);bin(LW-30,140);
+}
 function draw(){
   ctx.setTransform(dpr*SC,0,0,dpr*SC,0,0);ctx.imageSmoothingEnabled=false;
-  ctx.fillStyle='#1b1f1c';ctx.fillRect(0,0,LW,LH);
-  /* road with cracks scrolling down */
-  ctx.fillStyle='#2a2f2b';ctx.fillRect(14,0,LW-28,LH);
+  /* romos városi út: két, képernyőn kívül egyszer megrajzolt csík görög lefelé (az út és a roncsok gyorsabban, a háztetők lassabban) */
   const sc=G?G.scroll:0;
-  ctx.fillStyle='#3a403b';for(let y=-40+(sc%40);y<LH;y+=40)ctx.fillRect(LW/2-2,y,4,20);
-  ctx.fillStyle='#232724';for(let i=0;i<14;i++){const y=((i*97+sc*1.0)%(LH+40))-20;ctx.fillRect(30+(i*53%280),y,18,3)}
-  ctx.fillStyle='#4a3a2a';ctx.fillRect(0,0,14,LH);ctx.fillRect(LW-14,0,14,LH);
+  if(!ROAD)buildRoad();
+  const tile=(img,speed)=>{const off=((sc*speed)%TILE_H+TILE_H)%TILE_H;ctx.drawImage(img,0,off-TILE_H);ctx.drawImage(img,0,off);if(off+TILE_H<LH)ctx.drawImage(img,0,off+TILE_H)};
+  tile(ROOFS,.6);tile(ROAD,1);
   if(!G)return;
   /* gates */
   for(const g of G.gates){const y=g.y;
