@@ -225,6 +225,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -277,29 +288,29 @@ addItems('gomba',SPR.gomba,'gomba',1,8,6);
 addItems('alma',SPR.alma,'alma',5,10,7);
 addItems('ko',SPR.ko,'kő',17,19,5);
 addItems('kotel',SPR.kotel,'kötél',9,17,4);
-const FOES={nyalka:{w:'nyálka',e:SPR.nyalka,hp:8,atk:2,xp:6,gold:3},csontvaz:{w:'csont|váz',e:SPR.csontvaz,hp:16,atk:4,xp:12,gold:6},oriás:{w:'kő|óriás',e:SPR['oriás'],hp:48,atk:7,xp:60,gold:40}};
+const FOES={nyalka:{w:'nyálka|szörny',e:SPR.nyalka,hp:8,atk:2,xp:6,gold:3},csontvaz:{w:'csont|váz',e:SPR.csontvaz,hp:16,atk:4,xp:12,gold:6},oriás:{w:'kő|óriás',e:SPR['oriás'],hp:48,atk:7,xp:60,gold:40}};
 const MOBS0=[];
 freeIn(1,8,7,taken).forEach((p,i)=>MOBS0.push({id:'n'+i,k:'nyalka',...p}));
 freeIn(20,23,8,taken).forEach((p,i)=>MOBS0.push({id:'c'+i,k:'csontvaz',...p}));
 MOBS0.push({id:'boss',k:'oriás',x:16,y:26});
 const NPCS=[
-  {id:'polg',n:'Kapitány',e:K.human({hair:'#6a6a6a',shirt:'#5a5f6a',pants:'#2a2f3a',beard:true,hat:true,hatC:'#9aa3ad'}),x:15,y:12},
-  {id:'pek',n:'Szakács',e:K.human({hair:'#4a3020',shirt:'#f2f2f2',apron:true,pants:'#3a3a42',hat:true,hatC:'#f2f2f2'}),x:10,y:12},
-  {id:'kov',n:'Kovács',e:K.human({hair:'#1a1a1a',skin:'#c98a5a',shirt:'#3a2a20',apron:true,beard:true,pants:'#2a2a2a'}),x:20,y:12},
-  {id:'hal',n:'Révész',e:K.human({hair:'#8a5a2a',shirt:'#2f8a6a',pants:'#3a4a5a',cap:true,hatC:'#e8c13a'}),x:22,y:13},
-  {id:'lany',n:'Felderítő',e:K.human({hair:'#a83a2a',shirt:'#3a5a2a',pants:'#2a3520',cap:true,hatC:'#2a3520'}),x:21,y:17}
+  {id:'polg',n:'Falu|bíró',e:K.human({hair:'#6a6a6a',shirt:'#5a5f6a',pants:'#2a2f3a',beard:true,hat:true,hatC:'#9aa3ad'}),x:15,y:12},
+  {id:'pek',n:'Fő|szakács',e:K.human({hair:'#4a3020',shirt:'#f2f2f2',apron:true,pants:'#3a3a42',hat:true,hatC:'#f2f2f2'}),x:10,y:12},
+  {id:'kov',n:'Fegyver|kovács',e:K.human({hair:'#1a1a1a',skin:'#c98a5a',shirt:'#3a2a20',apron:true,beard:true,pants:'#2a2a2a'}),x:20,y:12},
+  {id:'hal',n:'Komp|mester',e:K.human({hair:'#8a5a2a',shirt:'#2f8a6a',pants:'#3a4a5a',cap:true,hatC:'#e8c13a'}),x:22,y:13},
+  {id:'lany',n:'Erdő|járó',e:K.human({hair:'#a83a2a',shirt:'#3a5a2a',pants:'#2a3520',cap:true,hatC:'#2a3520'}),x:21,y:17}
 ];
 /* ---------- quests ---------- */
 const Q=[
-  {from:'polg',to:'polg',say:'Új vagy itt? Akkor bizonyíts. Hozz 3 gombát az erdőből.',kind:'item',what:'gomba',n:3,ask:['gomba','alma','ko'],line:'Hozz 3 gombát!',done:'Rendben. Talán lesz belőled valami.',xp:15,gold:10},
-  {from:'pek',to:'pek',say:'Az őrség éhes. Szedj 4 almát a fákról.',kind:'item',what:'alma',n:4,ask:['alma','gomba','ital'],line:'Szedj 4 almát!',done:'Kösz. Itt egy gyógyital, jól jön majd.',xp:15,gold:5,pot:1},
-  {from:'polg',to:'polg',say:'Nyálkák lepték el az erdei utat. Intézz el hármat.',kind:'foe',what:'nyalka',n:3,ask:['nyalka','csontvaz','oriás'],line:'Győzz le 3 nyálkát!',done:'Tiszta az út. Szép munka.',xp:20,gold:15},
-  {from:'kov',to:'kov',say:'Kardot kovácsolok neked. Kell hozzá 3 kő a barlang elől.',kind:'item',what:'ko',n:3,ask:['ko','kotel','gomba'],line:'Hozz 3 követ!',done:'Kész a kard. Most már fáj, ha ütsz.',xp:20,gold:0,sword:1},
-  {from:'hal',to:'hal',say:'Elszakadt a komp kötele. Keress 2 kötelet a faluban.',kind:'item',what:'kotel',n:2,ask:['kotel','ko','alma'],line:'Keress 2 kötelet!',done:'Mehet a komp. Fogd ezt a pajzsot.',xp:20,gold:10,shield:1},
-  {from:'polg',to:'polg',say:'A barlangból csont|vázak jönnek elő éjjel. Győzz le négyet.',kind:'foe',what:'csontvaz',n:4,ask:['csontvaz','nyalka','oriás'],line:'Győzz le 4 csontvázat!',done:'Ez az. Már csak a főnök maradt.',xp:30,gold:20},
+  {from:'polg',to:'polg',say:'Új vagy itt? Akkor bizonyíts. Hozz 3 gombát az erdő|szélről.',kind:'item',what:'gomba',n:3,ask:['gomba','alma','ko'],line:'Hozz 3 gombát!',done:'Rendben. Talán lesz belőled valami.',xp:15,gold:10},
+  {from:'pek',to:'pek',say:'Az őrség éhes. Szedj 4 almát az alma|fákról.',kind:'item',what:'alma',n:4,ask:['alma','gomba','ital'],line:'Szedj 4 almát!',done:'Kösz. Itt egy gyógyital, jól jön majd.',xp:15,gold:5,pot:1},
+  {from:'polg',to:'polg',say:'Nyálkák lepték el a malom|patakot. Intézz el hármat.',kind:'foe',what:'nyalka',n:3,ask:['nyalka','csontvaz','oriás'],line:'Győzz le 3 nyálkát!',done:'Tiszta az út. Szép munka.',xp:20,gold:15},
+  {from:'kov',to:'kov',say:'Kardot kovácsolok neked. Kell hozzá 3 kő a kő|fejtőből.',kind:'item',what:'ko',n:3,ask:['ko','kotel','gomba'],line:'Hozz 3 követ!',done:'Kész a kard. Most már fáj, ha ütsz.',xp:20,gold:0,sword:1},
+  {from:'hal',to:'hal',say:'Elszakadt a komp kötele. Keress 2 kötelet a halász|faluban.',kind:'item',what:'kotel',n:2,ask:['kotel','ko','alma'],line:'Keress 2 kötelet!',done:'Mehet a komp. Fogd ezt a pajzsot.',xp:20,gold:10,shield:1},
+  {from:'polg',to:'polg',say:'A barlangból csont|vázak jönnek elő éjjel. Győzz le négyet a falu|kapunál.',kind:'foe',what:'csontvaz',n:4,ask:['csontvaz','nyalka','oriás'],line:'Győzz le 4 csontvázat!',done:'Ez az. Már csak a főnök maradt.',xp:30,gold:20},
   {from:'polg',to:'polg',say:'A barlang mélyén él a kő|óriás. Ő küldi a szörnyeket. Végezz vele.',kind:'foe',what:'oriás',n:1,ask:['oriás','csontvaz','nyalka'],line:'Győzd le a kőóriást!',done:'Vége. A völgy szabad. Ezt nem felejtjük el.',xp:50,gold:50}
 ];
-const IDLE={polg:'Nézz be a többiekhez is. Mindenkinek kell segítség.',pek:'Üres a kamra. Az őrség morog.',kov:'Nálam italt, kardot és pajzsot is vehetsz.',hal:'A tó túlpartján sem jobb.',lany:'A barlangban sötét van. Vigyázz.'};
+const IDLE={polg:'Nézz be a többiekhez is. Mindenkinek kell segítség.',pek:'Üres a kamra. Az őrség morog, a leves|fazék is üres.',kov:'Nálam italt, kardot és pajzsot is vehetsz.',hal:'A tó túl|partján sem jobb.',lany:'A barlangban sötét van. Vigyázz.'};
 const SHOP=[{k:'pot',w:'gyógy|ital',e:SPR.ital,price:8},{k:'sword',w:'acél|kard',e:SPR.kard,price:60,max:2},{k:'shield',w:'vas|pajzs',e:SPR.pajzs,price:50,max:2}];
 /* ---------- state ---------- */
 const SK='kalandor:save';
@@ -361,7 +372,7 @@ function talk(n){
       if(q.kind==='foe')ensureFoes(q);
       if(ok){K.good();S.xp+=3;q.say.split(' ').forEach(t=>t.includes('|')&&K.seen(t))}else K.bad();
       save();
-      $('#ovc').insertAdjacentHTML('beforeend',`<p>${ok?'🧭 Vetted. Iránytű a célhoz bekapcsolva.':'Nem ez. A feladat fent is látszik.'}</p><button class="btn hot" id="ok">Indulás</button>`);
+      $('#ovc').insertAdjacentHTML('beforeend',`<p>${ok?'🧭 Vetted. Az '+K.word('irány|tű')+' a célhoz bekapcsolva.':'Nem ez. A feladat fent is látszik.'}</p><button class="btn hot" id="ok">Indulás</button>`);
       $('#ok').onclick=closeOv;$('#ok').focus();
     });
     return;

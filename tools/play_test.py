@@ -280,9 +280,20 @@ async def sc_kit(page):
     check(steps == [2, 2, 2, 2, 1, 1, 1, 1, 0], f"long words are split until mastered: {steps}")
 
 
+async def sc_kit_weighting(page):
+    # 'ritka' was never read right, the others 8 times: it must come much more often, and never twice in a row
+    res = await page.evaluate("""(() => { const L = ['ritka', 'fék', 'lánc', 'nyereg'];
+        let n = 0, prev = null, twice = 0;
+        for (let i = 0; i < 400; i++) { const w = K.pickWord(L); if (w === 'ritka') n++; if (w === prev) twice++; prev = w; }
+        return {n, twice}; })()""")
+    check(res["twice"] == 0, f"the same word came twice in a row {res['twice']} times")
+    check(res["n"] > 150, f"the rarely read word should come most often: {res['n']} of 400")
+
+
 async def sc_bike_shop(page):
     zones = {"első gumi": "elso", "hátsó gumi": "hatso", "küllő": "hatso", "fék": "fek", "lánc": "lanc", "nyereg": "nyereg",
-             "kormány": "kormany", "váltó": "valto", "lámpa": "lampa", "pedál": "pedal", "csengő": "csengo", "akku": "akku"}
+             "kormány": "kormany", "váltó": "valto", "lámpa": "lampa", "pedál": "pedal", "csengő": "csengo", "akku": "akku",
+             "első kerék": "elso", "első szelep": "elso", "macska": "lampa"}
     complaint = await txt(page, "#complaint")
     zone = next((z for k, z in zones.items() if k in complaint), None)
     check(zone, f"complaint understood: {complaint}")
@@ -323,7 +334,7 @@ async def sc_dungeon(page):
         await hold(page, k, 60)
         await page.wait_for_timeout(200)
     await page.locator('.icons button[data-e="gomba"]').click()
-    check("Iránytű" in await txt(page, "#ovc"), "the right picture turns on the compass")
+    check("a célhoz bekapcsolva" in await txt(page, "#ovc"), "the right picture turns on the compass")
     await page.locator("#ok").click()
     check("Hozz 3 gombát" in await txt(page, "#quest"), "the quest shows in the quest bar")
 
@@ -701,6 +712,8 @@ SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
              "olvaso:mastery": {"fék": 3, "rossz": "x", "negatív": -2, "x" * 80: 1}})),
+    ("bunyo", "reading kit: a rarely read word comes more often, never twice in a row", sc_kit_weighting,
+     save(**{"olvaso:mastery": {"fék": 8, "lánc": 8, "nyereg": 8}})),
     ("bringa-muhely", "Bike Shop: a full repair job pays", sc_bike_shop,
      save(**{"bringa-muhely:save": {"intro": True}, "bringa:penz": 0})),
     ("kocka-kert", "Farm Empire: an exact delivery pays double", sc_farm_delivery,

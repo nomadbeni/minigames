@@ -262,6 +262,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -290,14 +301,16 @@ const CROPS=[
   {id:'krumpli',w:'krumpli',e:'🥔',t:30,cost:3,sell:8,lv:1},
   {id:'eper',w:'eper',e:'🍓',t:34,cost:4,sell:10,lv:2},
   {id:'uborka',w:'uborka',e:'🥒',t:36,cost:4,sell:10,lv:2},
-  {id:'paradicsom',w:'para|dicsom',e:'🍅',t:40,cost:5,sell:12,lv:3},
+  {id:'paradicsom',w:'paradicsom',e:'🍅',t:40,cost:5,sell:12,lv:3},
   {id:'kukorica',w:'kukorica',e:'🌽',t:42,cost:5,sell:13,lv:3},
   {id:'tok',w:'tök',e:'🎃',t:50,cost:7,sell:17,lv:4},
-  {id:'napraforgo',w:'nap|ra|forgó',e:'🌻',t:55,cost:8,sell:19,lv:5},
+  {id:'napraforgo',w:'napra|forgó',e:'🌻',t:55,cost:8,sell:19,lv:5},
   {id:'dinnye',w:'görög|dinnye',e:'🍉',t:65,cost:10,sell:24,lv:6}
 ];
 const CB=Object.fromEntries(CROPS.map(c=>[c.id,c]));
-const FOLK=['Pizzéria','Piac','Burger bár','Hotel','Pékség','Étterem','Lé|bár','Menza','Bisztró','Leves|bár'];
+const FOLK=['Pizzéria','Piac','Burger bár','Hotel','Pékség','Étterem','Lé|bár','Menza','Bisztró','Leves|bár',
+  'Gyors|büfé','Hal|sütő','Lángos|sütő','Tészta|ház','Pizza|futár','Fagyi|bolt','Diák|menza','Kórház|konyha','Zöldség|bolt',
+  'Lekvár|gyár','Szendvics|bár','Rétes|ház','Hűtő|ház','Konzerv|gyár','Falu|ház','Vásár|tér','Strand|büfé'];
 const SIZES=[4,5,6];
 const SK='kocka-kert:save';
 const FRESH=()=>({money:20,xp:0,lvl:1,size:0,tiles:[],inv:{},orders:[],seed:'repa',intro:false,seen:{},t:Date.now()});
@@ -368,7 +381,7 @@ function newOrder(){
   const k=S.lvl>=3&&Math.random()<.5?2:1;
   const items=K.shuffle(avail).slice(0,k).map(c=>({c:c.id,n:1+(Math.random()*(S.lvl>=2?3:2)|0)}));
   const pay=items.reduce((a,x)=>a+CB[x.c].sell*x.n,0);
-  return {who:K.pick(FOLK),items,pay};
+  return {who:K.pickWord(FOLK),items,pay};
 }
 function hud(){
   $('#money').textContent=S.money;$('#lvl').textContent=S.lvl;

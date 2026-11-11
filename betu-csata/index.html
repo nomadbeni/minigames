@@ -211,6 +211,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -227,7 +238,26 @@ const LOOT=[
   {w:'rakéta',s:{r:["....rr....","...rwwr...","...wwww...","...wbbw...","...wwww...","...wwww...","..rwwwwr..",".rrwwwwrr.","...oyyo...","....oo...."],p:{w:'#e8e8f0',b:'#4fb3ff',r:'#e53935',o:'#ff7a1a',y:'#ffe04a'}}},
   {w:'villám',s:{r:[".....yyy..","....yyy...","...yyy....","..yyyyyy..","....yyy...","...yyy....","..yyy.....","..yy......",".y........"],p:{y:'#ffd23f'}}},
   {w:'mágnes',s:{r:["ww....ww..","ww....ww..","rr....rr..","rr....rr..","rr....rr..","rrr..rrr..",".rrrrrr...","..rrrr...."],p:{w:'#e8e8f0',r:'#e53935'}}},
-  {w:'kötszer',s:{r:["..wwwwww..",".wwwwwwww.","wwwwrrwwww","wwwwrrwwww","wwrrrrrrww","wwrrrrrrww","wwwwrrwwww","wwwwrrwwww",".wwwwwwww.","..wwwwww.."],p:{w:'#f2f2f2',r:'#e53935'}}}
+  {w:'kötszer',s:{r:["..wwwwww..",".wwwwwwww.","wwwwrrwwww","wwwwrrwwww","wwrrrrrrww","wwrrrrrrww","wwwwrrwwww","wwwwrrwwww",".wwwwwwww.","..wwwwww.."],p:{w:'#f2f2f2',r:'#e53935'}}},
+  {w:'lő|szer',fx:(G,p,b)=>{b.rapid=Math.max(b.rapid,12)},s:{r:["..y.y.y...", "..y.y.y...", "..o.o.o...", ".gggggggg.", ".gGGGGGGg.", ".gGkkkkGg.", ".gGGGGGGg.", ".gGGGGGGg.", ".gggggggg.", ".........."],p:{'y': '#ffd23f', 'o': '#c9931e', 'g': '#3a5a2a', 'G': '#5a7a3a', 'k': '#ffd23f'}}},
+  {w:'füst|gránát',fx:(G,p,b)=>{G.bombs+=1},s:{r:["ww........", "wWw.......", ".ww.kk....", "...kggk...", "..kgggGk..", "..kggggk..", "..kgGggk..", "..kggggk..", "...kkkk...", ".........."],p:{'w': '#c8c8d0', 'W': '#eeeeee', 'k': '#1f2a1a', 'g': '#5a6a4a', 'G': '#8a9a7a'}}},
+  {w:'mentő|láda',fx:(G,p,b)=>{p.hp=Math.min(100,p.hp+40)},s:{r:["...kkkk...", "...k..k...", ".wwwwwwww.", ".wwwrrwww.", ".wwwrrwww.", ".wrrrrrrw.", ".wwwrrwww.", ".wwwrrwww.", ".wwwwwwww.", ".........."],p:{'w': '#f2f2f2', 'r': '#e53935', 'k': '#555555'}}},
+  {w:'acél|sisak',fx:(G,p,b)=>{p.sh=Math.min(100,p.sh+30)},s:{r:["..........", "...ssss...", "..sSSsss..", ".sSsssssk.", ".sssssssk.", ".ssssssssk", "kkkkkkkkkk", "..........", "..........", ".........."],p:{'s': '#9aa3ad', 'S': '#d0d6dc', 'k': '#4a525a'}}},
+  {w:'páncél|mellény',fx:(G,p,b)=>{p.sh=Math.min(100,p.sh+60)},s:{r:[".bb....bb.", ".bbb..bbb.", ".bbbbbbbb.", ".bBbbbbBb.", ".bbbyybbb.", ".bbbbbbbb.", ".bBbbbbBb.", ".bbbbbbbb.", ".bbbbbbbb.", ".........."],p:{'b': '#3a4a5a', 'B': '#5a6a7a', 'y': '#c9a03a'}}},
+  {w:'gyors|cipő',fx:(G,p,b)=>{b.speed=Math.max(b.speed,15)},s:{r:["..........", "..........", "....ggg...", "...gggg...", "w..ggggg..", "...gggggg.", "ww.ggwwggg", "...ggggggg", "w.kkkkkkkk", ".........."],p:{'g': '#3ddc84', 'w': '#ffffff', 'k': '#1a1a1a'}}},
+  {w:'turbó|csizma',fx:(G,p,b)=>{b.speed=Math.max(b.speed,20)},s:{r:["..oooo....", "..oOoo....", "..oooo....", "..oOoo....", "..oooooo..", "..oooooooo", ".kkkkkkkkk", ".y.r.y.r..", "..y...y...", ".........."],p:{'o': '#ff8a1a', 'O': '#ffb05a', 'k': '#3a2010', 'y': '#ffe04a', 'r': '#e5301a'}}},
+  {w:'kézi|gránát',fx:(G,p,b)=>{G.bombs+=2},s:{r:["....kk.y..", "...kkkky..", "..gggggg..", ".gGgGgGgg.", ".gggggggg.", ".gGgGgGgg.", ".gggggggg.", ".gGgGgGgg.", "..gggggg..", ".........."],p:{'k': '#555555', 'y': '#ffd23f', 'g': '#3a6a2a', 'G': '#5a8a3a'}}},
+  {w:'tűz|bomba',fx:(G,p,b)=>{G.bombs+=2},s:{r:["...y.r....", "..yrr.....", "....kk....", "..rrrrrr..", ".rRrrrrrr.", ".rRrrrrrr.", ".rrrrrrrr.", ".rrrrrrrr.", "..rrrrrr..", "...rrrr..."],p:{'y': '#ffe04a', 'r': '#c62828', 'R': '#ff6a5a', 'k': '#2a2a35'}}},
+  {w:'erő|ital',fx:(G,p,b)=>{b.rapid=Math.max(b.rapid,10)},s:{r:["....kk....", "....gg....", "...gGGg...", "..gGyGGg..", "..gyyyGg..", "..gGyGGg..", "..gGyGGg..", "..gGGGGg..", "...gggg...", ".........."],p:{'k': '#6a4a2a', 'g': '#1f8a3a', 'G': '#3ddc84', 'y': '#ffe04a'}}},
+  {w:'villám|töltő',fx:(G,p,b)=>{b.rapid=Math.max(b.rapid,15)},s:{r:["...kk.....", "..kkkk....", "..kbbk....", "..kbyk....", "..kyyk....", "..kyyyk...", "..kbyk....", "..kbbk....", "..kkkk....", ".........."],p:{'k': '#2a2a35', 'b': '#4aa3e8', 'y': '#ffd23f'}}},
+  {w:'tűz|cső',fx:(G,p,b)=>{b.rocket=Math.max(b.rocket,15)},s:{r:["..........", "..........", "o.........", "ookkkkkkkk", "ooksssssSk", "ookkkkkkkk", "o...kk....", "....kk....", "..........", ".........."],p:{'o': '#ff7a1a', 'k': '#2a2a35', 's': '#5a6a4a', 'S': '#8a9a7a'}}},
+  {w:'arany|mágnes',fx:(G,p,b)=>{b.magnet=Math.max(b.magnet,25)},s:{r:["yy....yy..", "yy....yy..", "YY....YY..", "YY....YY..", "YY....YY..", "YYY..YYY..", ".YYYYYY...", "..YYYY....", "..........", ".........."],p:{'y': '#e8e8f0', 'Y': '#e8b830'}}},
+  {w:'pénz|zsák',fx:(G,p,b)=>{G.coinN+=15},s:{r:["...kkk....", "....k.....", "..bbbbb...", ".bbbbbbb..", "bbbyyybbb.", "bbbybbbbb.", "bbbyyybbb.", "bbbbbybbb.", "bbbyyybbb.", ".bbbbbbb.."],p:{'b': '#a87a3a', 'k': '#6a4a2a', 'y': '#ffd23f'}}},
+  {w:'arany|érme',fx:(G,p,b)=>{G.coinN+=8},s:{r:["..yyyyy...", ".yYYYYYy..", "yYYyyyYYy.", "yYyYYYyYy.", "yYyYYYyYy.", "yYyYYYyYy.", "yYYyyyYYy.", ".yYYYYYy..", "..yyyyy...", ".........."],p:{'y': '#c9931e', 'Y': '#ffd23f'}}},
+  {w:'seb|tapasz',fx:(G,p,b)=>{p.hp=Math.min(100,p.hp+20)},s:{r:["......pp..", ".....pppp.", "....pppPp.", "...ppWWpp.", "..ppWWpp..", ".pPppp....", ".pppp.....", "..pp......", "..........", ".........."],p:{'p': '#e8b48a', 'P': '#c98a5a', 'W': '#f2e0d0'}}},
+  {w:'jég|bomba',fx:(G,p,b)=>{G.bombs+=1},s:{r:["......cs..", ".....c....", "....kk....", "..cccccc..", ".cCWcccc..", ".cWccccc..", ".cccccccC.", ".cccccccc.", "..cccccc..", "...cccc..."],p:{'c': '#4aa3e8', 'C': '#8fd0ff', 'W': '#ffffff', 'k': '#2a2a35', 's': '#e8faff'}}},
+  {w:'pajzs|gömb',fx:(G,p,b)=>{p.sh=Math.min(100,p.sh+40)},s:{r:["...pppp...", "..p....p..", ".p.W....p.", "p.W......p", "p........p", "p........p", "p........p", ".p......p.", "..p....p..", "...pppp..."],p:{'p': '#5aa9ff', 'W': '#ffffff'}}},
+  {w:'gyógy|kenőcs',fx:(G,p,b)=>{p.hp=Math.min(100,p.hp+30)},s:{r:["..........", "...kkkk...", "...kkkk...", "..wwwwww..", "..wGGGGw..", "..wGrGGw..", "..wrrrGw..", "..wGrGGw..", "..wwwwww..", ".........."],p:{'k': '#2f8a3a', 'w': '#f2f2f2', 'G': '#d8f5d8', 'r': '#e53935'}}}
 ];
 const MODES=[
   {n:'Casual',d:'Kevés robot, lassú vihar.',bots:12,storm:240,hp:1,read:9},
@@ -281,7 +311,7 @@ function bomb(){
 /* loot prompt: a word flashes up, pick the matching picture */
 function openChest(c){
   c.open=true;paused=true;G.looted++;
-  const item=K.pick(LOOT);const opts=K.shuffle([item,...K.shuffle(LOOT.filter(x=>x!==item)).slice(0,2)]);
+  const item=K.pickWord(LOOT,x=>x.w);const opts=K.shuffle([item,...K.shuffle(LOOT.filter(x=>x!==item)).slice(0,2)]);
   const T=G.M.read;let tl=T,done=false;
   overlay(`<p style="text-align:center;color:var(--muted)">LOOT</p><div class="loot-word">${K.word(item.w)}</div>
     <div class="timer"><i id="tm" style="width:100%"></i></div>
@@ -302,6 +332,7 @@ function openChest(c){
 }
 function give(it){
   const p=G.p,b=G.buff;
+  if(it.fx){it.fx(G,p,b);return}
   switch(K.plain(it.w)){
     case 'pajzs':p.sh=Math.min(100,p.sh+50);break;
     case 'gyógyital':p.hp=Math.min(100,p.hp+50);break;

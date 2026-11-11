@@ -249,6 +249,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -274,9 +285,28 @@ const PROBS=[
   {t:'Kilazult a pedál.',z:'pedal',p:'pedál'},
   {t:'Nem szól a csengő.',z:'csengo',p:'csengő'},
   {t:'Lemerült az akku.',z:'akku',p:'akku|töltő',ebike:true},
-  {t:'Nem tölt az akku.',z:'akku',p:'töltő|kábel',ebike:true}
+  {t:'Nem tölt az akku.',z:'akku',p:'töltő|kábel',ebike:true},
+  {t:'Laza az első kerék|anya.',z:'elso',p:'kerék|anya'},
+  {t:'Elveszett az első szelep|sapka.',z:'elso',p:'szelep|sapka'},
+  {t:'Kopott a hátsó küllő|anya.',z:'hatso',p:'küllő|anya'},
+  {t:'Kopott a fék|tárcsa.',z:'fek',p:'fék|tárcsa'},
+  {t:'Nem húz a fék|kábel.',z:'fek',p:'fék|kábel'},
+  {t:'Leesett a lánc|védő.',z:'lanc',p:'lánc|védő'},
+  {t:'Rozsdás a lánc|kerék.',z:'lanc',p:'lánc|kerék'},
+  {t:'Ferde a nyereg|cső.',z:'nyereg',p:'nyereg|cső'},
+  {t:'Csúszik a kormány|szalag.',z:'kormany',p:'kormány|szalag'},
+  {t:'Lötyög a kormány|csapágy.',z:'kormany',p:'kormány|csapágy'},
+  {t:'Recseg a váltó|kar.',z:'valto',p:'váltó|kar'},
+  {t:'Törött a lámpa|bura.',z:'lampa',p:'lámpa|bura'},
+  {t:'Elveszett a macska|szem.',z:'lampa',p:'macska|szem'},
+  {t:'Laza a pedál|csavar.',z:'pedal',p:'pedál|csavar'},
+  {t:'Nyikorog a pedál|tengely.',z:'pedal',p:'pedál|tengely'},
+  {t:'Elveszett a csengő|fedél.',z:'csengo',p:'csengő|fedél'},
+  {t:'Kilazult az akku|tartó.',z:'akku',p:'akku|tartó',ebike:true}
 ];
-const PARTS=['belső gumi','külső gumi','küllő','fék|betét','lánc|olaj','lánc','nyereg|csavar','nyereg','kormány|szár','váltó|kábel','elem','pedál','csengő','akku|töltő','töltő|kábel','szelep','markolat','sár|védő','csomag|tartó'];
+const PARTS=['belső gumi','külső gumi','küllő','fék|betét','lánc|olaj','lánc','nyereg|csavar','nyereg','kormány|szár','váltó|kábel','elem','pedál','csengő','akku|töltő','töltő|kábel','szelep','markolat','sár|védő','csomag|tartó',
+  'kerék|anya','szelep|sapka','küllő|anya','fék|tárcsa','fék|kábel','lánc|védő','lánc|kerék','nyereg|cső','kormány|szalag','kormány|csapágy',
+  'váltó|kar','lámpa|bura','macska|szem','pedál|csavar','pedál|tengely','csengő|fedél','akku|tartó'];
 const BIKES=[
   {n:'BMX',c:'#e84a5f',pay:20,lv:0},{n:'városi',c:'#4aa3e8',pay:25,lv:0},
   {n:'MTB',c:'#5fbf4a',pay:35,lv:1},{n:'országúti',c:'#f2c14e',pay:45,lv:2},{n:'e-bringa',c:'#9b6bff',pay:60,lv:2,ebike:true}
@@ -362,8 +392,8 @@ function newCustomer(){
   const bikes=BIKES.filter(b=>b.lv<=S.lv.muhely);
   const b=K.pick(bikes);
   const probs=PROBS.filter(p=>!p.ebike||b.ebike);
-  let p=K.pick(probs);
-  if(b.ebike&&Math.random()<.4)p=K.pick(probs.filter(x=>x.ebike));
+  let p=K.pickWord(probs,x=>x.p);
+  if(b.ebike&&Math.random()<.4)p=K.pickWord(probs.filter(x=>x.ebike),x=>x.p);
   C={b,p,name:K.pick(NAMES),av:K.randomHuman(),diagOK:true,partOK:true,hits:0,tries:0};
   t0=Date.now();
   $('#av').innerHTML=K.img(C.av,30);$('#cname').textContent=C.name;$('#cnum').textContent=(S.served+1)+'/'+perDay();

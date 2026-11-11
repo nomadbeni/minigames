@@ -202,6 +202,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -212,11 +223,17 @@ const $=s=>document.querySelector(s);
 const cv=$('#cv'),ctx=cv.getContext('2d');
 const GOOD=[
   {w:'turbó',fx:'boost'},{w:'lejtő',fx:'boost'},{w:'pénz',fx:'coin'},{w:'arany|érme',fx:'coin'},
-  {w:'ugrató',fx:'jump'},{w:'rövid|út',fx:'skip'},{w:'sima út',fx:'boost'}
+  {w:'ugrató',fx:'jump'},{w:'rövid|út',fx:'skip'},{w:'sima út',fx:'boost'},
+  {w:'lejtő|menet',fx:'boost'},{w:'hát|szél',fx:'boost'},{w:'gyors|sáv',fx:'boost'},{w:'turbó|gomb',fx:'boost'},{w:'szél|árnyék',fx:'boost'},
+  {w:'arany|rög',fx:'coin'},{w:'pénz|eső',fx:'coin'},{w:'kincs|láda',fx:'coin'},
+  {w:'ugró|sánc',fx:'jump'},{w:'ugró|deszka',fx:'jump'},{w:'át|járó',fx:'skip'},{w:'alag|út',fx:'skip'}
 ];
 const BAD=[
   {w:'sár',fx:'mud'},{w:'tócsa',fx:'mud'},{w:'kő',fx:'crash'},{w:'gödör',fx:'crash'},{w:'tüske',fx:'crash'},
-  {w:'fa|törzs',fx:'crash'},{w:'zsák|utca',fx:'back'},{w:'kerülő|út',fx:'back'}
+  {w:'fa|törzs',fx:'crash'},{w:'zsák|utca',fx:'back'},{w:'kerülő|út',fx:'back'},
+  {w:'hajtű|kanyar',fx:'mud'},{w:'sár|tenger',fx:'mud'},{w:'víz|mosás',fx:'mud'},{w:'homok|csapda',fx:'mud'},{w:'por|felhő',fx:'mud'},
+  {w:'kő|omlás',fx:'crash'},{w:'fa|tuskó',fx:'crash'},{w:'olaj|folt',fx:'crash'},{w:'jég|pálya',fx:'crash'},{w:'tüske|szőnyeg',fx:'crash'},{w:'szikla|fal',fx:'crash'},
+  {w:'vissza|út',fx:'back'},{w:'út|zár',fx:'back'}
 ];
 const TRACKS=[
   {n:'Erdei trail',d:'Könnyű. Lassabb tempó, kevés kapu.',len:1000,gate:150,v:13,rv:[11.5,12.3,13.0],col:'#7a5a3a'},
@@ -242,7 +259,7 @@ function start(ti){
      rivals:RIVALS.map((r,i)=>({...r,d:-4-i*6,v:T.rv[i],lane:i===1?0:2,x:i===1?0:2,stun:0})),gatesOK:0,gatesN:0};
   /* build the course: gates with three signs, rocks and coins between them */
   for(let g=T.gate;g<T.len-40;g+=T.gate){
-    const good=K.pick(GOOD),bad=K.pick(BAD),third=Math.random()<.5?K.pick(GOOD.filter(x=>x!==good)):K.pick(BAD.filter(x=>x!==bad));
+    const w=x=>x.w,good=K.pickWord(GOOD,w),bad=K.pickWord(BAD,w),third=Math.random()<.5?K.pickWord(GOOD.filter(x=>x!==good),w):K.pickWord(BAD.filter(x=>x!==bad),w);
     const signs=K.shuffle([{...good,ok:true},{...bad,ok:false},{...third,ok:GOOD.includes(third)}]);
     G.objs.push({type:'gate',d:g,signs,hit:false});
   }

@@ -214,6 +214,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -226,20 +237,21 @@ const cv=$('#cv'),ctx=cv.getContext('2d');
    c floor that crumbles, F ceiling block that falls, g fake wall, l fake light floor, i invisible bridge, j spring */
 const E='....................',FL='####################';
 const LV=[
- {h:'Menj az ajtóhoz. Ennyi. Tényleg.',m:[E,E,E,E,E,E,E,E,E,'.S................D.',FL,FL]},
- {h:'A padló gyenge. Ugorj át rajta!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','########xxx#########','########...#########']},
- {h:'Két tüske van. Az egyik bújik.',m:[E,E,E,E,E,E,E,E,E,'.S....^......v....D.',FL,FL]},
- {h:'Az ajtó félénk. Ha közel érsz, elszalad.',m:[E,E,E,E,E,E,E,'...d................','..###...............','.S................D.',FL,FL]},
- {h:'A plafon nem bírja sokáig. Fuss!',m:[E,E,E,E,E,E,E,'........##FFF##.....',E,'.S................D.',FL,FL]},
- {h:'Ez a fal nem igazi. Menj neki!',m:[E,E,E,E,'..........g.........','..........g.........','..........g.........','..........g.........','..........g.........','.S........g.......D.',FL,FL]},
- {h:'Lépj a rugóra, és repülsz.',m:[E,E,E,'..............D.....','.............####...',E,E,E,E,'.S..................','#########j##########',FL]},
- {h:'A híd láthatatlan. Bízz benne.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','######iiiiiiii######','######........######']},
- {h:'A kő omlik. Ne állj meg!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','#####cccccccccc#####','#####..........#####']},
- {h:'Ne lépj a világos kockára.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','####l###ll###l######','####.###..###.######']},
- {h:'Gödör, tüske, és az ajtó megint szalad.',m:[E,E,E,E,E,E,E,E,E,'.S...v......D..v..d.','#########xx#########','#########..#########']},
- {h:'Utolsó pálya. Semmi sem az, aminek látszik.',m:[E,E,E,E,'............g.......','............g.......','............g.......','......##FF##g.......','............g.......','.Sd.........g.....D.','####xx########iii###','####..########...###']}
+ {h:'Menj az ajtóhoz. Ennyi. Nincs itt semmi|féle csapda.',m:[E,E,E,E,E,E,E,E,E,'.S................D.',FL,FL]},
+ {h:'A padló|deszka gyenge. Ugorj át rajta!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','########xxx#########','########...#########']},
+ {h:'Két tüske van. Az egyik csapda|tüske: kibújik.',m:[E,E,E,E,E,E,E,E,E,'.S....^......v....D.',FL,FL]},
+ {h:'A futó|ajtó félénk. Ha közel érsz, elszalad.',m:[E,E,E,E,E,E,E,'...d................','..###...............','.S................D.',FL,FL]},
+ {h:'A plafon nem bírja sokáig. Kő|eső jön, fuss!',m:[E,E,E,E,E,E,E,'........##FFF##.....',E,'.S................D.',FL,FL]},
+ {h:'Ez egy ál|fal, nem igazi. Menj neki!',m:[E,E,E,E,'..........g.........','..........g.........','..........g.........','..........g.........','..........g.........','.S........g.......D.',FL,FL]},
+ {h:'Lépj a rugó|lapra, és repülsz.',m:[E,E,E,'..............D.....','.............####...',E,E,E,E,'.S..................','#########j##########',FL]},
+ {h:'A lég|híd láthatatlan. Bízz benne.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','######iiiiiiii######','######........######']},
+ {h:'A kő|híd omlik. Ne állj meg!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','#####cccccccccc#####','#####..........#####']},
+ {h:'Ne lépj a világos csapda|kockára.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','####l###ll###l######','####.###..###.######']},
+ {h:'Gödör, tüske|sor, és az ajtó megint szalad.',m:[E,E,E,E,E,E,E,E,E,'.S...v......D..v..d.','#########xx#########','#########..#########']},
+ {h:'Utolsó pálya, a fő|csapda. Semmi sem az, aminek látszik.',m:[E,E,E,E,'............g.......','............g.......','............g.......','......##FF##g.......','............g.......','.Sd.........g.....D.','####xx########iii###','####..########...###']}
 ];
-const TAUNT=['Hoppá.','Ezt nem láttad jönni.','Olvasd el a táblát.','Még egyszer.','Majdnem.','A padló nevet rajtad.','Ez fájt.','Próbáld újra.','Ott volt a tábla.','Na még egyet.'];
+const TAUNT=['Hoppá.','Ezt nem láttad jönni.','Olvasd el a tipp|táblát.','Még egyszer.','Majdnem.','A padló nevet rajtad.','Ez fájt. Kell egy seb|tapasz?','Próbáld újra.','Ott volt a tábla.','Na még egyet.',
+  'Bal|eset.','Ez egy csapda|ház.','Kamu|padló volt.','Tüske|párna. Kényelmes?','Szép esés. Kilenc|pont.','Jön az újra|kezdés.','Vigyázz, hamis|ajtó!'];
 const COLS=20,ROWS=12;
 const SK='csapda:save';
 const numMap=(o,hi)=>{const r={};for(const k of Object.keys(o))if(Number.isFinite(o[k])&&o[k]>=0)r[k]=Math.min(hi,o[k]);return r};
@@ -291,7 +303,7 @@ function die(){
   if(L.dead||L.win)return;L.dead=.8;L.deaths++;save.total++;save.deaths[lvIdx]=(save.deaths[lvIdx]||0)+1;persist();
   for(let i=0;i<18;i++)L.parts.push({x:P.x+P.w/2,y:P.y+P.h/2,vx:(Math.random()-.5)*14,vy:-Math.random()*12,life:.8});
   K.bad();$('#deaths').textContent=save.total;
-  const t=K.pick(TAUNT);$('#hint').innerHTML=K.esc(t);$('#hsay').innerHTML=K.sayBtn(t);$('#sign').classList.add('taunt');
+  const t=K.pickWord(TAUNT);$('#hint').innerHTML=K.sentence(t);$('#hsay').innerHTML=K.sayBtn(t);$('#sign').classList.add('taunt');
 }
 function restart(){if(!L)return;const d=L.deaths;load(lvIdx);L.deaths=d;closeOv();paused=false}
 function update(dt){

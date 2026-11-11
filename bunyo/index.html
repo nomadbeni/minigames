@@ -243,6 +243,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -265,7 +276,23 @@ const SUPERS=[
   {w:'villám|ököl',c:'#7fdcff',c2:'#ffffff',kind:'dash',ic:{r:[".....yyy..","....yyy...","...yyy....","..yyyyyy..","....yyy...","...yyy....","..yyy.....","..yy......",".y........"],p:{y:'#ffd23f'}}},
   {w:'jég|nyíl',c:'#9fe8ff',c2:'#ffffff',kind:'proj',ic:{r:[".....c....","....cCc...","...cCwCc..","..cCwWwCc.","...cCwCc..","....cCc...",".....c....",".....c....","....c.c...","...c...c.."],p:{c:'#6fd8ff',C:'#2fa8e0',w:'#e8faff',W:'#fff'}}},
   {w:'föld|rengés',c:'#c9a36a',c2:'#8a6a3a',kind:'quake',ic:{r:["..........","..........","....ss....","...sSSs...","..sSssss..",".ssssdsss.","sssdssssds","dddddddddd","d.d..d.d.d","..d....d.."],p:{s:'#8a8a92',S:'#b0b0b8',d:'#6a4a2a'}}},
-  {w:'szél|vihar',c:'#c6ffd9',c2:'#ffffff',kind:'proj',ic:{r:["wwwwwww...","......ww..","..wwww.w..","......w...","wwwwwww...","..........",".wwwwww...","......ww..","..wwww.w..","......w..."],p:{w:'#c6ffd9'}}}
+  {w:'szél|vihar',c:'#c6ffd9',c2:'#ffffff',kind:'proj',ic:{r:["wwwwwww...","......ww..","..wwww.w..","......w...","wwwwwww...","..........",".wwwwww...","......ww..","..wwww.w..","......w..."],p:{w:'#c6ffd9'}}},
+  {w:'acél|ököl',c:'#c9d1dc',c2:'#ffffff',kind:'dash',ic:{r:["..........", "..kkkkk...", ".kwwwwwk..", ".kwgwgwgk.", "kkwwwwwwk.", "kwwwwwwwk.", "kwwwwwwk..", ".kwwwwwk..", "..kkkkk...", ".........."],p:{'k': '#3a3f4a', 'w': '#c9d1dc', 'g': '#8a93a0'}}},
+  {w:'láng|rúgás',c:'#ff7a1a',c2:'#ffe04a',kind:'dash',ic:{r:["...y.r....", "..yrr.y...", ".yrror....", "..rooo....", "..kkkk....", "..kbbk....", "..kbbk....", "..kbbbbbk.", "..kbbbbbbk", "..kkkkkkkk"],p:{'y': '#ffe04a', 'r': '#e5301a', 'o': '#ff7a1a', 'k': '#2a1a10', 'b': '#8a4a2a'}}},
+  {w:'hó|golyó',c:'#f4fbff',c2:'#a9c8e8',kind:'proj',ic:{r:["...wwww...", "..wwWwww..", ".wwWwwwww.", ".wWwwwwbw.", ".wwwwwwbw.", ".wwwwwbbw.", "..wwwbbw..", "...wwww...", "..........", ".........."],p:{'w': '#f4fbff', 'W': '#ffffff', 'b': '#a9c8e8'}}},
+  {w:'kő|zápor',c:'#a8a8b0',c2:'#7a7a82',kind:'quake',ic:{r:[".ss....s..", ".sS...sS..", "....ss....", "...sSs..s.", "....s..sS.", ".s........", ".sS..ss...", ".....sSs..", "dddddddddd", "d.d.d.d.d."],p:{'s': '#7a7a82', 'S': '#a8a8b0', 'd': '#6a4a2a'}}},
+  {w:'kő|bunkó',c:'#a8a8b0',c2:'#7a5230',kind:'quake',ic:{r:["......sss.", ".....sSsss", "....sSssss", "....sssss.", "...bbss...", "..bb......", ".bb.......", "bb........", "b.........", ".........."],p:{'s': '#7a7a82', 'S': '#b0b0b8', 'b': '#7a5230'}}},
+  {w:'méh|raj',c:'#ffd23f',c2:'#1a1a1a',kind:'proj',ic:{r:["..y....y..", ".ykw..ykw.", "..y....y..", "..........", "....y.....", "...ykw....", "....y...y.", ".y.....ykw", "ykw.....y.", ".y........"],p:{'y': '#ffd23f', 'k': '#1a1a1a', 'w': '#e8f6ff'}}},
+  {w:'hang|ágyú',c:'#c6ffd9',c2:'#8a8a9a',kind:'proj',ic:{r:["......c...", "....kk.c..", "...kgk..c.", "kkkggk.c.c", "kggggk..c.", "kggggk.c.c", "kkkggk..c.", "...kgk.c..", "....kk....", "......c..."],p:{'k': '#2a2a35', 'g': '#8a8a9a', 'c': '#c6ffd9'}}},
+  {w:'sárkány|tűz',c:'#3ddc84',c2:'#c6ff5a',kind:'proj',ic:{r:["....g.....", "...gG.g...", "..gGG.Gg..", ".gGGyGGg..", ".gGyyyGg..", "gGGyWyGGg.", "gGyyWyyGg.", ".gGyyyGg..", "..gGGGg...", "...ggg...."],p:{'g': '#1f8a3a', 'G': '#3ddc84', 'y': '#c6ff5a', 'W': '#ffffff'}}},
+  {w:'árnyék|ugrás',c:'#a07cff',c2:'#2a1f3a',kind:'dash',ic:{r:["....kk....", "....kk....", "...kkkk..p", "..k.kk.kpp", "....kk..pp", "...k..k.p.", "..k....k..", "..........", "pppppppp..", ".......p.."],p:{'k': '#2a1f3a', 'p': '#a07cff'}}},
+  {w:'turbó|cipő',c:'#ff3b5c',c2:'#ffffff',kind:'dash',ic:{r:["..........", "....rrr...", "...rrrr...", "w..rrrrr..", "...rrrrrr.", "ww.rrwwrrr", "...rrrrrrr", "w.kkkkkkkk", "..........", ".........."],p:{'r': '#ff3b5c', 'w': '#ffffff', 'k': '#1a1a1a'}}},
+  {w:'víz|sugár',c:'#5ab0ff',c2:'#e8f6ff',kind:'proj',ic:{r:["..........", "bb........", "bBbb......", "bBBBbbbb..", "bWBBBBBbb.", "bBBBbbbb.b", "bBbb....b.", "bb......b.", "........b.", ".......b.b"],p:{'b': '#1f6fd0', 'B': '#5ab0ff', 'W': '#e8f6ff'}}},
+  {w:'mágnes|ütés',c:'#e53935',c2:'#e8e8f0',kind:'dash',ic:{r:["ww....ww..", "ww....ww..", "rr....rr..", "rr....rr..", "rr....rr..", "rrr..rrr..", ".rrrrrr...", "..rrrr....", "..........", ".........."],p:{'r': '#e53935', 'w': '#e8e8f0'}}},
+  {w:'homok|vihar',c:'#e0b860',c2:'#b08a40',kind:'proj',ic:{r:["..ssss....", ".s....s...", "s..ss..s..", "s.s..s.s..", "s.s.ss.s..", "s..s...s..", ".s....s...", "..ssss..d.", "d.....d.d.", ".d.d.d...d"],p:{'s': '#e0b860', 'd': '#b08a40'}}},
+  {w:'lánc|ostor',c:'#a8a8b8',c2:'#ffffff',kind:'proj',ic:{r:["kk........", "k.k.......", ".kk.kk....", "....k.k...", ".....kk.kk", "........k.", ".......k.k", "........kk", "bb........", "bb........"],p:{'k': '#a8a8b8', 'b': '#7a5230'}}},
+  {w:'kristály|nyíl',c:'#c49bff',c2:'#ffffff',kind:'proj',ic:{r:[".....p....", "....pPp...", "...pPWPp..", "....pPp...", ".....p....", ".....b....", ".....b....", ".....b....", "....fbf...", "...f...f.."],p:{'p': '#8a4ae8', 'P': '#c49bff', 'W': '#ffffff', 'b': '#6a4a2a', 'f': '#e8e8f0'}}},
+  {w:'tüske|labda',c:'#c0c0cc',c2:'#2a2a35',kind:'proj',ic:{r:["....k.....", ".k.kkk.k..", "..kGGGk...", ".kGGgGGk..", "kkGgggGkk.", ".kGGgGGk..", "..kGGGk...", ".k.kkk.k..", "....k.....", ".........."],p:{'k': '#2a2a35', 'G': '#8a8a9a', 'g': '#c0c0cc'}}}
 ];
 /* ---------- drawing a blocky fighter from poses ---------- */
 const POSE={
@@ -398,7 +425,7 @@ function ko(def,atk){def.st='ko';def.t=0;def.vy=-300;def.y=Math.min(def.y,-1);at
 /* super: the word flashes up, pick the matching icon in time */
 function superMove(f){
   if(f.meter<100||busy(f)||f.y<0)return;
-  const sp=K.pick(SUPERS);
+  const sp=K.pickWord(SUPERS,x=>x.w);
   if(f.ai){const ok=Math.random()<[.45,.65,.85][M.diff];f.meter=0;if(ok)fireSuper(f,sp);else{M.fx.push({x:f.x,y:-180,t:.8,k:'txt',txt:'mellé!'})}return}
   paused=true;M.supers++;
   const opts=K.shuffle([sp,...K.shuffle(SUPERS.filter(x=>x!==sp)).slice(0,2)]);

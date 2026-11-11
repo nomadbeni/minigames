@@ -197,6 +197,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -218,20 +229,23 @@ const WEAPONS=[
   {w:'gép|puska',rate:6,dmg:.8,spread:0,n:1,col:'#ffd166'},
   {w:'sörétes',rate:1.8,dmg:1.1,spread:.22,n:4,col:'#ffb347'},
   {w:'lézer',rate:4.5,dmg:2.2,spread:0,n:1,col:'#7fdcff',pierce:true},
-  {w:'raké|ta|vető',rate:1.4,dmg:6,spread:0,n:1,col:'#ff7a1a',blast:true}
+  {w:'rakéta|vető',rate:1.4,dmg:6,spread:0,n:1,col:'#ff7a1a',blast:true}
 ];
+/* Kapuk: a szó a kapu hatása. A gyakorlottság szerint sorsolódik (K.pickWord). */
 const GOOD=[
-  ()=>{const n=[3,5,8,10][Math.random()*4|0];return {t:'+'+n,w:'katona',fx:G=>G.men+=n}},
-  ()=>({t:'×2',w:'katona',fx:G=>G.men*=2}),
-  ()=>({t:'',w:'gyors|tüzelés',fx:G=>G.rate*=1.3}),
-  ()=>({t:'',w:'erős|töltény',fx:G=>G.dmg*=1.3}),
-  ()=>({t:'',w:'pajzs',fx:G=>G.shield=Math.min(12,G.shield+6)})
+  {w:'katona',men:[3,5,8,10]},{w:'katona',t:'×2',fx:G=>G.men*=2},
+  {w:'gyors|tüzelés',fx:G=>G.rate*=1.3},{w:'erős|töltény',fx:G=>G.dmg*=1.3},{w:'pajzs',fx:G=>G.shield=Math.min(12,G.shield+6)},
+  {w:'mentő|csapat',men:[3,5]},{w:'hős|csapat',men:[5,8]},{w:'orvos|láda',men:[2,3]},
+  {w:'tűz|erő',fx:G=>G.dmg*=1.3},{w:'éles|lőszer',fx:G=>G.dmg*=1.25},
+  {w:'gyors|tár',fx:G=>G.rate*=1.25},{w:'villám|tűz',fx:G=>G.rate*=1.3},{w:'erő|ital',fx:G=>G.rate*=1.2},
+  {w:'golyó|álló',fx:G=>G.shield=Math.min(12,G.shield+5)},{w:'acél|fal',fx:G=>G.shield=Math.min(12,G.shield+6)},{w:'páncél|mellény',fx:G=>G.shield=Math.min(12,G.shield+4)}
 ];
 const BAD=[
-  ()=>{const n=[2,3,5][Math.random()*3|0];return {t:'−'+n,w:'katona',fx:G=>G.men=Math.max(1,G.men-n)}},
-  ()=>({t:'',w:'fél csapat',fx:G=>G.men=Math.max(1,Math.ceil(G.men/2))}),
-  ()=>({t:'',w:'lassú|tüzelés',fx:G=>G.rate*=.75}),
-  ()=>({t:'',w:'gyenge|töltény',fx:G=>G.dmg*=.75})
+  {w:'katona',men:[2,3,5],bad:true},{w:'fél csapat',bad:true,fx:G=>G.men=Math.max(1,Math.ceil(G.men/2))},
+  {w:'lassú|tüzelés',bad:true,fx:G=>G.rate*=.75},{w:'gyenge|töltény',bad:true,fx:G=>G.dmg*=.75},
+  {w:'fél|osztag',bad:true,fx:G=>G.men=Math.max(1,Math.ceil(G.men/2))},{w:'rozsdás|cső',bad:true,fx:G=>G.rate*=.75},{w:'lassú|tár',bad:true,fx:G=>G.rate*=.8},
+  {w:'vak|töltény',bad:true,fx:G=>G.dmg*=.75},{w:'nedves|lőpor',bad:true,fx:G=>G.dmg*=.8},
+  {w:'csapda|akna',men:[2,3],bad:true},{w:'zombi|fészek',men:[3,5],bad:true}
 ];
 /* ---------- state ---------- */
 const SK='horda:save';
@@ -273,8 +287,9 @@ function spawnZombie(){
   G.zs.push({x:24+Math.random()*(LW-48),y:-20,hp,max:hp,vy:(tough?24:34)+Math.random()*12+G.wave*1.5,tough,wob:Math.random()*6,dmgMen:tough?3:1});
 }
 function spawnGate(){
-  let a=K.pick(GOOD)(),b=Math.random()<.8?K.pick(BAD)():K.pick(GOOD)();
-  if(a.w===b.w&&a.t===b.t)b=K.pick(BAD)();
+  const gw=e=>e.w,opt=e=>{if(e.men){const n=K.pick(e.men);return {t:(e.bad?'−':'+')+n,w:e.w,bad:!!e.bad,fx:e.bad?G=>G.men=Math.max(1,G.men-n):G=>G.men+=n}}return {t:e.t||'',w:e.w,bad:!!e.bad,fx:e.fx}};
+  let a=opt(K.pickWord(GOOD,gw)),b=Math.random()<.8?opt(K.pickWord(BAD,gw)):opt(K.pickWord(GOOD,gw));
+  if(a.w===b.w&&a.t===b.t)b=opt(K.pickWord(BAD,gw));
   const pair=Math.random()<.5?[a,b]:[b,a];
   G.gates.push({y:-60,l:pair[0],r:pair[1],good:[GOOD.length,0],hit:false});
 }
@@ -332,7 +347,7 @@ function update(dt){
   G.fx=G.fx.filter(f=>(f.t-=dt)>0);G.txt=G.txt.filter(t=>(t.life-=dt)>0);
   if(G.men<=0){G.men=0;hud();over()}
 }
-function isGood(side){return !/^−|fél|lassú|gyenge/.test((side.t||'')+K.plain(side.w))}
+function isGood(side){return !side.bad}
 /* ---------- drawing ---------- */
 function word(w,x,y,size,maxW,col){
   const lv=K.level(w),toks=String(w).split(/(\|| )/),parts=[];let i=0;

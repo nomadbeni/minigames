@@ -217,6 +217,17 @@ const K=(()=>{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
   api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
   api.pick=a=>a[Math.random()*a.length|0];
+  /* pickWord: a list item chosen by how well its word is known. A word never read right is ~9 times as
+     likely as one read right 8 times; the word picked last time does not come again right away. */
+  api.count=w=>mastery[plain(String(w)).toLowerCase()]||0;
+  let lastWord='';
+  api.pickWord=(list,get=x=>x)=>{
+    if(!list||!list.length)return undefined;
+    let pool=list.filter(x=>plain(String(get(x))).toLowerCase()!==lastWord);if(!pool.length)pool=list;
+    const wt=pool.map(x=>Math.max(.11,1-api.count(get(x))/9));
+    let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>=0)i++;
+    lastWord=plain(String(get(pool[i]))).toLowerCase();return pool[i];
+  };
   return api;
 })();
 /* @end olvaso-kit */
@@ -241,20 +252,20 @@ const SPRK={
  sun:{r:[".....y.....","..y..y..y..","...yYYYy...","..yYWWWYy..","yyYWWWWWYyy","..yYWWWYy..","...yYYYy...","..y..y..y..",".....y....."],p:{y:'#ffcf2a',Y:'#ffa51a',W:'#fff2a8'}}
 };
 const PLANTS=[
-  {k:'nap',w:'nap|ra|forgó',syl:['nap','ra','for','gó'],e:SPRK.nap,cost:50,hp:5,cd:6},
+  {k:'nap',w:'napra|forgó',syl:['nap','ra','for','gó'],e:SPRK.nap,cost:50,hp:5,cd:6},
   {k:'borso',w:'borsó|lövő',syl:['bor','só','lö','vő'],e:SPRK.borso,cost:100,hp:5,cd:6},
-  {k:'kaktusz',w:'kaktusz',syl:['kak','tusz'],e:SPRK.kaktusz,cost:50,hp:24,cd:15},
+  {k:'kaktusz',w:'kaktusz|fal',syl:['kak','tusz','fal'],e:SPRK.kaktusz,cost:50,hp:24,cd:15},
   {k:'jeg',w:'jég|virág',syl:['jég','vi','rág'],e:SPRK.jeg,cost:150,hp:5,cd:8},
   {k:'tok',w:'tök|bomba',syl:['tök','bom','ba'],e:SPRK.tok,cost:125,hp:30,cd:25},
   {k:'dupla',w:'dupla|lövő',syl:['dup','la','lö','vő'],e:SPRK.dupla,cost:200,hp:6,cd:9}
 ];
 const PB=Object.fromEntries(PLANTS.map(p=>[p.k,p]));
 const PESTS={
-  csiga:{e:SPRK.csiga,hp:7,spd:.22,bite:1},
-  hernyo:{e:SPRK.hernyo,hp:5,spd:.32,bite:1},
-  bogar:{e:SPRK.bogar,hp:12,spd:.28,bite:1.5},
-  varju:{e:SPRK.varju,hp:5,spd:.6,bite:1},
-  patkany:{e:SPRK.patkany,hp:40,spd:.2,bite:3}
+  csiga:{w:'házas|csiga',e:SPRK.csiga,hp:7,spd:.22,bite:1},
+  hernyo:{w:'levél|rágó',e:SPRK.hernyo,hp:5,spd:.32,bite:1},
+  bogar:{w:'krumpli|bogár',e:SPRK.bogar,hp:12,spd:.28,bite:1.5},
+  varju:{w:'tolvaj|varjú',e:SPRK.varju,hp:5,spd:.6,bite:1},
+  patkany:{w:'pince|patkány',e:SPRK.patkany,hp:40,spd:.2,bite:3}
 };
 /* waves: [pest, count] groups; later waves mix more */
 const WAVES=[
@@ -267,6 +278,8 @@ const WAVES=[
   [['bogar',10],['csiga',10],['varju',8],['patkany',2]],
   [['patkany',4],['bogar',12],['varju',10],['hernyo',12]]
 ];
+/* a hullám neve és a benne jövő kártevők neve a hullám elején feljön */
+const WNAMES=['hernyó|had','csiga|raj','vegyes|csapat','bogár|raj','varjú|had','bogár|sereg','patkány|horda','végső|roham'];
 const UNLOCK=[null,'kaktusz','jeg',null,'tok',null,'dupla',null];/* unlocked after winning wave i (0-based) */
 const SK='kertvedo:save';
 let save=K.store.get(SK,{won:0,have:['nap','borso'],intro:false});
@@ -286,6 +299,8 @@ function start(wi){
   G={wi,sun:150+wi*25,lives:3,grid:Array.from({length:ROWS},()=>Array(COLS).fill(null)),pests:[],shots:[],suns:[],fx:[],queue:q,spawnT:6,total:q.length,killed:0,skyT:5,cards:{},t:0,over:false};
   sel=null;shovel=false;$('#shovel').setAttribute('aria-pressed','false');
   closeOv();fit();renderCards();paused=false;last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  const kinds=[...new Set(WAVES[wi].map(([k])=>k))];
+  K.toast(`<div style="font-size:20px">${K.word(WNAMES[wi])}</div><div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;margin-top:6px">${kinds.map(k=>`<span style="display:inline-flex;align-items:center;gap:4px">${K.img(PESTS[k].e,24)} ${K.word(PESTS[k].w)}</span>`).join('')}</div>`);
 }
 function renderCards(){
   const have=save.have;
@@ -385,7 +400,7 @@ function end(win){
   if(win){K.good();K.addXP(15+G.wi*5+G.lives*3);const was=save.won;save.won=Math.max(save.won,G.wi+1);persist();
     const un=UNLOCK[G.wi];
     if(un&&!save.have.includes(un)){unlockPuzzle(PB[un],G.wi);return}
-    overlay(`<h2>HULLÁM ${G.wi+1} · KIVÉDVE</h2><p>Kilőve: <b>${G.killed}</b> · Élet: <b>${G.lives}/3</b></p>
+    overlay(`<h2>HULLÁM ${G.wi+1} · KIVÉDVE</h2><p style="font-size:20px">${K.word('kert|mentő')} vagy!</p><p>Kilőve: <b>${G.killed}</b> · Élet: <b>${G.lives}/3</b></p>
       <div class="row">${G.wi+1<WAVES.length?`<button class="btn hot" id="nx">Következő hullám →</button>`:'<p><b>Mind a 8 hullám kivédve. Tiszta munka.</b></p>'}<button class="btn" id="mn">Menü</button></div>`);
     const nx=$('#nx');if(nx)nx.onclick=()=>start(G.wi+1);$('#mn').onclick=menu;void was;
   }else{K.bad();overlay(`<h2>ÁTTÖRTEK</h2><p>A vonal elesett. Tipp: az elején több napraforgó = több energia.</p><div class="row"><button class="btn hot" id="re">Újra</button><button class="btn" id="mn">Menü</button></div>`);
