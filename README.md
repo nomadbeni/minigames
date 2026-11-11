@@ -41,6 +41,8 @@ A játékok nem gyűjtenek adatot: nincs regisztráció, analitika, süti, hirde
 
 A startlap tetején kereső van (név és leírás szerint, ékezet nélkül is, magyarul és angolul), alatta a **Kedvencek** polc: minden kártya alján a ☆ Kedvenc gombbal legfeljebb 10 játék tehető ide, abban a sorrendben, ahogy csillagozod. Utána a **Folytatás** polc a legutóbb megnyitott 3 játékkal. Ezek a listák is csak a böngészőben maradnak (`localStorage`).
 
+Az akciójátékok kontrollerrel (gamepad) is játszhatók gépen és Androidon: a kar vagy a d-pad mozgat, az A gomb lő vagy ugrik, a Start szünetet tart, menüben a kar a gombok között lép, az A megnyomja a kijelöltet. iPhone-on a böngésző ezt nem támogatja.
+
 Minden oldal Content-Security-Policy szabályt hordoz, így a böngésző maga tiltja le, ha egy oldal mégis más helyre próbálna kérést küldeni.
 
 Futtatás helyben: nyisd meg a gyökérben lévő `index.html`-t, vagy egy játék mappájában lévő `index.html`-t a böngészőben.
@@ -86,7 +88,7 @@ The games themselves are in Hungarian. See the table above for the list. Bike Sh
 
 **Privacy:** the games collect no data: no sign-up, analytics, cookies, ads or tracking, and nothing is sent anywhere. Progress and records stay in your browser (`localStorage`). Typefaces load from this site (`assets/fonts/`), except three in Falbontó, Kincsvadász and Betűbánya (Audiowide, Press Start 2P, VT323), which come from Google Fonts; for those three games Google sees the visitor's IP address when they load.
 
-**Search, Favourites, Continue:** the start page has a search box (names and descriptions, accents optional, Hungarian and English), then a Favourites shelf: tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them. A Continue shelf shows the last 3 games you opened. Both lists stay only in your browser (`localStorage`). Every page carries a Content-Security-Policy, so the browser itself blocks any request to another site.
+**Search, Favourites, Continue:** the start page has a search box (names and descriptions, accents optional, Hungarian and English), then a Favourites shelf: tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them. A Continue shelf shows the last 3 games you opened. Both lists stay only in your browser (`localStorage`). The action games also work with a game controller on desktop and Android (stick or d-pad moves, A fires or jumps, Start pauses, menus are navigated with the stick). Every page carries a Content-Security-Policy, so the browser itself blocks any request to another site.
 
 **Adding a game:** create a folder with an `index.html`, add the `<head>` tags shown above, and push to `main`. The GitHub Actions workflow rebuilds the start page and deploys the site. Pages without a back button get one added on deploy.
 
