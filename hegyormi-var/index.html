@@ -2,6 +2,7 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -51,11 +52,11 @@ header{display:flex;flex-direction:column;gap:10px}
 .ynum{font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
 .ymax{font-family:var(--f-mono);color:var(--muted);font-size:13px}
 .btn{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);
-  border-radius:4px;padding:8px 14px;cursor:pointer;min-height:40px}
+  border-radius:4px;padding:8px 14px;cursor:pointer;min-height:44px;min-width:44px}
 .btn:hover{border-color:var(--muted)}
 .btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-#layer{flex:1 1 180px;min-width:0;accent-color:var(--accent);height:28px}
+#layer{flex:1 1 180px;min-width:0;accent-color:var(--accent);height:44px;margin:0}
 
 .stage{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);
   grid-template-areas:"note" "top" "mats" "iso"}
@@ -76,7 +77,8 @@ canvas{display:block;width:100%;touch-action:manipulation}
 .mname small{display:block;color:var(--muted);font-size:11.5px}
 .num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .isoctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.isoctl label{display:flex;gap:6px;align-items:center;font-size:13.5px;cursor:pointer}
+.isoctl label{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer;min-height:44px;padding:0 6px}
+.isoctl input[type=checkbox]{width:20px;height:20px;margin:0}
 .isowrap{border-radius:4px;overflow:hidden;margin-top:12px;background:linear-gradient(var(--sky1),var(--sky2))}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;min-width:440px;font-size:14px}
@@ -89,10 +91,11 @@ td.num,th.num{text-align:right}
 .sw.inl{display:inline-block;vertical-align:-4px;margin-right:8px}
 .note p.small{margin:10px 0 0}
 .topwrap{overflow:hidden}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 </style>
 
 <div class="wrap">
-<div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0 0 10px"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+<div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0 0 10px"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
 <header>
   <div class="eyebrow">Minecraft építési terv · szintről szintre</div>
   <h1>Hegyormi vár</h1>
@@ -352,6 +355,7 @@ const NOTES=[
 ];
 
 const CHIPS=["hegyre épített vár","díszlépcső · falhidak"];
+/* @shared terv-nezegeto */
 const ORDER=Object.keys(TYPES);
 const VOX=[];let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9,YMAX=0;
 for(const [kk,t] of V){
@@ -369,29 +373,44 @@ const noteFor=y=>NOTES.find(n=>y>=n[0]&&y<=n[1]);
 let cur=0,rot=0,hover=null;
 const $=id=>document.getElementById(id);
 const fmt=n=>n.toLocaleString('hu-HU');
-const solidCount=VOX.filter(v=>!TYPES[v[3]].liquid).length;
+const solidCount=VOX.filter(v=>!TYPES[v[3]].liquid&&!TYPES[v[3]].dig).length;
 $('chips').innerHTML=[`${NX} × ${NZ} terület`,`${YMAX+1} szint (Y 0–${YMAX})`,`${fmt(solidCount)} blokk`,...CHIPS].map(s=>`<span class="chip">${s}</span>`).join('');
 $('ymax').textContent='/ '+YMAX;$('layer').max=YMAX;
 
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 function rgb(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));}
 function shade(h,f,a=1){const [r,g,b]=rgb(h);return `rgba(${Math.min(255,r*f)|0},${Math.min(255,g*f)|0},${Math.min(255,b*f)|0},${a})`;}
-const sw=c=>`<span class="sw" style="background:${c}"></span>`;
+/* Anyagminta: a blokk színe, rajta a blokk rajzolata (tégla, deszka, rönk, kő, üveg, víz), az angol név alapján. */
+const SW_LINE='rgba(0,0,0,.30)',SW_HI='rgba(255,255,255,.35)';
+function swPattern(e){
+  e=e||'';
+  if(/Brick|Tile/.test(e))return `linear-gradient(${SW_LINE} 1px,transparent 1px) 0 0/100% 6px,linear-gradient(90deg,${SW_LINE} 1px,transparent 1px) 0 0/9px 6px`;
+  if(/Planks|Slab|Stairs|Door|Barrel|Bookshelf|Table|Chest/.test(e))return `linear-gradient(${SW_LINE} 1px,transparent 1px) 0 0/100% 4.5px`;
+  if(/Log|Fence|Ladder/.test(e))return `linear-gradient(90deg,${SW_LINE} 1px,transparent 1px) 0 0/4.5px 100%`;
+  if(/Glass|Ice/.test(e))return `linear-gradient(135deg,transparent 35%,${SW_HI} 35%,${SW_HI} 50%,transparent 50%)`;
+  if(/Water|Lava/.test(e))return `linear-gradient(${SW_HI} 1px,transparent 1px) 0 2px/100% 6px`;
+  if(/Stone|Cobble|Andesite|Diorite|Deepslate|Calcite|Tuff|Basalt|Dirt|Gravel|Sand/.test(e))
+    return `radial-gradient(${SW_LINE} 1px,transparent 1.5px) 0 0/6px 6px,radial-gradient(${SW_HI} 1px,transparent 1.5px) 3px 3px/6px 6px`;
+  return '';
+}
+const swStyle=T=>{const pat=swPattern(T.e);return `background:${pat?pat+',':''}${T.c}`;};
+const sw=T=>`<span class="sw" style="${swStyle(T)}"></span>`;
 
 function renderMats(){
   const c=layerCounts[cur];
   $('lmats').innerHTML=ORDER.filter(t=>c[t]).map(t=>{
     const T=TYPES[t],n=c[t];
-    const lab=T.door?`${fmt(n)} blokk (${fmt(n/2)} ajtó)`:T.liquid?'vödrökkel':fmt(n)+' db';
-    return `<li>${sw(T.c)}<span class="mname">${T.n}<small>${T.e}</small></span><span class="num">${lab}</span></li>`;
+    const lab=T.dig?`${fmt(n)} blokknyi`:T.door?`${fmt(n)} blokk (${fmt(n/2)} ajtó)`:T.liquid?'vödrökkel':fmt(n)+' db';
+    return `<li>${sw(T)}<span class="mname">${T.n}<small>${T.e}</small></span><span class="num">${lab}</span></li>`;
   }).join('')||'<li><span></span><span class="mname">Ezen a szinten nincs blokk.</span><span></span></li>';
-  const nw=Object.entries(c).filter(([t])=>!TYPES[t].liquid).reduce((s,[,n])=>s+n,0);
+  const nw=Object.entries(c).filter(([t])=>!TYPES[t].liquid&&!TYPES[t].dig).reduce((s,[,n])=>s+n,0);
   $('ncount').textContent=fmt(nw)+' blokk ezen a szinten';
 }
 function renderTotals(){
   $('totals').innerHTML=ORDER.filter(t=>total[t]).map(t=>{
     const T=TYPES[t],n=total[t];
-    const nm=`<td><span class="sw inl" style="background:${T.c}"></span>${T.n}</td><td>${T.e}</td>`;
+    const nm=`<td><span class="sw inl" style="${swStyle(T)}"></span>${T.n}</td><td>${T.e}</td>`;
+    if(T.dig)return `<tr>${nm}<td class="num">${fmt(n)} blokknyi</td><td class="num">nem kell blokk</td></tr>`;
     if(T.liquid)return `<tr>${nm}<td class="num">${fmt(n)} felület</td><td class="num">2 vödör (végtelen forrás)</td></tr>`;
     if(T.door)return `<tr>${nm}<td class="num">${fmt(n/2)} ajtó</td><td class="num">–</td></tr>`;
     const st=Math.floor(n/64),r=n%64;
@@ -410,12 +429,13 @@ function drawTop(){
     const x=gx+minX,z=gz+minZ,t=get(x,cur,z),px=gx*cell,pz=gz*cell;
     if(t){
       const T=TYPES[t];
-      if(T.thin){g.fillStyle=shade(T.c,1);const s=cell*Math.max(.35,T.thin+.1);g.fillRect(px+(cell-s)/2,pz+(cell-s)/2,s,s);}
+      if(T.dig){g.fillStyle=shade(T.c,1,.28);g.fillRect(px,pz,cell,cell);g.strokeStyle=shade(T.c,.8,.7);g.lineWidth=1;g.beginPath();g.moveTo(px,pz+cell);g.lineTo(px+cell,pz);g.stroke();}
+      else if(T.thin){g.fillStyle=shade(T.c,1);const s=cell*Math.max(.35,T.thin+.1);g.fillRect(px+(cell-s)/2,pz+(cell-s)/2,s,s);}
       else{g.fillStyle=shade(T.c,1,T.alpha||1);g.fillRect(px,pz,cell,cell);}
       if(T.door){g.strokeStyle='rgba(0,0,0,.5)';g.lineWidth=1;g.strokeRect(px+cell*.25,pz+cell*.15,cell*.5,cell*.7);}
     }else if(cur>0){
       const b=get(x,cur-1,z);
-      if(b){g.fillStyle=shade(TYPES[b].c,1,.2);g.fillRect(px,pz,cell,cell);}
+      if(b&&!TYPES[b].dig){g.fillStyle=shade(TYPES[b].c,1,.2);g.fillRect(px,pz,cell,cell);}
     }
   }
   const mod5=v=>((v%5)+5)%5===0;
@@ -445,7 +465,7 @@ function drawIso(){
   for(const v of VOX){
     const [rx,rz]=rotXZ(v[0],v[2],rot);
     const d=rx-rz,s=rx+rz;dmin=Math.min(dmin,d);dmax=Math.max(dmax,d);smin=Math.min(smin,s);smax=Math.max(smax,s);
-    if(v[1]>cur&&!ghost)continue;
+    if(TYPES[v[3]].dig||(v[1]>cur&&!ghost))continue;
     list.push([rx,v[1],rz,v[3]]);
   }
   const du=dmax-dmin+4, su=(smax-smin+4)/2, yu=(YMAX+1)*1.2;
@@ -495,7 +515,7 @@ new ResizeObserver(()=>{drawTop();drawIso();}).observe(document.querySelector('.
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawTop();drawIso();});
 new MutationObserver(()=>{drawTop();drawIso();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 renderTotals();render();
-
+/* @end terv-nezegeto */
 </script>
 
 <script>

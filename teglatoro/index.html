@@ -2,6 +2,7 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,6 +29,10 @@ body{background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-user-sel
 header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
 .stat{display:flex;flex-direction:column;gap:2px}
 .stat.r{align-items:flex-end}
+.stat.tools{flex-direction:row;justify-content:flex-end;gap:6px}
+#sndBtn{min-width:44px;padding:0 10px;font-size:18px}
+#sndBtn[aria-pressed="false"]{opacity:.55}
+@media (max-width:380px){#newBtn{padding:10px 12px}}
 .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
 #level{font-family:var(--display);font-size:40px;line-height:1;text-align:center;color:var(--ball);text-shadow:0 0 18px rgba(255,212,71,.35)}
@@ -35,7 +40,7 @@ header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8p
 canvas{display:block;touch-action:none;border-radius:10px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
 footer{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px}
 #hint{color:var(--muted);font-size:14px}
-button{font-family:var(--ui);font-weight:700;font-size:15px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:10px 16px;cursor:pointer}
+button{font-family:var(--ui);font-weight:700;font-size:15px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:10px 16px;min-height:44px;cursor:pointer}
 button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
 button.hot{background:var(--ball);color:#1a1400;border-color:var(--ball)}
 #speed{font-family:var(--display);color:var(--ball);font-size:18px}
@@ -56,16 +61,16 @@ button.hot{background:var(--ball);color:#1a1400;border-color:var(--ball)}
 <body>
 
 <div id="app">
-  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
 
   <header>
     <div class="stat"><span class="lbl">Rekord · <span id="diffLbl">Normál</span></span><span class="val" id="best">1</span></div>
     <div id="level">1</div>
-    <div class="stat r"><button id="newBtn" type="button">Új játék</button></div>
+    <div class="stat r tools"><button id="sndBtn" type="button" aria-label="Hang" aria-pressed="true">🔊</button><button id="newBtn" type="button">Új játék</button></div>
   </header>
   <div id="stage"><canvas id="cv" aria-label="Játéktér"></canvas></div>
   <footer>
-    <span id="hint">Húzd az ujjad a célzáshoz, engedd el a lövéshez. A szaggatott keretes tégla kiütve sort ⟷, oszlopot ↕ vagy a környékét ✳ is viszi. A színes keretes téglán másképp pattan a labda. A kék nyíl elfordítja a labdát (a lila körönként forog), a piros ÷2-t kerüld el!</span>
+    <span id="hint">Húzd az ujjad a célzáshoz, engedd el a lövéshez (gépen: ← → célzás, szóköz lövés). A szaggatott keretes tégla kiütve sort ⟷, oszlopot ↕ vagy a környékét ✳ is viszi. A színes keretes téglán másképp pattan a labda. A kék nyíl elfordítja a labdát (a lila körönként forog), a piros ÷2-t kerüld el!</span>
     <span id="speed" hidden></span>
     <button id="recall" type="button" hidden>Labdák vissza</button>
   </footer>
@@ -99,6 +104,25 @@ const COLS=7, GR=11, FLOOR=GR, R=0.13, SPEED=22, GAP=0.05;
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Hang: Web Audio, csak érintés vagy billentyű után indul. A némítás a 'tegla-sound' kulcsba mentődik. */
+const SND=(()=>{
+  let on=true,ac=null,lastPop=0;
+  try{const v=localStorage.getItem('tegla-sound');if(v==='0')on=false}catch(e){}
+  function ctx(){if(!on)return null;try{if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;ac=new A()}if(ac.state==='suspended')ac.resume()}catch(e){return null}return ac}
+  function tone(f,d,type,vol,slide){const a=ctx();if(!a)return;try{const t=a.currentTime,o=a.createOscillator(),g=a.createGain();
+    o.type=type||'square';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+    g.gain.setValueAtTime(vol||.08,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+  return{
+    get on(){return on},
+    set(v){on=!!v;try{localStorage.setItem('tegla-sound',on?'1':'0')}catch(e){}if(on)ctx()},
+    wake(){ctx()},
+    pop(){const n=performance.now();if(n-lastPop<45)return;lastPop=n;tone(520+Math.random()*120,.05,'square',.035)},
+    brick(){tone(260,.12,'triangle',.11,90)},
+    bonus(){tone(660,.08,'square',.07);setTimeout(()=>tone(990,.12,'square',.07),70)},
+    turn(){tone(330,.09,'sine',.08,440)},
+    over(){tone(300,.25,'sawtooth',.08,120);setTimeout(()=>tone(160,.4,'sawtooth',.08,60),220)}
+  };
+})();
 let cell=40, dpr=1;
 let clones=0; const seenM=new Set();
 let S, halved=false, shotT=0, shotFire=false, shotN=0, balls=[], parts=[], fx=[], aim=null, fireT=0, queue=0, firstLand=null, turnT=0, pending=0;
@@ -294,6 +318,7 @@ function dirFrom(p){
   return{x:Math.cos(a),y:Math.sin(a)};
 }
 cv.addEventListener('pointerdown',e=>{
+  SND.wake();
   if(S.phase!=='aim'||S.shot)return;
   cv.setPointerCapture(e.pointerId);aim=dirFrom(pt(e));
 });
@@ -327,6 +352,26 @@ $('recall').addEventListener('click',()=>{
   if(!balls.length)endTurn();
 });
 // Az „Új játék” a nehézségválasztót nyitja; a Mégse visszavisz a futó játékba.
+// Billentyűzet: ← → célzás, szóköz vagy Enter lövés.
+let kbA=-Math.PI/2;
+function syncSnd(){const b=$('sndBtn');b.textContent=SND.on?'🔊':'🔇';b.setAttribute('aria-pressed',SND.on?'true':'false');b.setAttribute('aria-label',SND.on?'Hang: be':'Hang: ki')}
+$('sndBtn').addEventListener('click',()=>{SND.set(!SND.on);syncSnd()});
+syncSnd();
+document.addEventListener('keydown',e=>{
+  if(!$('pick').hidden||!$('over').hidden)return;
+  const t=e.target;if(t&&(t.tagName==='BUTTON'||t.tagName==='A'||t.tagName==='INPUT')&&(e.key==='Enter'||e.key===' '))return;
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+    e.preventDefault();SND.wake();
+    if(S.phase!=='aim'||S.shot)return;
+    kbA+=(e.key==='ArrowLeft'?-1:1)*Math.PI/60;
+    kbA=Math.max(-Math.PI+0.17,Math.min(-0.17,kbA));
+    aim={x:Math.cos(kbA),y:Math.sin(kbA)};
+  }else if(e.key===' '||e.key==='Enter'){
+    e.preventDefault();SND.wake();
+    if(S.phase!=='aim'||S.shot)return;
+    const d=aim||{x:Math.cos(kbA),y:Math.sin(kbA)};aim=null;fire(d);
+  }
+});
 $('newBtn').addEventListener('click',()=>{if(S.phase!=='fly')showPick(S.phase!=='over')});
 document.querySelectorAll('.diff').forEach(b=>b.addEventListener('click',()=>newGame(b.dataset.diff)));
 $('pickCancel').addEventListener('click',()=>{$('pick').hidden=true});
@@ -372,7 +417,7 @@ function overlapsPass(px,py){
 }
 // Pattanás egy tengely mentén (ax: 'x' vagy 'y'), a tégla fajtája szerint.
 function bounce(b,ax,m){
-  const ox=b.vx,oy=b.vy;
+  const ox=b.vx,oy=b.vy;SND.pop();
   if(m==='back'){b.vx=-ox;b.vy=-oy;return}
   if(m==='drop'){b.vx=0;b.vy=SPEED;return}
   if(m==='rnd'){
@@ -396,7 +441,7 @@ function kill(r0,c0){
   while(q.length){
     const [r,c]=q.pop();const o=S.map[r]&&S.map[r][c];
     if(!o||o.t!=='b')continue;
-    S.map[r][c]=null;burst(c+.5,r+.5,o.hue||200);
+    S.map[r][c]=null;burst(c+.5,r+.5,o.hue||200);SND.brick();
     if(!o.k)continue;
     fx.push({k:o.k,r,c,l:1});
     let cells=[];
@@ -475,8 +520,8 @@ function stepBall(b,dt){
         continue;
       }
       S.map[rr][cc]=null;
-      if(o.t==='i'){pending++;burst(cc+.5,rr+.5,48)}
-      else if(o.t==='s'){S.shot=true;burst(cc+.5,rr+.5,25);fx.push({k:'txt',txt:'SHOTGUN!',col:'#ff9f40',x:cc+.5,y:rr+.5,l:1})}
+      if(o.t==='i'){pending++;burst(cc+.5,rr+.5,48);SND.bonus()}
+      else if(o.t==='s'){S.shot=true;burst(cc+.5,rr+.5,25);SND.bonus();fx.push({k:'txt',txt:'SHOTGUN!',col:'#ff9f40',x:cc+.5,y:rr+.5,l:1})}
       else if(o.t==='h'){halved=true;burst(cc+.5,rr+.5,350);fx.push({k:'txt',txt:'÷2',col:'#ff5a7a',x:cc+.5,y:rr+.5,l:1});if(navigator.vibrate)try{navigator.vibrate([40,40,40])}catch(e){}}
     }
     if(b.y>=FLOOR-R-1e-6&&b.vy>0){
@@ -512,12 +557,12 @@ function endTurn(){
     S.phase='over';S.level--;
     if(S.level>best){best=S.level;setBest(S.diff,best)}
     try{localStorage.removeItem('tegla-save')}catch(e){}
-    $('ovLevel').textContent=S.level;$('ovBest').textContent=best;$('over').hidden=false;
+    $('ovLevel').textContent=S.level;$('ovBest').textContent=best;$('over').hidden=false;SND.over();
     ui();return;
   }
   spawnRow();
   if(S.level>best){best=S.level;setBest(S.diff,best)}
-  S.phase='aim';if(S.shot)startShot();save();ui();
+  S.phase='aim';if(S.shot)startShot();save();ui();SND.turn();
   if(navigator.vibrate)try{navigator.vibrate(8)}catch(e){}
 }
 function physics(dt){
@@ -709,6 +754,42 @@ fit();requestAnimationFrame(loop);
   d.addEventListener('webkitfullscreenchange', label);
   label();
 })();
+</script>
+<script>
+/* @shared fekvo-jelzes */
+/* Fekvő telefonon „Fordítsd el a telefont” jelzés. A játék álló képernyőre készült, ezért amíg a telefon
+   fekszik, a jelzés eltakarja, és a játék a saját szünet-logikájával megáll (ugyanaz fut le, mint amikor
+   a lap háttérbe kerül). Gépen, széles ablakban nem jelenik meg (csak érintőképernyőn, alacsony ablakban). */
+(function(){
+  var mq;
+  try{ mq=matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'); }catch(e){ return; }
+  var st=document.createElement('style');
+  st.textContent='.rotate-hint{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;'+
+    'background:rgba(5,8,14,.95);color:#fff;font:700 20px/1.3 system-ui,sans-serif;text-align:center}'+
+    '.rotate-hint[hidden]{display:none!important}.rotate-hint p{margin:8px 0}'+
+    '.rotate-hint .sub{font-weight:400;font-size:16px;opacity:.85}.rotate-hint svg{width:56px;height:56px}';
+  var el=document.createElement('div');
+  el.className='rotate-hint';el.setAttribute('role','alert');el.hidden=true;
+  el.innerHTML='<div><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" '+
+    'fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.5" r="1" fill="currentColor"/></svg>'+
+    '<p>Fordítsd el a telefont!</p><p class="sub">Ez a játék álló képernyőre készült. Addig szünetel.</p></div>';
+  function pauseGame(){
+    try{
+      Object.defineProperty(document,'hidden',{configurable:true,get:function(){return true;}});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }catch(e){}
+    try{ delete document.hidden; }catch(e){}
+  }
+  function update(e){
+    if(mq.matches){ if(el.hidden){ el.hidden=false; if(e) pauseGame(); } }
+    else el.hidden=true;
+  }
+  document.head.appendChild(st);
+  document.body.appendChild(el);
+  if(mq.addEventListener) mq.addEventListener('change',update); else if(mq.addListener) mq.addListener(update);
+  update();
+})();
+/* @end fekvo-jelzes */
 </script>
 </body>
 </html>

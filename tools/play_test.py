@@ -5,11 +5,14 @@
                 no JavaScript error, no request to a host other than the allowed font hosts,
                 no sideways scrolling; then five kinds of broken saved data are written into
                 localStorage, and the game must still start and play without an error
-  scenarios     short real play-throughs of the reading games that check the outcome
+  scenarios     short real play-throughs that check the outcome
                 (paid, delivered, quest taken, level cleared, death counted, save written)
   generators    the Gyémántbánya and Kincsvadász level generators (and the E-Útvesztő maze generator), taken from the published pages,
                 make hundreds of levels; each must be found, be a valid puzzle and have exactly one
                 solution (checked by an independent solver)
+  sokoban       every Dobozmester level is proven solvable by a push-level breadth-first search with
+                dead-square and frozen-block pruning (--quick: the first 10 levels); hitting the state
+                or time limit is reported as a failure, never as a silent pass
 
 Usage:
   pip install playwright && python3 -m playwright install chromium   # once
@@ -44,8 +47,13 @@ class Quiet(SimpleHTTPRequestHandler):
         pass
 
 
+class QuietServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        pass   # the browser closing a connection early is not a test failure
+
+
 def start_server():
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), partial(Quiet, directory=str(ROOT)))
+    httpd = QuietServer(("127.0.0.1", 0), partial(Quiet, directory=str(ROOT)))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -188,6 +196,40 @@ async def test_start_page(browser, base, games):
             if not any(h.lstrip("./").startswith(f"{g}/") for h in hrefs):
                 problems.append(f"no link to {g}")
         problems += r.errors + [f"request to another site: {u}" for u in r.external]
+    # search: accent- and case-insensitive, Hungarian and English
+    async with Run(browser, base) as r:
+        await r.goto("index.html")
+        q, shown = r.page.locator("#q"), "document.querySelectorAll('section:not(.recent) .card').length"
+        for word, must in [("BUNYO", "bunyo"), ("zombie", "horda"), ("vár", "tundervar")]:
+            await q.fill(word)
+            slugs = await r.page.locator("section:not(.recent) .star").evaluate_all("bs => bs.map(b => b.dataset.slug)")
+            if must not in slugs or len(slugs) >= len(games):
+                problems.append(f"search '{word}' should find {must} and filter the rest: {slugs}")
+        await q.fill("qqqxxx")
+        if await r.page.evaluate(shown) != 0 or not await r.page.locator(".nomatch").count():
+            problems.append("a search with no match does not say so")
+        await q.fill("")
+        if await r.page.evaluate(shown) < len(games):
+            problems.append("clearing the search does not bring every game back")
+        # "Folytatás" shelf: the opened game comes first, the list keeps at most 3
+        for slug in ["csapda", "horda", "bunyo", "horda"]:
+            await r.page.locator(f'section:not(.recent):not(.fav) .card:has(.star[data-slug="{slug}"]) > a').click()
+            await r.page.go_back()
+        rec = await r.page.locator("section.recent .star").evaluate_all("bs => bs.map(b => b.dataset.slug)")
+        if rec != ["horda", "bunyo", "csapda"]:
+            problems.append(f"the Continue shelf is wrong: {rec}")
+        problems += r.errors + [f"request to another site: {u}" for u in r.external]
+    async with Run(browser, base, seed={"games-recent": '["horda",5,"nincs-ilyen","<b>","horda","bunyo","csapda","kalandor"]'}) as r:
+        await r.goto("index.html")
+        rec = await r.page.locator("section.recent .star").evaluate_all("bs => bs.map(b => b.dataset.slug)")
+        if rec != ["horda", "bunyo", "csapda"]:
+            problems.append(f"a broken games-recent value is not cleaned: {rec}")
+        problems += r.errors
+    async with Run(browser, base, seed={"games-recent": '{"a":1}'}) as r:
+        await r.goto("index.html")
+        if await r.page.locator("section.recent").count():
+            problems.append("a games-recent value that is not a list still shows a shelf")
+        problems += r.errors
     return problems
 
 
@@ -204,6 +246,18 @@ def check(cond, msg):
 
 def save(**kv):
     return {k: json.dumps(v) for k, v in kv.items()}
+
+
+async def wait_js(page, expr, timeout=5000):
+    """Waits until a JavaScript expression is true. Polls with evaluate(), because the pages' Content-Security-Policy
+    (rightly) blocks the string evaluation that page.wait_for_function() uses."""
+    t0 = time.time()
+    while True:
+        if await page.evaluate(expr):
+            return
+        if (time.time() - t0) * 1000 > timeout:
+            raise Fail(f"timed out after {timeout} ms waiting for: {expr}")
+        await page.wait_for_timeout(50)
 
 
 async def hold(page, key, ms):
@@ -289,7 +343,7 @@ async def sc_invasion(page):
         await card.click()
         await page.mouse.click(box["x"] + cs * (c + .5), box["y"] + cs * .6 + cs * (r + .5))
         try:
-            await page.wait_for_function(f"+document.querySelector('#sun').textContent <= {before - 75}", timeout=3000)
+            await wait_js(page, f"+document.querySelector('#sun').textContent <= {before - 75}", timeout=3000)
         except Exception:
             pass
         after = int(await txt(page, "#sun"))
@@ -345,6 +399,211 @@ async def sc_caveman(page):
     check(saved["cur"]["lvl"] == 0, f"the run is saved: {saved}")
 
 
+async def sc_caveman_calm(page):
+    await page.locator("#ovNew").click()
+    await page.evaluate("__kk.hurt()")
+    check(await page.evaluate("__kk.S.shake") > 0, "a hit shakes the screen with normal motion")
+    await page.emulate_media(reduced_motion="reduce")
+    await page.reload()
+    await page.locator("#ovNew, #ovGo, #ov .btn.hot").first.click()
+    await page.evaluate("__kk.S.p.inv = 0; __kk.S.shake = 0; __kk.hurt()")
+    check(await page.evaluate("__kk.S.shake") == 0, "reduced motion: a hit does not shake the screen")
+
+
+async def sc_bricks_swipe(page):
+    await page.locator('[data-diff="normal"]').click()
+    before = int(await txt(page, "#level"))
+    box = await page.locator("#cv").bounding_box()
+    x, y = box["x"] + box["width"] * .5, box["y"] + box["height"] * .95
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x - box["width"] * .2, y - box["height"] * .5, steps=6)
+    await page.mouse.up()
+    await wait_js(page, f"+document.querySelector('#level').textContent > {before}", timeout=30000)
+    saved = json.loads(await page.evaluate("localStorage.getItem('tegla-save')"))
+    check(saved["level"] == before + 1, f"the round is saved: {saved.get('level')}")
+    await page.reload()
+    await page.wait_for_timeout(300)
+    check(int(await txt(page, "#level")) == before + 1, "the saved round comes back after a reload")
+
+
+async def sc_bricks_keys(page):
+    await page.locator('[data-diff="normal"]').click()
+    await page.evaluate("document.activeElement && document.activeElement.blur()")
+    before = int(await txt(page, "#level"))
+    for _ in range(6):
+        await page.keyboard.press("ArrowLeft")
+    await page.keyboard.press("Space")
+    await wait_js(page, f"+document.querySelector('#level').textContent > {before}", timeout=30000)
+    await page.locator("#sndBtn").click()
+    check(await page.evaluate("localStorage.getItem('tegla-sound')") == "0", "muting is saved")
+    await page.reload()
+    check(await page.locator("#sndBtn").get_attribute("aria-pressed") == "false", "the game stays muted after a reload")
+
+
+async def sc_breakout(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    for lives in (2, 1, 0):
+        await page.keyboard.press("Space")
+        await page.wait_for_timeout(150)
+        # the ball is sent past the paddle, the real physics has to notice it falling out
+        await page.evaluate("""(() => { const F = __falbonto, G = F.G, pd = G.paddle;
+            G.balls.forEach(b => { b.stuck = false; b.x = pd.x > 5 ? 0.5 : 9.5; b.y = F.PY + F.PH + 0.5; b.vx = 0; b.vy = 12; }); })()""")
+        await wait_js(page, f"__falbonto.G.lives === {lives}", timeout=5000)
+        hearts = (await txt(page, "#lives")).count("♥")
+        check(hearts == lives, f"the lives counter shows {lives}: {hearts}")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=3000)
+    check(await page.evaluate("localStorage.getItem('falbonto-save')") is None, "the save is cleared at game over")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await txt(page, "#lives") == "♥♥♥", "a new game starts with three lives")
+
+
+def solve_region_puzzle(n, reg):
+    """Independent solver for Gyémántbánya and Kincsvadász: one per row, column and region,
+    none touching. Returns every solution (stops at two)."""
+    out = []
+
+    def place(r, prev, cols, regs, sol):
+        if len(out) > 1:
+            return
+        if r == n:
+            out.append(sol[:])
+            return
+        for c in range(n):
+            g = reg[r * n + c]
+            if c in cols or g in regs or (r and abs(c - prev) <= 1):
+                continue
+            place(r + 1, c, cols | {c}, regs | {g}, sol + [c])
+    place(0, -9, frozenset(), frozenset(), [])
+    return out
+
+
+async def sc_region_puzzle(page, win_text):
+    # the board is generated behind a short "drawing the map" window; wait until it is ready
+    await wait_js(page, "document.querySelectorAll('#board .cell').length > 0 && document.getElementById('overlay').hidden", 15000)
+    labels = await page.locator("#board .cell").evaluate_all("cs => cs.map(c => c.getAttribute('aria-label'))")
+    n = int(len(labels) ** .5)
+    check(n * n == len(labels) and n >= 6, f"a square board: {len(labels)} cells")
+    names = [lab.split(", ")[2] for lab in labels]
+    ids = {nm: k for k, nm in enumerate(dict.fromkeys(names))}
+    check(len(ids) == n, f"{n} regions on the board: {len(ids)}")
+    sols = solve_region_puzzle(n, [ids[nm] for nm in names])
+    check(len(sols) == 1, f"the board has exactly one solution: {len(sols)}")
+    sol = sols[0]
+    cells = page.locator("#board .cell")
+    wrong = next(r * n + c for r in range(n) for c in range(n) if c != sol[r])
+    await cells.nth(wrong).click()
+    check(await page.locator("#hearts").get_attribute("aria-label") == "2 élet", "a wrong cell takes a heart")
+    if await page.locator("#overlay").is_visible():
+        await page.locator("#overlay button").first.click()
+    for r, c in enumerate(sol):
+        await cells.nth(r * n + c).click()
+    await page.locator("#overlay", has_text=win_text).wait_for(timeout=4000)
+
+
+async def sc_gems(page):
+    await sc_region_puzzle(page, "Megvan mind!")
+
+
+async def sc_treasure(page):
+    await sc_region_puzzle(page, "TELJESÍTVE")
+
+
+async def sc_letter_mine(page):
+    await page.locator('[data-a="start"][data-v="r1"]').first.click()
+    for _ in range(12):
+        if await page.evaluate("view") != "play":
+            break
+        kind = await page.evaluate("P.task.type")
+        if await page.locator('[data-a="pick"]').count():
+            ok = await page.evaluate("P.opts.findIndex(o => o.ok)")
+            await page.locator(f'[data-a="pick"][data-v="{ok}"]').click()
+        elif await page.locator('[data-a="put"]').count():
+            for k in range(await page.evaluate("P.task.s.length")):
+                await page.locator(f'[data-a="put"][data-v="{k}"]').click()
+            await page.locator('[data-a="check"]').click()
+        elif await page.locator('[data-a="mword"]').count():
+            for i in range(await page.evaluate("P.task.pairs.length")):
+                await page.locator(f'[data-a="mword"][data-v="{i}"]').click()
+                await page.locator(f'[data-a="mpic"][data-v="{i}"]').click()
+        else:
+            raise Fail(f"unknown task type on screen: {kind}")
+        await page.locator('[data-a="next"]').click()
+    check(await page.evaluate("view") == "sum", "the round ends on the summary screen")
+    xp = json.loads(await page.evaluate("localStorage.getItem('betubanya_v1')"))["xp"]
+    check(xp == 50, f"five right first answers give 50 XP: {xp}")
+    await page.reload()
+    check(json.loads(await page.evaluate("localStorage.getItem('betubanya_v1')"))["xp"] == 50, "XP kept after a reload")
+    check(await page.evaluate("S.xp") == 50, "the game reads the saved XP back")
+    # teacher PIN: set it twice, then it must be asked again and a wrong one refused
+    for pin in ("2468", "2468"):
+        if await page.evaluate("view") != "pin":
+            await page.evaluate("ACT.go('pin')")
+        for d in pin:
+            await page.locator(f'[data-a="pin"][data-v="{d}"]').click()
+        await page.wait_for_timeout(300)
+    check(await page.evaluate("view") == "teacher", "the PIN is set after typing it twice")
+    await page.reload()
+    await page.evaluate("ACT.go('pin')")
+    for d in "1111":
+        await page.locator(f'[data-a="pin"][data-v="{d}"]').click()
+    await page.wait_for_timeout(300)
+    check(await page.evaluate("view") == "pin", "a wrong PIN is refused")
+    for d in "2468":
+        await page.locator(f'[data-a="pin"][data-v="{d}"]').click()
+    await page.wait_for_timeout(300)
+    check(await page.evaluate("view") == "teacher", "the saved PIN opens the teacher view")
+
+
+async def sc_cornhole(page):
+    await page.locator("#start-button").click()
+    hole = page.locator('.bag-btn[data-team="0"][data-type="0"][data-delta="1"]')
+    await hole.click()                                  # red: 1 in the hole = 3
+    await page.locator('.bag-btn[data-team="1"][data-type="1"][data-delta="1"]').click()   # blue: 1 on board = 1
+    await page.locator("#save-round-button").click()
+    await hole.click()
+    await page.locator("#save-round-button").click()
+    scores = [await txt(page, "#g-score1"), await txt(page, "#g-score2")]
+    check(scores == ["5", "0"], f"ACL scoring after two rounds: {scores}")
+    await page.locator("#undo-button").click()
+    await page.wait_for_timeout(200)
+    check(await txt(page, "#g-score1") == "2", "undo takes back the last round")
+    await page.reload()
+    await page.wait_for_timeout(300)
+    check(await txt(page, "#g-score1") == "2", "the match goes on after a reload")
+
+
+async def sc_cornhole_broken(page):
+    check(await page.locator("#screen-setup").is_visible(), "a broken save starts at the new match screen")
+    await page.locator("#start-button").click()
+    check(await txt(page, "#g-score1") == "0", "the new match starts from zero")
+
+
+async def sc_rotate(page):
+    # a phone held upright: start a battle, then turn the phone on its side and back
+    ctx = await page.context.browser.new_context(viewport={"width": 390, "height": 780}, has_touch=True, is_mobile=True)
+    try:
+        p = await ctx.new_page()
+        await p.goto(page.url)
+        hint = p.locator(".rotate-hint")
+        check(await hint.count() == 1 and await hint.is_hidden(), "no turn-the-phone hint when the phone is upright")
+        await p.locator("#go").click()
+        await p.wait_for_timeout(600)
+        await p.set_viewport_size({"width": 780, "height": 390})
+        await hint.wait_for(state="visible", timeout=3000)
+        check("Szünet" in await txt(p, "#ovc"), "the game pauses while the phone lies on its side")
+        await p.set_viewport_size({"width": 390, "height": 780})
+        await hint.wait_for(state="hidden", timeout=3000)
+    finally:
+        await ctx.close()
+    # a wide desktop window never shows it
+    await page.set_viewport_size({"width": 1280, "height": 400})
+    await page.wait_for_timeout(200)
+    check(await page.locator(".rotate-hint").is_hidden(), "no hint in a wide desktop window")
+
+
 async def sc_horde(page):
     await page.locator("#go").click()
     await page.wait_for_timeout(3500)
@@ -381,7 +640,7 @@ async def sc_trap_2(page):
     await page.locator('[data-l="1"]').click()
     await page.wait_for_timeout(200)
     await page.keyboard.down("ArrowRight")
-    await page.wait_for_function("document.querySelector('#deaths').textContent === '1'", timeout=15000)
+    await wait_js(page, "document.querySelector('#deaths').textContent === '1'", timeout=15000)
     await page.keyboard.up("ArrowRight")
 
 
@@ -394,7 +653,7 @@ async def sc_arena(page):
 
 async def sc_downhill(page):
     await page.locator('[data-t="0"]').click()
-    await page.wait_for_function("+document.querySelector('#time').textContent > 0", timeout=20000)
+    await wait_js(page, "+document.querySelector('#time').textContent > 0", timeout=20000)
     await hold(page, "ArrowLeft", 100)
 
 
@@ -419,10 +678,14 @@ async def sc_maze_over(page):
 
 async def sc_maze_walk(page):
     await page.click("#bStart")
-    for key in ["ArrowRight", "ArrowDown", "ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 3:
-        await hold(page, key, 260)
-    await page.wait_for_timeout(1300)
-    before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
+    # a busy test machine drops frames, so keep walking (longer each time) until the player has moved
+    for ms in (260, 400, 600):
+        for key in ["ArrowRight", "ArrowDown", "ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 3:
+            await hold(page, key, ms)
+        await page.wait_for_timeout(1300)
+        before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
+        if (before["px"], before["py"]) != (1, 1):
+            break
     check((before["px"], before["py"]) != (1, 1), "the keys do not move the player")
     await page.reload()
     await page.wait_for_timeout(400)
@@ -450,10 +713,21 @@ SCENARIOS = [
     ("kertvedo", "Invasion: planting costs sun", sc_invasion, None),
     ("bunyo", "Brawl: hits take health", sc_brawl, None),
     ("horda", "Horde: the squad fights, pause works", sc_horde, None),
+    ("horda", "Horde: turning the phone on its side shows a hint and pauses the game", sc_rotate, None),
     ("dobozmester", "Sokoban: push the crate onto the target and save the level", sc_sokoban, None),
     ("tankorseg", "Tank Guard: start a battle and fire a shot", sc_tank, None),
     ("tankorseg", "Tank Guard: losing the last tank ends the game, New game closes the window", sc_tank_over, None),
     ("kokori-kaland", "Stone Age Quest: the caveman walks and the run is saved", sc_caveman, None),
+    ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
+    ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),
+    ("gyemantbanya", "Diamond Mine: a wrong cell costs a heart, the solver's solution wins", sc_gems, None),
+    ("kincsvadasz", "Treasure Hunter: a wrong cell costs a heart, the solver's solution wins", sc_treasure, None),
+    ("betubanya", "Letter Mine: a reading round gives XP that survives a reload, the teacher PIN works", sc_letter_mine, None),
+    ("cornholescore", "Cornhole: two ACL rounds, undo, the match survives a reload", sc_cornhole, None),
+    ("cornholescore", "Cornhole: a broken save starts a new match", sc_cornhole_broken,
+     {"cornhole-score-state-v1": '{"rounds":[[99,"x"],null],"gameActive":true,"targetScore":"<b>","gameMode":"zz"}'}),
+    ("teglatoro", "Bricks: a swipe shoots, the round counter grows, the save survives a reload", sc_bricks_swipe, None),
+    ("teglatoro", "Bricks: arrow keys aim, Space shoots, muting is kept after a reload", sc_bricks_keys, None),
     ("horda", "Horde: Ultra level is saved, swarms the squad, keeps its own record", sc_horde_ultra, None),
     ("csapda", "Trap: level 1 cleared and saved", sc_trap_1, None),
     ("csapda", "Trap: the weak floor kills and the death is counted", sc_trap_2,
@@ -592,6 +866,111 @@ async def test_maze_generator(browser, quick):
     return problems
 
 
+# ---------------------------------------------------------------- Sokoban levels
+
+SOKO_MAX_STATES = 400_000
+SOKO_MAX_SECONDS = 20
+
+
+def solve_sokoban(rows):
+    """Push-level breadth-first search. Returns the number of pushes of a shortest solution,
+    None when the level has no solution, or 'limit' when the state or time limit is reached."""
+    walls, goals, boxes, player = set(), set(), set(), None
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch == "#":
+                walls.add((x, y))
+            if ch in ".*+":
+                goals.add((x, y))
+            if ch in "$*":
+                boxes.add((x, y))
+            if ch in "@+":
+                player = (x, y)
+    if player is None or not boxes or len(boxes) != len(goals):
+        return None
+    dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    # Live squares: a box can only reach a goal from squares it can be pulled to from a goal.
+    live, todo = set(goals), list(goals)
+    while todo:
+        x, y = todo.pop()
+        for dx, dy in dirs:
+            b, p = (x + dx, y + dy), (x + 2 * dx, y + 2 * dy)
+            if b not in walls and p not in walls and b not in live:
+                live.add(b)
+                todo.append(b)
+
+    def reach(start, bx):
+        seen, st = {start}, [start]
+        while st:
+            x, y = st.pop()
+            for dx, dy in dirs:
+                n = (x + dx, y + dy)
+                if n not in walls and n not in bx and n not in seen:
+                    seen.add(n)
+                    st.append(n)
+        return seen
+
+    def frozen_square(bx):
+        # four boxes/walls in a 2×2 block with a box off its goal can never move again
+        for (x, y) in bx:
+            sq = [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)]
+            if all(c in walls or c in bx for c in sq) and any(c in bx and c not in goals for c in sq):
+                return True
+        return False
+
+    start_boxes = frozenset(boxes)
+    r0 = reach(player, start_boxes)
+    seen = {(min(r0), start_boxes)}
+    frontier, pushes, t0 = [(r0, start_boxes)], 0, time.time()
+    while frontier:
+        if start_boxes and all(b in goals for b in frontier[0][1]):
+            return pushes
+        nxt = []
+        for region, bx in frontier:
+            if bx <= goals:
+                return pushes
+            for (x, y) in bx:
+                for dx, dy in dirs:
+                    to = (x + dx, y + dy)
+                    if (x - dx, y - dy) not in region or to in walls or to in bx or to not in live:
+                        continue
+                    nb = (bx - {(x, y)}) | {to}
+                    if frozen_square(nb):
+                        continue
+                    nr = reach((x, y), nb)
+                    key = (min(nr), nb)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    if nb <= goals:
+                        return pushes + 1
+                    nxt.append((nr, nb))
+            if len(seen) > SOKO_MAX_STATES or time.time() - t0 > SOKO_MAX_SECONDS:
+                return "limit"
+        frontier, pushes = nxt, pushes + 1
+    return None
+
+
+def test_sokoban_levels(quick):
+    html = (ROOT / "dobozmester" / "index.html").read_text(encoding="utf-8")
+    m = re.search(r"const LEVELS=(\[.*?\n\]);", html, re.S)
+    if not m:
+        return ["dobozmester: LEVELS not found"]
+    levels = json.loads(m.group(1))
+    problems = []
+    chosen = levels[:10] if quick else levels
+    t0 = time.time()
+    for i, rows in enumerate(chosen):
+        res = solve_sokoban(rows)
+        if res is None:
+            problems.append(f"dobozmester level {i + 1}: no solution")
+        elif res == "limit":
+            problems.append(f"dobozmester level {i + 1}: the solver hit its limit "
+                            f"({SOKO_MAX_STATES} states or {SOKO_MAX_SECONDS} s), solvability not proven")
+    print(f"     dobozmester: {len(chosen)} of {len(levels)} levels checked in {time.time() - t0:.1f} s")
+    return problems
+
+
 # ---------------------------------------------------------------- main
 
 async def main():
@@ -637,6 +1016,9 @@ async def main():
         if only in (None, "generators") and (not args or "e-utveszto" in args):
             print("== maze generator")
             report("maze generator", await test_maze_generator(browser, quick))
+        if only in (None, "generators") and (not args or "dobozmester" in args):
+            print("== Sokoban levels (solver)")
+            report("sokoban levels", test_sokoban_levels(quick))
         await browser.close()
     httpd.shutdown()
     print(f"\n{failed} failed ({time.time() - t0:.0f} s).")

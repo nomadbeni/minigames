@@ -43,7 +43,7 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 ## Új játék vagy módosítás: kötelező elemek
 
 1. Mappa és `index.html` legyen kisbetűs, ékezet nélküli, kötőjeles névvel (`uj-jatek/index.html`).
-2. Az oldal `<!doctype html>` és `<html lang="hu">` kezdetű, legyen benne viewport meta (`viewport-fit=cover`).
+2. Az oldal `<!doctype html>` és `<html lang="hu">` kezdetű, legyen benne viewport meta (`viewport-fit=cover`), és közvetlenül a `<meta charset>` után a Content-Security-Policy meta. Ezzel a böngésző maga tiltja a más helyre menő kérést. Pontos szövegét a `tools/build_site.py` `CSP` állandója adja (a kivételeket a `CSP_EXTRA`); másold egy meglévő játékból, a `--check` betűre ellenőrzi.
 3. A `<head>`-be ezek kellenek:
    ```html
    <title>Játék neve</title>
@@ -57,6 +57,7 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 6. Álló telefonra készüljön (kb. 400×860), érintéssel játszható legyen. Oldalirányú görgetés nincs, minden gomb a képernyőn belül marad. Gépen egér vagy billentyű is működjön.
 7. A README táblázatába új sor kell a játékkal (magyar leírás).
 8. Ha a játék a közös olvasásfejlesztő rendszert használja (rang, XP, felolvasó súgó), a meglévő játékokból vedd át, ne írj újat.
+9. A több játékba bemásolt közös kód (`/* @shared név */ … /* @end név */` közötti blokk, pl. `olvaso-kit`, `terv-nezegeto`) mintapéldánya a `tools/shared/<név>.js`. Ezt javítsd, utána futtasd a `python3 tools/sync_shared.py` parancsot, amely minden játékba bemásolja. A `--check` leáll, ha egy játék blokkja eltér a mintától.
 
 ## Kötelező ellenőrzés commit és push előtt
 

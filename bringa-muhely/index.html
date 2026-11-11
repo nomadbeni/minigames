@@ -2,6 +2,7 @@
 <html lang="hu">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -67,7 +68,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .msg{min-height:1.5em;font-weight:600}
 .msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
-#ov{position:fixed;inset:0;background:rgba(6,8,12,.82);display:grid;place-items:center;padding:16px;z-index:9}
+#ov{position:fixed;inset:0;background:rgba(6,8,12,.82);display:grid;place-items:center;padding:calc(64px + env(safe-area-inset-top,0px)) 16px 16px;z-index:9}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 20px;width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;display:flex;flex-direction:column;gap:14px}
 .card h1,.card h2{margin:0;color:var(--accent);line-height:1.15}
 .card h1{font-size:32px}.card h2{font-size:26px}
@@ -96,7 +97,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .w .p0{color:var(--p0,#ffb347)}
 .w .p1{color:var(--p1,#5ad1ff)}
 .w .dot{opacity:.55;margin:0 .1em;font-style:normal}
-.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say{display:inline-grid;place-items:center;width:44px;height:44px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
 .say:disabled{opacity:.35;cursor:not-allowed}
 .say.talking{outline:2px solid var(--p1,#5ad1ff)}
 
@@ -115,7 +116,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 </head>
 <body>
 <div id="app">
-  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
   <div class="bar">
     <span class="chip" title="Pénz">🪙 <span id="money">0</span></span>
     <span class="chip" title="Nap">📅 <span id="day">1</span></span>
@@ -134,6 +135,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 <div id="ov" hidden><div class="card" id="ovc"></div></div>
 <script>
 /* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+/* @shared olvaso-kit */
 const K=(()=>{
   /* storage: a saved value must have the same shape as the default, or the default is used.
      For objects, each default key with a wrong type is put back to its default. */
@@ -247,6 +249,7 @@ const K=(()=>{
   api.pick=a=>a[Math.random()*a.length|0];
   return api;
 })();
+/* @end olvaso-kit */
 </script>
 <script>
 (()=>{
@@ -468,7 +471,7 @@ function daySummary(){
   $('#toShop').onclick=()=>shop(true);
 }
 /* ---------- overlay, shop, settings ---------- */
-function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus({preventScroll:true})}
 function closeOv(){$('#ov').hidden=true}
 function shop(fromSummary){
   const row=(u,lvl,set)=>{const done=lvl>=u.max,p=u.price(lvl);return `<div class="item"><span class="ic">${u.ic}</span><span class="tx">${K.word(u.n)} <small>${u.d} Szint: ${lvl}/${u.max}</small></span>

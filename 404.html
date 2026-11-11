@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nincs ilyen oldal · Nomadbeni Játéktár</title>
+<meta name="description" content="Ez az oldal nem létezik. Vissza a játékokhoz.">
+<link rel="stylesheet" href="/minigames/assets/fonts/fonts.css">
+<style>
+:root{
+  --bg:#eaf0ee; --surface:#ffffff; --ink:#15211f; --muted:#5a6b68; --line:#cfdad7; --gem:#0f8f7e; --gold:#c98a12; --grass:#4f8a2c;
+  --display:"Pixelify Sans","Courier New",monospace;
+  --body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1514; --surface:#16201f; --ink:#e6efec; --muted:#93a6a2; --line:#26332f; --gem:#3fd2bb; --gold:#f0b441; --grass:#8cc95c; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
+main{max-width:440px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px}
+.blocks{display:flex;gap:6px}
+.blocks i{width:28px;height:28px;border-radius:3px;display:block}
+h1{font-family:var(--display);font-size:clamp(34px,10vw,52px);line-height:1;margin:0}
+p{margin:0;color:var(--muted)}
+a{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:10px 22px;border-radius:999px;background:var(--gem);color:#fff;font-weight:800;text-decoration:none}
+a:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+  <div class="blocks" aria-hidden="true"><i style="background:var(--gem)"></i><i style="background:var(--gold)"></i><i style="background:var(--grass)"></i></div>
+  <h1>404</h1>
+  <p>Ez az oldal nem létezik, vagy elköltözött.<br><span lang="en">This page does not exist.</span></p>
+  <a href="/minigames/">← Vissza a játékokhoz</a>
+</main>
+</body>
+</html>

@@ -30,10 +30,20 @@ jobs:
         run: node --test
       - name: Policy check, script syntax and game list
         run: python3 tools/build_site.py --check
+      - name: Cache the Playwright browser
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.63.0-${{ runner.os }}
       - name: Install Playwright (test tool only, the games need nothing)
         run: |
           pip install playwright==1.63.0
-          python3 -m playwright install --with-deps chromium
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            python3 -m playwright install-deps chromium
+          else
+            python3 -m playwright install --with-deps chromium
+          fi
       - name: Phone smoke test
         run: python3 tools/smoke_test.py
       - name: Play test (every game, broken saves, scenarios, level generators)
