@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Sasfészek sziklavár</title>
+<meta name="description" content="Kétszintes hegyi vár sziklán, kapuudvarral, felvezető lépcsővel, öregtoronnyal és palotával.">
+<meta name="games:category" content="minecraft">
+<meta name="games:title-en" content="Eagle's Nest Cliff Castle">
+<meta name="games:description-en" content="A two-level castle on a cliff with a gate courtyard, approach stairs, a keep and a palace.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: sticky layer stepper on top; stage = layer notes + per-layer materials beside a top-down block grid, 3D preview full width below; totals at the end. */
+:root{
+  --bg:#e7eaed; --surface:#f6f7f8; --ink:#1d2126; --muted:#5a626c; --line:#ccd3d9;
+  --accent:#8a4a26; --accent-ink:#ffffff; --gridbg:#dde2e6;
+  --gl1:rgba(30,40,55,.10); --gl2:rgba(30,40,55,.32); --sky1:#cfe0ee; --sky2:#eef3f6;
+  --f-display:"Pixelify Sans","Courier New",monospace;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13161a; --surface:#1c2025; --ink:#e3e6e9; --muted:#9ba4ae; --line:#2e353c;
+  --accent:#d98a55; --accent-ink:#160606; --gridbg:#242a30;
+  --gl1:rgba(255,255,255,.07); --gl2:rgba(255,255,255,.24); --sky1:#1b2733; --sky2:#151a20; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13161a; --surface:#1c2025; --ink:#e3e6e9; --muted:#9ba4ae; --line:#2e353c;
+  --accent:#d98a55; --accent-ink:#160606; --gridbg:#242a30;
+  --gl1:rgba(255,255,255,.07); --gl2:rgba(255,255,255,.24); --sky1:#1b2733; --sky2:#151a20; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 56px;display:flex;flex-direction:column;gap:22px}
+h1,h2,.ynum{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance}
+h1{font-size:clamp(30px,6vw,48px);line-height:1.05;margin:0}
+h2{font-size:20px;margin:0}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lede{max-width:64ch;color:var(--muted);margin:0}
+header{display:flex;flex-direction:column;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{font-family:var(--f-mono);font-size:12.5px;border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:4px 9px;font-variant-numeric:tabular-nums}
+
+.stepper{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ybox{display:flex;align-items:baseline;gap:8px;min-width:118px}
+.ynum{font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.ymax{font-family:var(--f-mono);color:var(--muted);font-size:13px}
+.btn{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:4px;padding:8px 14px;cursor:pointer;min-height:40px}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#layer{flex:1 1 180px;min-width:0;accent-color:var(--accent);height:28px}
+
+.stage{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"note" "top" "mats" "iso"}
+@media (min-width:900px){.stage{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);
+  grid-template-areas:"note top" "mats top" "iso iso";align-items:start}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.note{grid-area:note}.top{grid-area:top}.mats{grid-area:mats}.iso{grid-area:iso}
+.note p{margin:8px 0 0;max-width:62ch}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.small{font-size:12.5px;color:var(--muted)}
+canvas{display:block;width:100%;touch-action:manipulation}
+.compass{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:6px 0}
+#info{font-family:var(--f-mono);font-size:12.5px;min-height:20px;margin-top:8px;color:var(--muted)}
+.mlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
+.mlist li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.mlist li:last-child{border-bottom:0}
+.sw{width:18px;height:18px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.mname small{display:block;color:var(--muted);font-size:11.5px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.isoctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.isoctl label{display:flex;gap:6px;align-items:center;font-size:13.5px;cursor:pointer}
+.isowrap{border-radius:4px;overflow:hidden;margin-top:12px;background:linear-gradient(var(--sky1),var(--sky2))}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:440px;font-size:14px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right}
+.tips{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.tips p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.tips h3{margin:0;font-size:15px}
+.sw.inl{display:inline-block;vertical-align:-4px;margin-right:8px}
+.note p.small{margin:10px 0 0}
+.topwrap{overflow:hidden}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0 0 10px"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+<header>
+  <div class="eyebrow">Minecraft építési terv · szintről szintre</div>
+  <h1>Sasfészek sziklavár</h1>
+  <p class="lede">Hegyi vár meredek sziklán, két szinten. Lent, a szikla tövében kapuudvar két kaputoronnyal és vizesárokkal, onnan lépcső vezet fel a felső várba. Fent körfal sarok-őrtornyokkal, 20 magas öregtorony és sötét tölgy tetős palota. A falakban repedt és mohás kőtégla keveredik, ettől lesz régi és viharvert.</p>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="stepper" role="group" aria-label="Szint választó">
+  <div class="ybox"><span class="small">Y</span><span class="ynum" id="ynum">0</span><span class="ymax" id="ymax"></span></div>
+  <button class="btn" id="prev" aria-label="Előző szint">◀ Le</button>
+  <input type="range" id="layer" min="0" max="10" value="0" aria-label="Szint">
+  <button class="btn primary" id="next" aria-label="Következő szint">Fel ▶</button>
+</div>
+
+<div class="stage">
+  <section class="panel note">
+    <div class="phead"><h2 id="ntitle"></h2><span class="small" id="nrange"></span></div>
+    <p id="ntext"></p>
+    <p class="small" id="ncount"></p>
+  </section>
+
+  <section class="panel top">
+    <div class="phead"><h2>Felülnézet</h2><span class="small">1 négyzet = 1 blokk · vastag vonal 5-önként</span></div>
+    <div class="compass"><span>Észak ↑</span><span>Kelet → (kapu, híd)</span></div>
+    <div class="topwrap"><canvas id="topcv" aria-label="A kiválasztott szint felülnézeti blokkrajza"></canvas></div>
+    <div class="compass"><span>← Nyugat</span><span>Dél ↓</span></div>
+    <div id="info">Koppints egy négyzetre a blokk nevéért.</div>
+  </section>
+
+  <section class="panel mats">
+    <h2>Ezen a szinten</h2>
+    <ul class="mlist" id="lmats"></ul>
+  </section>
+
+  <section class="panel iso">
+    <div class="phead">
+      <h2>3D előnézet</h2>
+      <div class="isoctl">
+        <button class="btn" id="rot">Forgatás ↻</button>
+        <label><input type="checkbox" id="ghost"> Kész vár halványan</label>
+      </div>
+    </div>
+    <div class="isowrap"><canvas id="isocv" aria-label="A vár 3D előnézete a kiválasztott szintig"></canvas></div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="phead"><h2>Teljes anyaglista</h2><span class="small">1 stack = 64 blokk</span></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Blokk</th><th>Angol név</th><th class="num">Darab</th><th class="num">Stack</th></tr></thead>
+      <tbody id="totals"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="tips"><div class="panel"><h3>Kezdés</h3><p>A koordináták a terület északnyugati sarkától indulnak. A szikla és a fal blokkjai kevertek, a terv minden blokkot pontosan mutat, de nyugodtan rakhatod szabadabban is: a sziklánál csak a körvonal és a magasság számít.</p></div><div class="panel"><h3>Természetes szikla</h3><p>Ha van a világodban egy 8 magas domb vagy hegyoldal, építsd arra: faragd laposra a tetejét, és a falak lábát vezesd le a lejtőn, ahogy a terv mutatja.</p></div><div class="panel"><h3>Díszítés</h3><p>Lógó lámpások láncon a kapuban, liánok és moha a szikla oldalán, zászlók a tornyokon, fák a szikla tövében. A palotába hosszú asztal és kandalló illik.</p></div></section>
+</div>
+
+<script>
+const V=new Map();
+const key=(x,y,z)=>x+','+y+','+z;
+function set(x,y,z,t){if(typeof t==='function')t=t(x,y,z);if(t)V.set(key(x,y,z),t);else V.delete(key(x,y,z));}
+const del=(x,y,z)=>V.delete(key(x,y,z));
+const get=(x,y,z)=>V.get(key(x,y,z));
+function fill(x0,y0,z0,x1,y1,z1,t){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)set(x,y,z,t);}
+function clear(x0,y0,z0,x1,y1,z1){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)del(x,y,z);}
+function ring(x0,z0,x1,z1,y0,y1,t){for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++)if(x===x0||x===x1||z===z0||z===z1)for(let y=y0;y<=y1;y++)set(x,y,z,t);}
+function hash(x,y,z){let n=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul(z|0,1274126177))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)%100;}
+function disk(cx,cz,r){const o=[],R=Math.ceil(r);for(let dx=-R;dx<=R;dx++)for(let dz=-R;dz<=R;dz++)if(dx*dx+dz*dz<=r*r)o.push([cx+dx,cz+dz]);return o;}
+function ringc(cx,cz,r){const inner=new Set(disk(cx,cz,r-1).map(p=>p+''));return disk(cx,cz,r).filter(p=>!inner.has(p+''));}
+const inDisk=(x,z,cx,cz,r)=>(x-cx)*(x-cx)+(z-cz)*(z-cz)<=r*r;
+
+const TYPES={
+ ko:{n:'Kő',e:'Stone',c:'#7f7f7f'},
+ an:{n:'Andezit',e:'Andesite',c:'#8d8e89'},
+ zk:{n:'Zúzottkő',e:'Cobblestone',c:'#6c6b67'},
+ mz:{n:'Mohás zúzottkő',e:'Mossy Cobblestone',c:'#5e6b4e'},
+ sb:{n:'Kőtégla',e:'Stone Bricks',c:'#8c8d89'},
+ cr:{n:'Repedt kőtégla',e:'Cracked Stone Bricks',c:'#7e7e79'},
+ ms:{n:'Mohás kőtégla',e:'Mossy Stone Bricks',c:'#6e7860'},
+ stb:{n:'Kőtégla lépcső',e:'Stone Brick Stairs',c:'#9a9b96'},
+ sw:{n:'Kőtégla fal',e:'Stone Brick Wall',c:'#858681',thin:.5},
+ dp:{n:'Sötét tölgy deszka',e:'Dark Oak Planks',c:'#4b3221'},
+ dsl:{n:'Sötét tölgy lépcső',e:'Dark Oak Stairs',c:'#3e291a'},
+ sd:{n:'Sötét tölgy ajtó',e:'Dark Oak Door',c:'#5a3d26',door:1},
+ gl:{n:'Üveglap',e:'Glass Pane',c:'#9fd0e3',alpha:.6},
+ vr:{n:'Vasrács',e:'Iron Bars',c:'#9aa0a6',thin:.3},
+ la:{n:'Létra',e:'Ladder',c:'#ad8850',thin:.3},
+ sp:{n:'Lucfenyő deszka',e:'Spruce Planks',c:'#76563a'},
+ wa:{n:'Víz',e:'Water',c:'#3b72c4',alpha:.85,liquid:1},
+};
+const rock=(x,y,z)=>{const r=hash(x,y,z);return r<55?'ko':r<80?'an':r<93?'zk':'mz';};
+const wm=(x,y,z)=>{const r=hash(x,y,z);return r<14?'cr':r<26?'ms':'sb';};
+function H(x,z){
+  if(z>=10&&z<=14&&x>=20&&x<=28)return 8;
+  const dx=(x-14)/14.5,dz=(z-12)/12.5,d=Math.sqrt(dx*dx+dz*dz);
+  if(d<0.86)return 8;if(d>1)return 0;
+  const h=8-Math.floor((d-0.86)/0.14*8)+(hash(x,0,z)%3-1);
+  return Math.max(0,Math.min(8,h));
+}
+// rock
+for(let x=0;x<=28;x++)for(let z=0;z<=24;z++){const h=H(x,z);for(let y=0;y<h;y++)set(x,y,z,rock);}
+
+// ---- lower ward ----
+// ditch + bridge + path
+fill(43,0,2,44,0,22,'wa');
+fill(43,0,11,44,0,13,'sp');
+fill(35,0,11,42,0,13,'zk');
+// side walls
+for(const z of [6,18]){fill(29,0,z,37,0,z,'sb');fill(29,1,z,37,6,z,wm);for(let x=29;x<=37;x++)if(x%2===0)set(x,7,z,wm);}
+// west closing walls against the cliff
+for(const [z0,z1] of [[6,9],[15,18]]){fill(28,0,z0,28,6,z1,wm);for(let z=z0;z<=z1;z++)if(z%2===0)set(28,7,z,wm);}
+// gate towers
+for(const tz of [6,14]){
+  fill(38,0,tz,42,0,tz+4,'sb');
+  ring(38,tz,42,tz+4,1,10,wm);
+  for(let x=38;x<=42;x++)for(let z=tz;z<=tz+4;z++)if((x===38||x===42||z===tz||z===tz+4)&&(x+z)%2===0)set(x,11,z,wm);
+  set(38,1,tz+2,'sd');set(38,2,tz+2,'sd');
+  for(const y of [4,8])set(42,y,tz+2,'vr');
+  for(let y=1;y<=10;y++)set(41,y,tz+1,'la');
+}
+// gate wall
+fill(40,0,11,40,9,13,wm);
+clear(40,1,11,40,3,13);del(40,4,12);
+set(40,10,11,wm);set(40,10,13,wm);
+// stairs up the cliff
+for(let i=0;i<=5;i++){
+  const x=34-i;
+  fill(x,0,11,x,i,13,'sb');
+  fill(x,1+i,11,x,1+i,13,'stb');
+  for(const z of [10,14]){fill(x,0,z,x,1+i,z,'sb');set(x,2+i,z,'sw');}
+}
+
+// ---- upper ward (plateau top at y7) ----
+function foot(x,z){const h=H(x,z);for(let y=h;y<=7;y++)set(x,y,z,wm);}
+// curtain wall
+for(let x=6;x<=22;x++)for(let z=4;z<=20;z++){
+  if(!(x===6||x===22||z===4||z===20))continue;
+  foot(x,z);
+  for(let y=8;y<=13;y++)set(x,y,z,wm);
+  if((x+z)%2===0)set(x,14,z,wm);
+}
+// upper gate
+clear(22,8,11,22,10,13);del(22,11,12);
+// corner turrets
+for(const [cx,cz] of [[6,4],[22,4],[6,20],[22,20]]){
+  for(let x=cx-1;x<=cx+1;x++)for(let z=cz-1;z<=cz+1;z++){foot(x,z);for(let y=8;y<=16;y++)set(x,y,z,wm);}
+  for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]])set(cx+dx,17,cz+dz,wm);
+}
+// keep tower x7-13 z9-15
+ring(7,9,13,15,8,25,wm);
+fill(8,14,10,12,14,14,'dp');fill(8,20,10,12,20,14,'dp');
+fill(7,26,9,13,26,15,'sb');
+for(let x=7;x<=13;x++)for(let z=9;z<=15;z++)if((x===7||x===13||z===9||z===15)&&(x+z)%2===0)set(x,27,z,wm);
+set(13,8,12,'sd');set(13,9,12,'sd');
+for(const y of [11,12,17,18,23,24]){set(7,y,12,'gl');set(13,y,12,'gl');set(10,y,9,'gl');set(10,y,15,'gl');}
+for(let y=8;y<=26;y++)set(8,y,10,'la');
+// palace x14-21 z6-10
+fill(15,7,7,20,7,9,'dp');
+ring(14,6,21,10,8,12,'sb');
+set(17,8,10,'sd');set(17,9,10,'sd');
+for(const y of [9,10]){set(15,y,10,'gl');set(20,y,10,'gl');set(19,y,6,'gl');set(16,y,6,'gl');}
+for(let k=0;k<=3;k++){
+  const y=13+k,zl=5+k,zr=11-k;
+  for(let x=14;x<=21;x++){if(zl<zr){set(x,y,zl,'dsl');set(x,y,zr,'dsl');}else set(x,y,zl,'dp');}
+  if(k>=1&&k<=2)for(let z=zl+1;z<=zr-1;z++){set(14,y,z,'dp');set(21,y,z,'dp');}
+}
+
+const NOTES=[
+[0,0,'Szikla alapja','Az ellipszis alakú szikla talpa (29×25) kevert kőből, andezitből és zúzottkőből; ha van egy jó dombod, abból is kifaraghatod. Keletre az alsó vár falainak alapja, a lépcső alja, a zúzottkő út és a kapu előtti árok: ásd 2 mélyre, töltsd vízzel, a közepén deszkahíd.'],
+[1,3,'Szikla és alsó vár','A szikla felfelé épül, a széle szabálytalanul lépcsőzik, a terv pontosan mutatja. Alsó vár: oldalfalak, két 5×5-ös kaputorony ajtóval az udvar felől és létrával, köztük a kapufal 3 széles nyílással. Indul a felvezető lépcső, két oldalán mellvéd.'],
+[4,6,'Kapuív és lépcső','A kapunyílás közepe 4-nél még nyitott, így íves lesz. Lőrések vasrácsból a kaputornyokon. A lépcső tovább emelkedik a szikla felé.'],
+[7,7,'A szikla teteje','Ez a felső vár udvarszintje. Az alsó vár oldalfalain pártázat. A lépcső felér a sziklára. A palota padlója sötét tölgy deszka.'],
+[8,10,'Felső vár','Körfal a szikla tetején, sarkain 3×3-as őrtornyok, ezek a szikla oldalán leérnek. Keleten 3 széles kapu. Öregtorony 7×7-ben, ajtó az udvar felé, belül létra. Palota kőfala ajtóval, ablakokkal. A kaputornyok és a kapufal teteje, 10-nél a kapufal pártázata.'],
+[11,13,'Tornyok, ablakok','A kaputornyok pártázata. A felső kapu íve. Öregtorony ablakai. A palota fala 12-nél véget ér, 13-nál indul a sötét tölgy tető.'],
+[14,14,'Pártázat','A felső körfal pártázata. Öregtorony első födéme, a létránál nyitva. Palotatető tovább.'],
+[15,17,'Őrtornyok teteje','Palotatető gerince (16). Az őrtornyok utolsó sora és pártázata (17). Öregtorony fala tovább.'],
+[18,20,'Öregtorony','Második emelet: ablakok, 20-nál födém.'],
+[21,25,'Öregtorony','A torony legfelső része, ablakok 23–24-nél.'],
+[26,27,'Tetőterasz','Az öregtorony tetőterasza, végül pártázat. Kész!'],
+];
+
+const CHIPS=["alsó vár · lépcső · felső vár","öregtorony 20 magas"];
+const ORDER=Object.keys(TYPES);
+const VOX=[];let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9,YMAX=0;
+for(const [kk,t] of V){
+  const [x,y,z]=kk.split(',').map(Number);
+  if(!TYPES[t])throw new Error('Unknown type '+t);
+  VOX.push([x,y,z,t]);
+  minX=Math.min(minX,x);maxX=Math.max(maxX,x);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);YMAX=Math.max(YMAX,y);
+}
+const NX=maxX-minX+1,NZ=maxZ-minZ+1;
+const layerCounts=Array.from({length:YMAX+1},()=>({}));
+const total={};
+for(const [x,y,z,t] of VOX){layerCounts[y][t]=(layerCounts[y][t]||0)+1;total[t]=(total[t]||0)+1;}
+const noteFor=y=>NOTES.find(n=>y>=n[0]&&y<=n[1]);
+
+let cur=0,rot=0,hover=null;
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('hu-HU');
+const solidCount=VOX.filter(v=>!TYPES[v[3]].liquid).length;
+$('chips').innerHTML=[`${NX} × ${NZ} terület`,`${YMAX+1} szint (Y 0–${YMAX})`,`${fmt(solidCount)} blokk`,...CHIPS].map(s=>`<span class="chip">${s}</span>`).join('');
+$('ymax').textContent='/ '+YMAX;$('layer').max=YMAX;
+
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function rgb(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));}
+function shade(h,f,a=1){const [r,g,b]=rgb(h);return `rgba(${Math.min(255,r*f)|0},${Math.min(255,g*f)|0},${Math.min(255,b*f)|0},${a})`;}
+const sw=c=>`<span class="sw" style="background:${c}"></span>`;
+
+function renderMats(){
+  const c=layerCounts[cur];
+  $('lmats').innerHTML=ORDER.filter(t=>c[t]).map(t=>{
+    const T=TYPES[t],n=c[t];
+    const lab=T.door?`${fmt(n)} blokk (${fmt(n/2)} ajtó)`:T.liquid?'vödrökkel':fmt(n)+' db';
+    return `<li>${sw(T.c)}<span class="mname">${T.n}<small>${T.e}</small></span><span class="num">${lab}</span></li>`;
+  }).join('')||'<li><span></span><span class="mname">Ezen a szinten nincs blokk.</span><span></span></li>';
+  const nw=Object.entries(c).filter(([t])=>!TYPES[t].liquid).reduce((s,[,n])=>s+n,0);
+  $('ncount').textContent=fmt(nw)+' blokk ezen a szinten';
+}
+function renderTotals(){
+  $('totals').innerHTML=ORDER.filter(t=>total[t]).map(t=>{
+    const T=TYPES[t],n=total[t];
+    const nm=`<td><span class="sw inl" style="background:${T.c}"></span>${T.n}</td><td>${T.e}</td>`;
+    if(T.liquid)return `<tr>${nm}<td class="num">${fmt(n)} felület</td><td class="num">2 vödör (végtelen forrás)</td></tr>`;
+    if(T.door)return `<tr>${nm}<td class="num">${fmt(n/2)} ajtó</td><td class="num">–</td></tr>`;
+    const st=Math.floor(n/64),r=n%64;
+    return `<tr>${nm}<td class="num">${fmt(n)}</td><td class="num">${st?st+' + '+r:r}</td></tr>`;
+  }).join('');
+}
+
+const topcv=$('topcv');let cell=10;
+function drawTop(){
+  const w=topcv.clientWidth,dpr=window.devicePixelRatio||1;
+  cell=w/NX;const h=cell*NZ;
+  topcv.width=Math.round(w*dpr);topcv.height=Math.round(h*dpr);topcv.style.height=h+'px';
+  const g=topcv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle=css('--gridbg');g.fillRect(0,0,w,h);
+  for(let gx=0;gx<NX;gx++)for(let gz=0;gz<NZ;gz++){
+    const x=gx+minX,z=gz+minZ,t=get(x,cur,z),px=gx*cell,pz=gz*cell;
+    if(t){
+      const T=TYPES[t];
+      if(T.thin){g.fillStyle=shade(T.c,1);const s=cell*Math.max(.35,T.thin+.1);g.fillRect(px+(cell-s)/2,pz+(cell-s)/2,s,s);}
+      else{g.fillStyle=shade(T.c,1,T.alpha||1);g.fillRect(px,pz,cell,cell);}
+      if(T.door){g.strokeStyle='rgba(0,0,0,.5)';g.lineWidth=1;g.strokeRect(px+cell*.25,pz+cell*.15,cell*.5,cell*.7);}
+    }else if(cur>0){
+      const b=get(x,cur-1,z);
+      if(b){g.fillStyle=shade(TYPES[b].c,1,.2);g.fillRect(px,pz,cell,cell);}
+    }
+  }
+  const mod5=v=>((v%5)+5)%5===0;
+  for(let i=0;i<=NX;i++){const m=mod5(i+minX);g.strokeStyle=css(m?'--gl2':'--gl1');g.lineWidth=m?1.2:.6;g.beginPath();g.moveTo(i*cell,0);g.lineTo(i*cell,h);g.stroke();}
+  for(let i=0;i<=NZ;i++){const m=mod5(i+minZ);g.strokeStyle=css(m?'--gl2':'--gl1');g.lineWidth=m?1.2:.6;g.beginPath();g.moveTo(0,i*cell);g.lineTo(w,i*cell);g.stroke();}
+  if(hover){g.strokeStyle=css('--accent');g.lineWidth=2;g.strokeRect(hover[0]*cell+1,hover[1]*cell+1,cell-2,cell-2);}
+}
+function pick(e){
+  const r=topcv.getBoundingClientRect();
+  const gx=Math.floor((e.clientX-r.left)/cell),gz=Math.floor((e.clientY-r.top)/cell);
+  if(gx<0||gz<0||gx>=NX||gz>=NZ)return;
+  hover=[gx,gz];
+  const x=gx+minX,z=gz+minZ,t=get(x,cur,z);
+  $('info').textContent=`x ${x}, z ${z}, y ${cur} · `+(t?TYPES[t].n+' ('+TYPES[t].e+')':'üres');
+  drawTop();
+}
+topcv.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')pick(e);});
+topcv.addEventListener('pointerdown',pick);
+topcv.addEventListener('pointerleave',()=>{hover=null;drawTop();});
+
+const isocv=$('isocv');
+const CX=(minX+maxX)/2,CZ=(minZ+maxZ)/2;
+function rotXZ(x,z,r){for(let i=0;i<r;i++){const nx=CX-(z-CZ),nz=CZ+(x-CX);x=nx;z=nz;}return [x,z];}
+function drawIso(){
+  const w=isocv.clientWidth,dpr=window.devicePixelRatio||1,ghost=$('ghost').checked;
+  const list=[];let dmin=1e9,dmax=-1e9,smin=1e9,smax=-1e9;
+  for(const v of VOX){
+    const [rx,rz]=rotXZ(v[0],v[2],rot);
+    const d=rx-rz,s=rx+rz;dmin=Math.min(dmin,d);dmax=Math.max(dmax,d);smin=Math.min(smin,s);smax=Math.max(smax,s);
+    if(v[1]>cur&&!ghost)continue;
+    list.push([rx,v[1],rz,v[3]]);
+  }
+  const du=dmax-dmin+4, su=(smax-smin+4)/2, yu=(YMAX+1)*1.2;
+  const maxH=Math.max(340,window.innerHeight*.78);
+  const a=Math.min(w/du,maxH/(su+yu)), hh=a*1.2, H=Math.round(a*(su+yu));
+  isocv.width=Math.round(w*dpr);isocv.height=Math.round(H*dpr);isocv.style.height=H+'px';
+  const g=isocv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,H);
+  const ox=w/2-((dmin+dmax)/2)*a, oy=a+(YMAX+1)*hh-smin*a/2;
+  const P=(x,z,y)=>[ox+(x-z)*a,oy+(x+z)*a/2-y*hh];
+  list.sort((p,q)=>(p[0]+p[2]+p[1])-(q[0]+q[2]+q[1])||p[1]-q[1]);
+  const poly=(pts,fill)=>{g.beginPath();g.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<4;i++)g.lineTo(pts[i][0],pts[i][1]);g.closePath();g.fillStyle=fill;g.fill();g.stroke();};
+  g.lineWidth=.5;g.lineJoin='round';
+  for(const [x,y,z,t] of list){
+    const T=TYPES[t];let al=T.alpha||1;
+    const above=y>cur;if(above)al*=.13;
+    const cl=y===cur?1.12:1;
+    let x0=x,x1=x+1,z0=z,z1=z+1;
+    if(T.thin){const m=(1-T.thin)/2;x0+=m;x1-=m;z0+=m;z1-=m;}
+    const top=T.liquid?y+.85:y+1;
+    g.strokeStyle=above?'rgba(0,0,0,0)':'rgba(0,0,0,.22)';
+    poly([P(x1,z0,top),P(x1,z1,top),P(x1,z1,y),P(x1,z0,y)],shade(T.c,.72*cl,al));
+    poly([P(x0,z1,top),P(x1,z1,top),P(x1,z1,y),P(x0,z1,y)],shade(T.c,.86*cl,al));
+    poly([P(x0,z0,top),P(x1,z0,top),P(x1,z1,top),P(x0,z1,top)],shade(T.c,1.08*cl,al));
+  }
+}
+
+function render(){
+  $('ynum').textContent=cur;$('layer').value=cur;
+  const n=noteFor(cur);
+  $('ntitle').textContent=n[2];$('ntext').textContent=n[3];
+  $('nrange').textContent=n[0]===n[1]?'':`Y ${n[0]}–${n[1]}`;
+  $('prev').disabled=cur===0;$('next').disabled=cur===YMAX;
+  renderMats();drawTop();drawIso();
+}
+function go(n){cur=Math.max(0,Math.min(YMAX,n));render();}
+$('prev').onclick=()=>go(cur-1);
+$('next').onclick=()=>go(cur+1);
+$('layer').oninput=e=>go(+e.target.value);
+$('rot').onclick=()=>{rot=(rot+1)%4;drawIso();};
+$('ghost').onchange=drawIso;
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type==='range')return;
+  if(e.key==='ArrowRight'||e.key==='ArrowUp'){go(cur+1);e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown'){go(cur-1);e.preventDefault();}
+});
+new ResizeObserver(()=>{drawTop();drawIso();}).observe(document.querySelector('.stage'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawTop();drawIso();});
+new MutationObserver(()=>{drawTop();drawIso();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+renderTotals();render();
+
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

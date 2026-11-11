@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5fa531">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Betűbánya</title>
+<meta name="description" content="Blokkos, pixeles olvasás- és matekgyakorló kaland 30 napra: napi rövid szövegek és számolós feladatok, szótagszínezés, olvasóvonalzó, felolvasás, okos ismétlés és PIN-kóddal védett tanári nézet.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Letter Mine">
+<meta name="games:description-en" content="Blocky pixel-style 30-day reading and maths adventure: short daily texts and number puzzles, syllable colouring, reading ruler, read-aloud, spaced repetition and a PIN-protected teacher view. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+html{color-scheme:dark}
+[hidden]{display:none!important}
+:root{
+  --grass:#5fa531;--grass-d:#3f7a1f;--grass-l:#8fd35a;
+  --dirt:#8a5a34;--dirt-d:#6e4527;
+  --stone:#7b7b7b;--stone-d:#4d4d4d;--stone-l:#a9a9a9;
+  --paper:#f7f0de;--ink:#1f1b16;--gold:#f2c230;
+  --fs:21px;--lh:1.9;--ls:.05em;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:Lexend,Verdana,Arial,sans-serif;color:var(--ink);
+  background:#333 repeating-conic-gradient(#3b3b3b 0 25%,#323232 0 50%) 0 0/24px 24px;
+  min-height:100vh;
+}
+#app{max-width:480px;margin:0 auto;padding-block:0 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-height:100vh}
+button{font:inherit;cursor:pointer;color:inherit}
+button:disabled{cursor:default}
+button:focus-visible{outline:4px solid var(--gold);outline-offset:2px}
+
+.top{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:0 -16px 10px;padding:14px 16px 22px;
+  background:
+    linear-gradient(var(--grass) 0 60%,#4c8a27 60% 68%,transparent 68%),
+    repeating-conic-gradient(#8a5a34 0 25%,#7a4e2d 0 50%) 0 0/12px 12px;
+  border-bottom:4px solid #000;
+}
+.logo{font-family:'Press Start 2P',monospace;font-size:15px;color:#fff;text-shadow:3px 3px 0 #000;letter-spacing:1px}
+.ibtn{
+  min-width:48px;min-height:48px;font-size:22px;line-height:1;
+  background:var(--gold);border:3px solid #000;box-shadow:inset -3px -3px 0 #b8901a,inset 3px 3px 0 #ffe37a;
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+}
+.ibtn.dark{background:var(--stone);box-shadow:inset -3px -3px 0 var(--stone-d),inset 3px 3px 0 var(--stone-l);color:#fff}
+
+.btn{
+  display:block;width:100%;min-height:58px;margin:10px 0;padding:12px 16px;
+  font-weight:700;font-size:19px;color:#fff;text-shadow:2px 2px 0 rgba(0,0,0,.6);
+  background:var(--stone);border:3px solid #000;
+  box-shadow:inset -4px -4px 0 var(--stone-d),inset 4px 4px 0 var(--stone-l);
+}
+.btn.green{background:var(--grass);box-shadow:inset -4px -4px 0 var(--grass-d),inset 4px 4px 0 var(--grass-l)}
+.btn.red{background:#b0413e;box-shadow:inset -4px -4px 0 #7a2725,inset 4px 4px 0 #d96a66}
+.btn.big{min-height:68px;font-size:21px}
+.btn.sm{min-height:50px;font-size:17px;margin:12px 0 0}
+.btn:active,.opt:active,.dt:active,.mb:active,.ibtn:active{transform:translateY(2px)}
+
+.panel{background:var(--paper);border:4px solid #000;box-shadow:inset -4px -4px 0 #ddd0b0;padding:16px;margin:12px 0}
+.h{color:#fff;text-shadow:2px 2px 0 #000;font-size:20px;margin:20px 0 6px}
+.hello{color:#fff;text-shadow:2px 2px 0 #000;font-size:24px;font-weight:700;margin:16px 0 4px}
+.lbl{color:#fff;text-shadow:2px 2px 0 #000;font-weight:700;font-size:17px;margin:14px 0 6px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;font-size:19px}
+.small{font-size:15px;color:#5a5040;margin-top:6px;line-height:1.4}
+.xpbar{height:22px;border:3px solid #000;background:#3a3a3a;margin-top:10px}
+.xpbar>div{height:100%;background:linear-gradient(#b6f05a,#5fa531);transition:width .5s}
+
+.today .dname{font-size:22px;font-weight:700;margin-bottom:12px}
+.mission{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mb{
+  min-height:110px;padding:10px;color:#fff;font-weight:700;font-size:18px;text-shadow:2px 2px 0 #000;
+  background:var(--stone);border:3px solid #000;box-shadow:inset -5px -5px 0 var(--stone-d),inset 5px 5px 0 var(--stone-l);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+}
+.mb .ico{font-size:34px;text-shadow:none}
+.mb.done{background:var(--grass);box-shadow:inset -5px -5px 0 var(--grass-d),inset 5px 5px 0 var(--grass-l)}
+.stars{color:var(--gold);font-size:18px;letter-spacing:2px}
+.mb.done .stars{color:#fff36b}
+
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.dt{
+  aspect-ratio:1;max-width:100%;padding:0;color:#fff;font-weight:700;font-size:19px;text-shadow:2px 2px 0 #000;
+  background:var(--stone);border:3px solid #000;box-shadow:inset -4px -4px 0 var(--stone-d),inset 4px 4px 0 var(--stone-l);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-variant-numeric:tabular-nums;
+}
+.dt small{font-size:12px}
+.dt.done{background:var(--grass);box-shadow:inset -4px -4px 0 var(--grass-d),inset 4px 4px 0 var(--grass-l)}
+.dt.half{background:#b8901a;box-shadow:inset -4px -4px 0 #7d6110,inset 4px 4px 0 #e0c050}
+.dt.locked{filter:grayscale(1) brightness(.55)}
+.dt.cur{outline:4px solid var(--gold);outline-offset:-1px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;color:#fff;font-size:14px;margin-top:10px;text-shadow:1px 1px 0 #000}
+.legend i{display:inline-block;width:14px;height:14px;border:2px solid #000;vertical-align:-2px;margin-right:4px}
+
+.pbar{display:flex;gap:5px;flex:1}
+.pb{flex:1;height:22px;background:#3a3a3a;border:3px solid #000}
+.pb.done{background:var(--grass)}
+.pb.cur{background:var(--gold)}
+
+.instr{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff;font-weight:700;font-size:20px;line-height:1.4;text-shadow:2px 2px 0 #000;margin:12px 0 4px}
+.text{font-size:var(--fs);line-height:var(--lh);letter-spacing:var(--ls);word-spacing:.15em}
+.sent{border-radius:4px;padding:3px 2px;cursor:pointer;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.sent.hl{background:#ffe680;box-shadow:0 0 0 3px #ffe680}
+.s1{color:#17398f}.s2{color:#1f1b16}
+.gap{display:inline-block;line-height:1.3;min-width:4.2em;border-bottom:4px solid #000;text-align:center;background:#fff7c2}
+.gap.filled{background:#c8f0c8;font-weight:700}
+.calcbig{font-size:calc(var(--fs) * 1.9);font-weight:700;text-align:center;letter-spacing:.06em;padding:6px 0;font-variant-numeric:tabular-nums}
+.calcbig.hl{background:#ffe680}
+
+.q{background:#fff;border:4px solid #000;padding:12px 14px;margin:12px 0;font-size:var(--fs);line-height:1.6;letter-spacing:var(--ls);display:flex;gap:10px;align-items:center;justify-content:space-between}
+.q b{display:block;font-size:15px;color:#6a5a40;letter-spacing:0}
+.opts{display:grid;gap:12px;margin-top:12px}
+.opt,.cardt,.slot,.mw,.mp{
+  width:100%;min-height:62px;padding:12px 14px;text-align:left;
+  background:#fff;border:4px solid #000;box-shadow:inset -4px -4px 0 #ddd;
+  font-size:var(--fs);font-weight:600;line-height:1.5;letter-spacing:var(--ls);
+}
+.opt.num{text-align:center;font-size:calc(var(--fs) * 1.25);font-weight:700;font-variant-numeric:tabular-nums}
+.opt.ok,.mw.ok,.mp.ok,.slot.ok{background:#c8f0c8;border-color:#1f7a2e;box-shadow:inset -4px -4px 0 #9fd49f}
+.opt.no{background:#f3d4d4;border-color:#a33;opacity:.75}
+.mw.no,.mp.no,.slot.no{background:#f3d4d4;border-color:#a33;animation:shake .35s}
+.sel{background:#fff6cc!important;outline:4px solid var(--gold);outline-offset:-8px}
+
+.match{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.col{display:grid;gap:12px;align-content:start;min-width:0}
+.mw,.mp{min-height:72px;text-align:center}
+.mp{font-size:40px;line-height:1}
+
+.slot{display:block;margin-bottom:10px;border-style:solid;font-weight:600}
+.slot.empty{background:rgba(255,255,255,.35);border-style:dashed;color:#eee;text-shadow:1px 1px 0 #000;font-weight:700}
+.card{display:flex;gap:8px;margin-bottom:10px;align-items:stretch}
+.cardt{flex:1;min-width:0}
+
+.toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;max-width:448px;margin:0 auto;background:#fff3c4;border:4px solid #000;padding:12px 14px;font-size:17px;font-weight:600;line-height:1.4;box-shadow:4px 4px 0 #000}
+.rwrap{position:relative;overflow:hidden}
+.ruler{position:absolute;left:-6px;right:-6px;top:0;pointer-events:none;background:rgba(255,226,110,.28);border-top:3px solid var(--gold);border-bottom:3px solid var(--gold);box-shadow:0 0 0 2000px rgba(247,240,222,.8);transition:top .15s}
+.tools{display:flex;gap:8px;margin-top:12px;align-items:stretch}
+.tools .btn.sm{margin:0;flex:1;min-width:0}
+.ibtn.on{background:var(--grass);box-shadow:inset -3px -3px 0 var(--grass-d),inset 3px 3px 0 var(--grass-l)}
+.chip{display:inline-block;background:var(--gold);border:3px solid #000;padding:4px 10px;font-weight:700;font-size:16px;margin-top:12px}
+.hint{background:#fff3c4;border:3px dashed var(--dirt);padding:12px;margin:12px 0;font-size:18px;line-height:1.5}
+.fb{padding:16px;border:4px solid #000;margin:14px 0 0;font-size:21px;font-weight:700;text-align:center;line-height:1.5;animation:pop .35s}
+.fb.good{background:#c8f0c8}.fb.okish{background:#fff3c4}.fb.soft{background:#dfe9ff}
+.expl{margin-top:10px;font-size:19px;font-weight:600;background:#fff;border:2px solid #000;padding:8px;font-variant-numeric:tabular-nums}
+.lvup{margin-top:8px;font-family:'Press Start 2P',monospace;font-size:13px;color:#7a5a00}
+
+.big-ico{font-size:72px;text-align:center;margin:10px 0}
+.center{text-align:center}
+.stars-big{color:var(--gold);font-size:44px;text-align:center;text-shadow:3px 3px 0 #000;letter-spacing:6px}
+
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:2px dashed #cdbf9e;font-size:18px;font-weight:600;flex-wrap:wrap}
+.setrow:last-child{border-bottom:none}
+.seg{display:flex;gap:6px}
+.seg button{min-width:52px;min-height:48px;border:3px solid #000;background:#fff;font-weight:700;padding:0 8px}
+.seg button.on{background:var(--grass);color:#fff;text-shadow:1px 1px 0 #000}
+
+.dots{display:flex;justify-content:center;gap:14px;margin:18px 0}
+.dot{width:26px;height:26px;border:3px solid #000;background:#fff}
+.dot.on{background:var(--grass)}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.keypad button{min-height:66px;font-size:26px;font-weight:700;background:#fff;border:3px solid #000;box-shadow:inset -4px -4px 0 #ddd}
+.msg{text-align:center;font-weight:700;min-height:26px;font-size:17px}
+
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat div{background:#fff;border:3px solid #000;padding:10px;text-align:center;font-size:14px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.ptitle{font-weight:700;margin-bottom:6px;font-size:17px}
+.trow{margin:10px 0;font-size:15px}
+.trow .row{font-size:15px;font-weight:600}
+.bar{height:16px;border:2px solid #000;background:#e6e0d0;margin-top:4px}
+.bar>div{height:100%;background:var(--grass)}
+.bar.weak>div{background:#d98a2b}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 4px;border-bottom:1px solid #cdbf9e;text-align:left;vertical-align:top}
+th{font-size:13px;color:#5a5040}
+td.st{color:#b8901a;letter-spacing:1px}
+
+@keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+  <div class="top-bar" style="max-width:480px;margin:0 auto!important;padding:8px max(16px,env(safe-area-inset-left,0px)) 0;color:#fff;position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+<div id="app"></div>
+<script>
+/* ===================== OLVASÁS: 1–4. NAP (eredeti 20 feladat) ===================== */
+const TASKS = [
+  {id:'mc1',type:'mc',text:'Bálint egy kis házat épített a domb tetejére. A falakat fából, a tetőt kőből rakta. Este fáklyákat tett az ajtó mellé, hogy lássa az utat.',q:'Miből készült a ház teteje?',opts:['Fából','Kőből','Üvegből'],a:1},
+  {id:'mc2',type:'mc',text:'A bányában sötét volt és hideg. Réka vitt magával egy csákányt és tíz fáklyát. Mélyen lent egy csillogó kék követ talált.',q:'Mit talált Réka a bánya mélyén?',opts:['Egy csillogó kék követ','Egy régi csákányt','Tíz fáklyát'],a:0},
+  {id:'mc3',type:'mc',text:'A farkas eleinte félt Danitól. Dani minden nap adott neki egy csontot. Egy hét múlva a farkas már mindenhová követte őt.',q:'Miért kezdte követni a farkas Danit?',opts:['Mert eltévedt az erdőben','Mert Dani minden nap etette','Mert félt a sötétben'],a:1},
+  {id:'mc4',type:'mc',text:'Eleredt az eső, és a folyó vize gyorsan emelkedett. Zoli homokzsákokkal védte meg a kertjét. Reggelre a víz visszahúzódott, és a répák épek maradtak.',q:'Mivel védte meg Zoli a kertjét?',opts:['Kövekkel','Homokzsákokkal','Deszkákkal'],a:1},
+  {id:'tf1',type:'tf',text:'Zsófi búzát vetett a ház mögé. Minden reggel megöntözte. Három hét múlva learatta, és kenyeret sütött belőle.',q:'Zsófi a ház előtt vetett búzát.',a:false},
+  {id:'tf2',type:'tf',text:'A barlang bejáratánál két nagy pók őrködött. Gergő inkább megvárta a reggelt. Napfényben a pókok elbújtak, így biztonságosan bemehetett.',q:'Gergő megvárta a reggelt, mielőtt bement a barlangba.',a:true},
+  {id:'tf3',type:'tf',text:'A falu kovácsa vasból kardot és patkót készít. Cserébe almát és szenet kér. A falusiak szeretik, mert mindig segít.',q:'A kovács aranyat kér a munkájáért.',a:false},
+  {id:'tf4',type:'tf',text:'Lili hajóval átkelt a tavon. A túlsó parton egy elhagyott tornyot talált. A torony tetejéről az egész völgyet látta.',q:'A torony tetejéről látni lehetett a völgyet.',a:true},
+  {id:'or1',type:'or',s:['Ádám kivágott három fát.','A fából deszkákat készített.','A deszkákból egy asztalt épített.']},
+  {id:'or2',type:'or',s:['Besötétedett, ezért Nóra hazasietett.','Bezárta maga mögött az ajtót.','Lefeküdt aludni, és reggelig pihent.']},
+  {id:'or3',type:'or',s:['Kata talált egy tojást a fűben.','Hazavitte, és egy meleg helyre tette.','Pár nap múlva kikelt belőle egy kiscsibe.']},
+  {id:'or4',type:'or',s:['Péter lement a bányába.','Talált egy darab vasércet.','A kemencében kiolvasztotta, és vasrúd lett belőle.']},
+  {id:'gap1',type:'gap',text:'Sötét volt, ezért Ábel meggyújtott egy ___. Így már jól látta a lépcsőt.',opts:['fáklyát','kardot','almát'],a:0},
+  {id:'gap2',type:'gap',text:'Az éhes birka a zöld ___ legelte a mezőn. A pásztor közben a fa alatt pihent.',opts:['füvet','követ','homokot'],a:0},
+  {id:'gap3',type:'gap',text:'A ládát kulccsal kellett ___. Benne három aranyrúd volt.',opts:['kinyitni','megenni','elültetni'],a:0},
+  {id:'gap4',type:'gap',text:'Hideg tél jött, ezért Ákos ___ rakott a kandallóba. A házban hamar meleg lett.',opts:['fát','havat','vizet'],a:0},
+  {id:'ma1',type:'ma',text:'A kertben alma, répa és tök nőtt. Viki mindhármat leszedte, és vitt belőlük a nagymamájának.',pairs:[['alma','🍎'],['répa','🥕'],['tök','🎃']]},
+  {id:'ma2',type:'ma',text:'Az erdőben Tomi látott egy farkast, egy rókát és egy medvét. Gyorsan és csendben hazament.',pairs:[['farkas','🐺'],['róka','🦊'],['medve','🐻']]},
+  {id:'ma3',type:'ma',text:'A régi ládában volt egy kard, egy íj és egy kulcs. Márk a kulcsot tette el először.',pairs:[['kard','🗡️'],['íj','🏹'],['kulcs','🔑']]},
+  {id:'ma4',type:'ma',text:'A tóparton Emma hallott egy békát. Aztán látott egy halat és egy kacsát is.',pairs:[['béka','🐸'],['hal','🐟'],['kacsa','🦆']]},
+];
+const DAYS = [
+  {name:'Az erdő széle',ico:'🌲',ids:['mc1','tf1','gap1','or1','ma1']},
+  {name:'A bánya mélye',ico:'⛏️',ids:['tf2','gap2','mc2','ma2','or2']},
+  {name:'A falu',ico:'🏘️',ids:['gap3','mc3','or3','tf3','ma3']},
+  {name:'A völgy',ico:'⛰️',ids:['ma4','tf4','gap4','mc4','or4']},
+];
+
+/* ===================== OLVASÁS: 5–30. NAP ===================== */
+/* R(név, ikon, [szöveg, kérdés, opciók, jó index], [szöveg, állítás, igaz?], [szöveg ___-val, opciók (az első a jó)], [mondatok sorrendben], [szöveg, [szó, kép]...]) */
+const ORDERS=[['mc','tf','gap','or','ma'],['tf','gap','mc','ma','or'],['gap','mc','or','tf','ma'],['ma','tf','gap','mc','or'],['mc','or','tf','ma','gap']];
+function R(name,ico,mc,tf,gap,or,ma){
+  const day=DAYS.length+1, p='d'+day+'_';
+  const t={
+    mc:{type:'mc',text:mc[0],q:mc[1],opts:mc[2],a:mc[3]},
+    tf:{type:'tf',text:tf[0],q:tf[1],a:tf[2]},
+    gap:{type:'gap',text:gap[0],opts:gap[1],a:0},
+    or:{type:'or',s:or},
+    ma:{type:'ma',text:ma[0],pairs:ma[1]},
+  };
+  for(const k in t){ t[k].id=p+k; TASKS.push(t[k]); }
+  DAYS.push({name,ico,ids:ORDERS[day%5].map(k=>p+k)});
+}
+
+R('Barkácsasztal','🪵',
+  ['Noel kivágott egy fát, és deszkákat készített belőle. A deszkákból barkácsasztalt épített. Az asztalon már botokat is tudott készíteni.','Mit épített Noel a deszkákból?',['Barkácsasztalt','Kerítést','Hajót'],0],
+  ['Egy kőcsákányhoz három kő és két bot kell. Anna csak két követ talált. Ezért még egyet keresnie kellett.','Anna elég követ talált a csákányhoz.',false],
+  ['A fáklyához szén és ___ kell. Így lesz fény a sötétben.',['bot','homok','gyapjú']],
+  ['Levente kivágott egy fát.','A fából deszkákat csinált.','A deszkákból botokat készített.'],
+  ['Az asztalon egy csákány, egy balta és egy vödör feküdt. Zoé a baltát vitte magával az erdőbe.',[['csákány','⛏️'],['balta','🪓'],['vödör','🪣']]]);
+
+R('Az első éjszaka','🌙',
+  ['Az első nap gyorsan elmúlt. Marci nem épített házat, ezért a domboldalba ásott egy kis üreget. Az üreg bejáratát földdel zárta le.','Hol töltötte Marci az éjszakát?',['Egy faházban','Egy üregben a domboldalban','Egy hajón'],1],
+  ['Este Dóra ágyat készített gyapjúból és deszkából. Lefeküdt, és átaludta az éjszakát. Reggel kipihenten ébredt.','Dóra ágyat készített.',true],
+  ['Az ágyhoz három gyapjú kell. A gyapjút a ___ adja.',['birka','hal','pók']],
+  ['Lement a nap, és sötét lett.','Bori bezárkózott a házába.','Reggel kinyitotta az ajtót, és kiment.'],
+  ['Éjjel az égen ragyogott a hold és sok csillag. Reggel felkelt a nap.',[['hold','🌙'],['csillag','⭐'],['nap','☀️']]]);
+
+R('A farm','🌾',
+  ['Ábel kapával felszántotta a földet. Búzamagokat vetett, és a folyóból vizet vezetett mellé. A víz miatt a búza gyorsabban nőtt.','Miért nőtt gyorsabban a búza?',['Mert sok nap sütött rá','Mert víz volt mellette','Mert kerítést épített köré'],1],
+  ['Három búzából egy kenyeret lehet sütni. Eszter hat búzát aratott. Így két kenyeret sütött.','Eszter három kenyeret sütött.',false],
+  ['A tehenet vödörrel lehet ___. A friss tej nagyon finom.',['megfejni','elültetni','kiásni']],
+  ['Kriszta elvetette a répát.','Minden nap megöntözte a kertet.','Pár hét múlva kihúzta a nagy répákat.'],
+  ['Az udvaron egy tehén, egy disznó és egy csirke élt. A csirke minden reggel tojt egy tojást.',[['tehén','🐄'],['disznó','🐷'],['csirke','🐔']]]);
+
+R('Horgászat','🎣',
+  ['Ákos horgászbotot készített botokból és cérnából. Leült a tó partjára, és bedobta a horgot. Egy óra alatt öt halat fogott.','Hány halat fogott Ákos?',['Hármat','Ötöt','Tízet'],1],
+  ['A nyers halat nem jó megenni. Dorka ezért a kemencében megsütötte. A sült hal sokkal laktatóbb volt.','Dorka nyersen ette meg a halat.',false],
+  ['A horgászbothoz botok és ___ kell. Ezt a pókoktól lehet szerezni.',['cérna','vas','papír']],
+  ['Gábor elkészítette a horgászbotot.','Kiment a tóhoz, és bedobta a horgot.','Kifogott egy nagy halat, és hazavitte.'],
+  ['A tóban hal, teknős és béka élt. A teknős a parton napozott.',[['hal','🐟'],['teknős','🐢'],['béka','🐸']]]);
+
+R('A barlang','🕳️',
+  ['A barlang falában fekete foltok voltak. Ez szén volt, ezért Kinga kibányászta. A szénből és botokból sok fáklyát készített.','Mit készített Kinga a szénből?',['Fáklyákat','Kardot','Ajtót'],0],
+  ['A barlangban Ádám hallotta a denevérek szárnycsapását. Nem félt tőlük, mert tudta, hogy ártalmatlanok. Nyugodtan bányászott tovább.','Ádám elszaladt a denevérek elől.',false],
+  ['A barlang mélyén csöpögött a ___. A kövek nedvesek és csúszósak voltak.',['víz','homok','méz']],
+  ['Hanna fáklyát tűzött a barlang falára.','Óvatosan lement a lépcsőn.','Lent talált egy vasércet, és kibányászta.'],
+  ['A barlangban Feri talált egy pókot, egy denevért és egy csontot. A csontot elvitte a kutyájának.',[['pók','🕷️'],['denevér','🦇'],['csont','🦴']]]);
+
+R('A kemence','🔥',
+  ['Kristóf nyolc kőből kemencét épített. A kemencébe vasércet és szenet tett. Kis idő múlva fényes vasrudak jöttek ki belőle.','Miből épült a kemence?',['Deszkából','Kőből','Üvegből'],1],
+  ['A homokot a kemencében üveggé lehet olvasztani. Lilla sok homokot gyűjtött a parton. Az üvegből ablakot csinált a házára.','Lilla az üvegből ablakot csinált.',true],
+  ['Ha nyers húst teszel a kemencébe, ___ lesz belőle. Ez sokkal jobban laktat.',['sült hús','kő','jég']],
+  ['Bálint vasércet bányászott.','Betette a kemencébe szénnel együtt.','Vasrudak lettek belőle, és vödröt készített.'],
+  ['A kovács falán egy lánc, egy kulcs és egy harang lógott. A harangot vasból öntötte.',[['lánc','⛓️'],['kulcs','🔑'],['harang','🔔']]]);
+
+R('Kereskedés','💎',
+  ['A faluban élt egy könyvtáros. Papírért cserébe smaragdot adott. Zsolt húsz papírt vitt neki, és egy smaragdot kapott.','Mit adott a könyvtáros a papírért?',['Kenyeret','Smaragdot','Könyvet'],1],
+  ['A földműves répát vett, és cserébe smaragdot adott. Vivien sok répát termesztett. Így hamar sok smaragdot gyűjtött.','Vivien répával kereskedett.',true],
+  ['A falusiak ___ fizetnek egymásnak. Ez náluk a pénz.',['smaragddal','földdel','hóval']],
+  ['Csaba elment a faluba.','Megkereste a kovácsot.','Vasért cserébe kapott egy erős pajzsot.'],
+  ['A piacon kenyér, sajt és méz volt az asztalon. Réka a mézet választotta.',[['kenyér','🍞'],['sajt','🧀'],['méz','🍯']]]);
+
+R('Erdei állatok','🦊',
+  ['Az erdőben Dávid egy nyulat látott. A nyúl gyorsan elszaladt egy bokor mögé. Dávid tudta, hogy a nyulak szeretik a répát.','Mit szeretnek a nyulak?',['A répát','A halat','A kenyeret'],0],
+  ['A róka éjjel bement a faluba. Ellopott egy tojást, és visszaszaladt az erdőbe. Senki sem vette észre.','A róka nappal ment be a faluba.',false],
+  ['A medve a fák között aludt. Nagy, barna ___ volt.',['bundája','szárnya','pikkelye']],
+  ['Luca csontot adott a farkasnak.','A farkas megszelídült.','Ettől kezdve vele tartott minden kalandba.'],
+  ['Az erdőben egy nyúl, egy róka és egy szarvas élt. A szarvasnak nagy agancsa volt.',[['nyúl','🐰'],['róka','🦊'],['szarvas','🦌']]]);
+
+R('A sivatag','🏜️',
+  ['A sivatagban nagyon meleg volt, és sehol sem volt víz. Olivér kaktuszokat látott, de azok szúrósak voltak. Végül egy régi kút mellett talált egy kis tavat.','Hol talált Olivér vizet?',['Egy kaktusz alatt','Egy régi kút mellett','Egy barlangban'],1],
+  ['A sivatagi homokból üveget lehet olvasztani. Tamara ezért teletöltötte a táskáját homokkal. Otthon üvegablakokat készített belőle.','Tamara a sivatagból vizet vitt haza.',false],
+  ['A kaktuszt nem jó megfogni, mert ___. A tüskéi nagyon élesek.',['szúr','éget','fagy']],
+  ['Márk belépett a régi piramisba.','Egy rejtett terembe jutott.','Ott egy kincsesládát talált aranyrudakkal.'],
+  ['A sivatagban Sára látott egy kaktuszt, egy tevét és egy skorpiót. A skorpió elbújt egy kő alatt.',[['kaktusz','🌵'],['teve','🐫'],['skorpió','🦂']]]);
+
+R('Hóvidék','❄️',
+  ['A hegyek tetején minden fehér volt a hótól. Benedek lapáttal hógolyókat gyűjtött. A hógolyókból egy hóembert épített a háza elé.','Mit épített Benedek a hógolyókból?',['Egy iglut','Egy hóembert','Egy falat'],1],
+  ['A befagyott tavon csúszkálni lehet. Panna óvatosan rálépett a jégre. A jég vastag volt, így nem tört be.','A jég betört Panna alatt.',false],
+  ['Hideg volt, ezért Viktor meleg ___ vett fel. Így nem fázott a hóban.',['kabátot','fürdőruhát','napszemüveget']],
+  ['Elkezdett esni a hó.','Reggelre mindent fehér takaró fedett.','Zita kiment, és hóembert épített.'],
+  ['Ádám kesztyűt húzott, és felment a hegyre. Hópelyhek hullottak a magas fenyőkre.',[['kesztyű','🧤'],['hópehely','❄️'],['fenyő','🌲']]]);
+
+R('Méhek','🐝',
+  ['A virágos réten sok méh repült. A méhek egy fa ágán, a kaptárukban laktak. Nóra tábortüzet rakott a fa alá, a méhek megnyugodtak, és ő kivett egy üveg mézet.','Mit vett ki Nóra a kaptárból?',['Virágot','Mézet','Leveleket'],1],
+  ['A méhek virágról virágra repülnek. Közben segítenek a növényeknek, hogy gyorsabban nőjenek. Ezért jó, ha méhek élnek a kert közelében.','A méhek segítik a növényeket.',true],
+  ['A méhek nem szeretik, ha bántják a ___. Ilyenkor csípnek.',['kaptárukat','felhőket','köveket']],
+  ['Liza virágokat ültetett a kertbe.','A virágokra méhek repültek.','Ősszel sok mézet gyűjtött a kaptárból.'],
+  ['A réten egy méh, egy virág és egy pillangó volt. A pillangó a virágra szállt.',[['méh','🐝'],['virág','🌸'],['pillangó','🦋']]]);
+
+R('Hajóút','⛵',
+  ['Kornél deszkákból hajót épített. A hajóval átevezett a nagy tengeren. A túloldalon egy ismeretlen szigetet fedezett fel pálmafákkal.','Mi nőtt a szigeten?',['Fenyőfák','Pálmafák','Tölgyfák'],1],
+  ['A tengeren nagy hullámok voltak. Flóra kis hajója erősen ringott, de nem borult fel. Estére szerencsésen partot ért.','Flóra hajója felborult.',false],
+  ['A hajót ___ kell hajtani. Minél gyorsabban evezel, annál gyorsabban halad.',['evezővel','kalapáccsal','seprűvel']],
+  ['Botond hajót épített.','Átevezett a tavon.','A túlsó parton sátrat vert, és ott aludt.'],
+  ['A tengeren Tímea látott egy delfint, egy bálnát és egy polipot. A delfin a hajó mellett úszott.',[['delfin','🐬'],['bálna','🐋'],['polip','🐙']]]);
+
+R('Kincskeresés','🗺️',
+  ['Gergely egy régi térképet talált egy ládában. A térképen egy piros X jelölte a kincs helyét. Elindult, és az X-nél ásni kezdett a homokban.','Mi jelölte a kincs helyét?',['Egy kék kör','Egy piros X','Egy fekete nyíl'],1],
+  ['A kincskereséshez iránytűt is vitt Emese. Az iránytű mindig ugyanabba az irányba mutatott. Így nem tévedt el az erdőben.','Emese eltévedt az erdőben.',false],
+  ['A kincses ládát egy lapáttal ___ ki a földből. Benne aranyérmék voltak.',['ásta','sütötte','varrta']],
+  ['Kincső térképet talált.','Követte a jeleket a tengerpartig.','Kiásta a ládát, és kinyitotta.'],
+  ['A ládában egy térkép, egy iránytű és egy korona volt. A korona aranyból készült.',[['térkép','🗺️'],['iránytű','🧭'],['korona','👑']]]);
+
+R('Vihar','⚡',
+  ['Délután sötét felhők gyűltek az égen. Elkezdett esni, és villámlott. Tibor gyorsan hazaszaladt, és becsukta az ablakokat.','Mit csinált Tibor, amikor hazaért?',['Kiment a kertbe','Becsukta az ablakokat','Lefeküdt aludni'],1],
+  ['A villám belecsapott egy magas fába. A fa meggyulladt, de az eső hamar eloltotta a tüzet. A ház nem sérült meg.','A tüzet az eső oltotta el.',true],
+  ['Vihar idején jó, ha az ember ___ megy. Ott biztonságban van.',['fedél alá','a tó közepére','a fa tetejére']],
+  ['Sötét felhők jelentek meg.','Erős szél fújt, és esni kezdett.','A vihar után szivárvány jelent meg az égen.'],
+  ['Az égen egy felhő és egy villám látszott. A vihar után szivárvány jelent meg.',[['felhő','☁️'],['villám','⚡'],['szivárvány','🌈']]]);
+
+R('A torony','🗼',
+  ['Hunor egy magas kőtornyot akart építeni. Először széles alapot rakott, hogy a torony ne dőljön el. Utána emeletenként haladt felfelé, egészen a felhőkig.','Miért rakott Hunor széles alapot?',['Hogy szebb legyen','Hogy a torony ne dőljön el','Hogy gyorsabban kész legyen'],1],
+  ['A torony tetejére Petra létrán mászott fel. Fent egy zászlót tűzött ki. A zászló messziről is látszott.','Petra lifttel ment fel a toronyba.',false],
+  ['A toronyba lépcsőt építettek, hogy könnyen fel lehessen ___. Száz lépcsőfoka volt.',['jutni','úszni','aludni']],
+  ['Benedek kőalapot rakott.','Fölé falakat épített.','A legtetejére zászlót tűzött.'],
+  ['A torony tetején egy zászló, egy harang és egy távcső volt. A távcsővel messzire el lehetett látni.',[['zászló','🚩'],['harang','🔔'],['távcső','🔭']]]);
+
+R('Virágoskert','🌷',
+  ['Ilona virágoskertet ültetett a háza elé. Piros, sárga és kék virágokat választott. A virágokból festéket is tudott készíteni a gyapjú színezéséhez.','Mire használta Ilona a virágokat?',['Ételre','Festékre','Gyógyszerre'],1],
+  ['A rózsabokornak szép a virága, de szúrós a szára. Dénes kesztyűben metszette meg. Így nem szúrta meg a kezét.','Dénes megszúrta a kezét.',false],
+  ['A növényeknek fény és ___ kell, hogy nőjenek. Ezért öntözni kell őket.',['víz','homok','kő']],
+  ['Rozi elültette a magokat.','Minden nap meglocsolta őket.','Tavaszra kinyíltak a virágok.'],
+  ['A kertben rózsa, tulipán és napraforgó nyílt. A napraforgó volt a legmagasabb.',[['rózsa','🌹'],['tulipán','🌷'],['napraforgó','🌻']]]);
+
+R('A ló','🐴',
+  ['A mezőn egy vad ló legelt. Krisztián többször is felült rá, de a ló mindig ledobta. Végül almával kínálta, és a ló hagyta, hogy meglovagolja.','Mivel szelídítette meg Krisztián a lovat?',['Almával','Répával','Kenyérrel'],0],
+  ['A lovagláshoz nyereg kell. Dalma egy kincsesládában talált egy nyerget. Ezután bármikor lovagolhatott.','Dalma a boltban vette a nyerget.',false],
+  ['A ló sokkal gyorsabban ___, mint az ember. Ezért jó vele utazni.',['fut','úszik','alszik']],
+  ['Bianka almát adott a lónak.','Feltette rá a nyerget.','Ellovagolt vele a szomszéd faluba.'],
+  ['Az istállóban egy ló, egy kecske és egy birka lakott. A kecske mindenre felmászott.',[['ló','🐴'],['kecske','🐐'],['birka','🐑']]]);
+
+R('Láva','🌋',
+  ['A bánya legmélyén vörös fény világított. Ez láva volt, ami nagyon forró és veszélyes. Szabolcs vödör vízzel kővé hűtötte, és így biztonságosan átkelt.','Hogyan kelt át Szabolcs a lávánál?',['Átugrotta','Vízzel kővé hűtötte','Fahidat épített'],1],
+  ['A gyémántok gyakran a láva közelében vannak. Ezért Mira nagyon óvatosan bányászott. Végül három gyémántot talált.','Mira gyémántot talált.',true],
+  ['A láva fölé nem szabad fából hidat építeni, mert a fa ___. Kőből kell építeni.',['meggyullad','elolvad','megfagy']],
+  ['Lehel lement a bánya aljára.','Vízzel kővé hűtötte a lávát.','Mögötte megtalálta a gyémántokat.'],
+  ['A bánya mélyén gyémánt, aranyérme és tűz volt. A tűz a láva miatt égett.',[['gyémánt','💎'],['aranyérme','🪙'],['tűz','🔥']]]);
+
+R('Dzsungel','🌴',
+  ['A dzsungelben a fák olyan sűrűn álltak, hogy alig jutott le fény. Kende indákon mászott fel az egyik óriásfára. A tetejéről meglátta egy régi templom tornyát, és elindult felé.','Miért mászott fel Kende a fára?',['Hogy gyümölcsöt szedjen','Hogy messzebbre lásson','Hogy elbújjon'],1],
+  ['A papagáj megtanult néhány szót. Ha Laura fütyült, a papagáj visszafütyült neki. Jó barátok lettek, és a papagáj Laura vállán utazott.','A papagáj Laura vállán utazott.',true],
+  ['A dzsungelben sok ___ nő. Ebből a hosszú zöld növényből botot is lehet készíteni.',['bambusz','kaktusz','moha']],
+  ['Áron belépett a dzsungelbe.','Egy indán felmászott egy fára.','Fentről meglátta a templomot.','Lemászott, és elindult felé.'],
+  ['A dzsungelben egy papagáj, egy majom és egy kígyó élt. A majom banánt evett.',[['papagáj','🦜'],['majom','🐒'],['kígyó','🐍']]]);
+
+R('Könyvtár','📚',
+  ['Fruzsina könyvespolcokat épített a varázsasztal köré. Minél több könyv volt a közelben, annál erősebb varázslatot kapott a kardja. Tizenöt polcot rakott, és így a legerősebb varázslatot érte el.','Mitől lett erősebb a varázslat?',['A sok könyvtől','A sok gyémánttól','A sok fáklyától'],0],
+  ['Egy könyvhöz három papír és egy bőr kell. A papírt cukornádból készítik. Ezért Gellért cukornádat ültetett a folyópartra.','Gellért búzát ültetett, hogy papírt készítsen.',false],
+  ['A könyvtárban csendben kell ___, hogy mások is tudjanak olvasni. Ott mindenki halkan beszél.',['lenni','kiabálni','futni']],
+  ['Vilmos cukornádat ültetett.','A cukornádból papírt készített.','A papírból és bőrből könyveket kötött.','A könyveket a polcra rakta.'],
+  ['A könyvtárban egy könyv, egy gyertya és egy tekercs volt az asztalon. Kata a gyertya fényénél olvasott.',[['könyv','📖'],['gyertya','🕯️'],['tekercs','📜']]]);
+
+R('Az óceán mélye','🐚',
+  ['Az óceán mélyén egy elsüllyedt hajó roncsa feküdt. Vince sokáig nem tudott lemenni, mert hamar elfogyott a levegője. Végül teknőspáncélból különleges sisakot készített, így tovább bírta a víz alatt.','Miért készített Vince sisakot?',['Hogy ne fázzon','Hogy tovább bírja a víz alatt','Hogy szebb legyen'],1],
+  ['A hajóroncsban Csenge egy kincses ládát talált. A ládában egy térkép volt egy másik kincshez. Csenge elhatározta, hogy azt is megkeresi.','A ládában csak aranyat talált Csenge.',false],
+  ['A víz alatt nem lehet ___, ezért a búvárok levegőt visznek magukkal.',['lélegezni','úszni','gondolkodni']],
+  ['Vince sisakot készített.','Lemerült az óceán mélyére.','Megtalálta a hajóroncsot.','Kihozta belőle a kincses ládát.'],
+  ['A tenger alján egy kagyló, egy rák és egy cápa volt. A cápa gyorsan elúszott.',[['kagyló','🐚'],['rák','🦀'],['cápa','🦈']]]);
+
+R('Sínek','🛤️',
+  ['Örs sínt épített a bánya és a háza között. A csillébe rakta a bányászott köveket, és meglökte. A csille magától gurult haza, így Örsnek nem kellett cipelnie a terhet.','Mi volt a jó a sínben Örs számára?',['Gyorsan eljutott vele a faluba','Nem kellett cipelnie a köveket','Szép volt a háza előtt'],1],
+  ['A sínekhez vas és bot kell. Nándor sok vasat gyűjtött össze. A sín mégsem lett elég hosszú, ezért még több vasat kellett bányásznia.','Nándornak elsőre elég vasa volt a sínhez.',false],
+  ['A csille a ___ halad. Ha nincs sín, nem tud gurulni.',['sínen','vízen','levegőben']],
+  ['Bíborka vasat bányászott.','A vasból síneket készített.','Lefektette a síneket a bányáig.','Beült a csillébe, és elgurult.'],
+  ['A bánya mellett egy vonat állt a sínen. A vezetője egy csákányt tartott a kezében.',[['vonat','🚂'],['sín','🛤️'],['csákány','⛏️']]]);
+
+R('A hegycsúcs','🏔️',
+  ['A hegyre vezető út meredek és köves volt. Szilvia többször megállt pihenni, és ivott a kulacsából. Mire felért a csúcsra, lement a nap, ezért ott fent vert sátrat.','Miért aludt Szilvia a hegy tetején?',['Mert eltévedt','Mert lement a nap','Mert elfáradt a lova'],1],
+  ['A hegycsúcsról Márton látta a falut, az erdőt és a tengert is. Messze, a tenger túlpartján egy másik falu fényei világítottak. Elhatározta, hogy hamarosan elhajózik oda.','Márton a hegyről egy másik falu fényeit látta.',true],
+  ['A hegyen hideg szél ___, ezért Szilvia felvette a kabátját.',['fújt','főzött','olvasott']],
+  ['Szilvia elindult a hegyre.','Útközben többször megpihent.','Este felért a csúcsra.','Sátrat vert, és elaludt.'],
+  ['Felért a hegyre, és letette a hátizsákját. Aztán felállította a sátrát.',[['hegy','⛰️'],['hátizsák','🎒'],['sátor','⛺']]]);
+
+R('A falu védelme','🛡️',
+  ['Éjszakánként a falu körül veszélyes lények kóboroltak. A falusiak féltek kimenni a házukból. Kolos magas falat épített a falu köré, és fáklyákat tett a tetejére, mert a lények kerülték a fényt.','Miért tett Kolos fáklyákat a falra?',['Hogy szép legyen','Mert a lények kerülték a fényt','Hogy melegebb legyen'],1],
+  ['A falu kapujánál két őr vigyázott éjjel-nappal. Ha veszélyt láttak, megkongatták a harangot. Ilyenkor mindenki a házába sietett.','Veszély esetén az őrök megkongatták a harangot.',true],
+  ['A fal tetejére íjászokat ___, akik messzire elláttak.',['állítottak','főztek','ültettek']],
+  ['Leszállt az éjszaka.','Az őrök veszélyt láttak.','Megkongatták a harangot.','Mindenki a házába sietett.'],
+  ['Az őrnél pajzs, íj és kard volt. A kardját sosem tette le.',[['pajzs','🛡️'],['íj','🏹'],['kard','🗡️']]]);
+
+R('A vár','🏰',
+  ['Hetekig tartott, mire Benjámin és a barátai felépítették a várat. Mindenki mást csinált: valaki követ bányászott, valaki falat rakott, más pedig ételt főzött a többieknek. A közös munka miatt sokkal gyorsabban elkészültek, mint ha egyedül dolgoztak volna.','Miért készültek el gyorsabban?',['Mert sok kő volt','Mert együtt dolgoztak','Mert kicsi volt a vár'],1],
+  ['A vár körül vizesárkot ástak. Az árok fölött egy felhúzható híd vezetett a kapuhoz. Éjszakára a hidat mindig felhúzták.','Éjszakára leeresztették a hidat.',false],
+  ['A vár tornyaiból ___ lehetett látni a völgyet. Ezért ott álltak az őrök.',['messzire','rosszul','csak félig']],
+  ['A barátok megtervezték a várat.','Követ bányásztak az építéshez.','Felrakták a falakat és a tornyokat.','Végül zászlót tűztek a legmagasabb toronyra.'],
+  ['A vár tornyán zászló lengett. A trónteremben egy aranykorona pihent.',[['vár','🏰'],['zászló','🚩'],['korona','👑']]]);
+
+R('Ünnep','🎉',
+  ['A harmincadik napon nagy ünnepet tartottak a faluban. Mindenki hozott valamit: a földműves kenyeret, a halász halat, a pék pedig egy hatalmas tortát. Este tűzijáték is volt, és mindenki együtt nevetett.','Ki hozta a tortát?',['A földműves','A halász','A pék'],2],
+  ['Az ünnepen minden kalandor kapott egy érmet. Az érem azt jelezte, hogy harminc napon át kitartott. Aki megkapta, büszkén tűzte a mellére.','Az érmet harminc nap kitartásért adták.',true],
+  ['Az ünnepi tortát hét szeletre vágták, hogy mindenkinek ___. Senki sem maradt ki.',['jusson','fájjon','essen']],
+  ['A falusiak feldíszítették a teret.','Mindenki hozott valami finomat.','Este tűzijáték volt.','Az ünnep végén mindenki hazament aludni.'],
+  ['Az ünnepen volt torta, tűzijáték és sok léggömb. A gyerekek a léggömbökkel játszottak.',[['torta','🎂'],['tűzijáték','🎆'],['léggömb','🎈']]]);
+
+const TASK = Object.fromEntries(TASKS.map(t=>[t.id,t]));
+const NDAYS = DAYS.length;
+const TYPES = {mc:'Feleletválasztás',tf:'Igaz / hamis',or:'Mondatsorrend',gap:'Hiányzó szó',ma:'Szó–kép párosítás'};
+const INSTR = {
+  mc:'Olvasd el, aztán válaszolj!',
+  tf:'Olvasd el! Igaz vagy hamis az állítás?',
+  or:'Tedd sorba! Koppints a mondatokra jó sorrendben.',
+  gap:'Melyik szó illik az üres helyre?',
+  ma:'Párosíts! Koppints egy szóra, aztán a képére.',
+  mt:'Olvasd el, és számold ki!',
+  calc:'Számold ki fejben!',
+};
+const PRAISE = ['Szuper! 🎉','Telitalálat! 💎','Ez az! ⛏️','Nagyon ügyes vagy! 🌟','Kiváló! 🏆','Így kell ezt! 💪'];
+const XP_PER_LEVEL = 100;
+
+/* ===================== MATEK (minden játéknál új számok) ===================== */
+const MK = {add:'Összeadás',sub:'Kivonás',calc:'Fejszámolás',calcMul:'Szorzótábla',recipe:'Receptek (szorzás)',recipeDiv:'Receptek (osztás)',
+  money:'Vásárlás',money2:'Vásárlás, maradék',torch:'Fáklyagyártás',stack:'Kötegek',stackDiv:'Kötegek (osztás)',time:'Idő',timeConv:'Időátváltás',
+  area:'Terület',perim:'Kerület',half:'Fél, negyed',addBig:'Összeadás (nagy számok)',subBig:'Kivonás (nagy számok)',twostep:'Kétlépéses feladat'};
+const ri = (a,b) => a+Math.floor(Math.random()*(b-a+1));
+const rand = a => a[Math.floor(Math.random()*a.length)];
+const ITEMS = ['deszka','kő','alma','fáklya','tojás','smaragd','vasrúd','szén','gyapjú','répa'];
+const RECIPES = [['kard',2,'vasrúd'],['csákány',3,'kő'],['vödör',3,'vasrúd'],['ajtó',6,'deszka'],['láda',8,'deszka'],['kemence',8,'kő'],['ágy',3,'gyapjú'],['kenyér',3,'búza'],['könyv',3,'papír'],['balta',3,'kő']];
+const SHOP = [['kenyér',2],['alma',1],['könyv',5],['íj',4],['pajzs',6],['sült hal',2]];
+const C = (e,ans) => ({story:'',calc:e,q:'',ans,expl:`${e} = ${ans}`});
+const G = {
+  add:L=>{const it=rand(ITEMS),a=ri(5,L>1?60:30),b=ri(5,L>1?39:19);return {story:`A ládában ${a} ${it} van. Beleteszel még ${b} darabot.`,q:`Hány ${it} van most a ládában?`,ans:a+b,expl:`${a} + ${b} = ${a+b}`,wrong:[a+b+10,a+b-10]};},
+  sub:L=>{const it=rand(ITEMS),a=ri(20,L>1?99:50),b=ri(3,a-5);return {story:`A ládában ${a} ${it} van. Kiveszel belőle ${b} darabot.`,q:`Hány ${it} marad a ládában?`,ans:a-b,expl:`${a} − ${b} = ${a-b}`,wrong:[a+b]};},
+  addBig:L=>{const a=ri(100,600),b=ri(50,350);return {story:`A raktárban ${a} kő van. Kibányászol még ${b} darabot.`,q:'Hány kő van most a raktárban?',ans:a+b,expl:`${a} + ${b} = ${a+b}`,wrong:[a+b+100,a+b-10]};},
+  subBig:L=>{const a=ri(300,900),b=ri(50,a-100);return {story:`A raktárban ${a} deszka van. Egy házhoz felhasználsz ${b} darabot.`,q:'Hány deszka marad?',ans:a-b,expl:`${a} − ${b} = ${a-b}`,wrong:[a-b+100,a-b-10]};},
+  calc:L=>{ if(Math.random()<.5){const a=ri(10,60),b=ri(5,39);return C(`${a} + ${b}`,a+b);} const a=ri(20,90),b=ri(5,a-5);return C(`${a} − ${b}`,a-b); },
+  calcMul:L=>{const a=ri(2,L>2?10:6),b=ri(2,10);return Object.assign(C(`${a} × ${b}`,a*b),{wrong:[a+b,a*b+a]});},
+  recipe:L=>{const [w,n,o]=rand(RECIPES),k=ri(2,L>1?8:5);return {story:`Egy ${w} elkészítéséhez ${n} ${o} kell.`,q:`Hány ${o} kell, ha ${k} darabot akarsz készíteni?`,ans:n*k,expl:`${k} × ${n} = ${n*k}`,wrong:[n+k]};},
+  recipeDiv:L=>{const [w,n,o]=rand(RECIPES),k=ri(2,8),t=n*k;return {story:`Egy ${w} elkészítéséhez ${n} ${o} kell. A ládádban ${t} ${o} van.`,q:`Hány ${w} készíthető belőle?`,ans:k,expl:`${t} : ${n} = ${k}`,wrong:[t-n]};},
+  money:L=>{const [it,p0]=rand(SHOP),p=ri(p0,p0+3),n=ri(2,L>1?6:4);return {story:`A piacon egy ${it} ${p} smaragdba kerül.`,q:`Hány smaragdot fizetsz ${n} darabért?`,ans:p*n,unit:'smaragd',expl:`${n} × ${p} = ${p*n}`,wrong:[p+n]};},
+  money2:L=>{const [it,p0]=rand(SHOP),p=ri(p0,p0+3),n=ri(2,5),have=p*n+ri(1,20);return {story:`Van ${have} smaragdod. Egy ${it} ${p} smaragdba kerül, és veszel ${n} darabot.`,q:'Hány smaragdod marad?',ans:have-p*n,unit:'smaragd',expl:`${n} × ${p} = ${p*n}, és ${have} − ${p*n} = ${have-p*n}`,wrong:[have-p,have-n]};},
+  torch:L=>{const n=ri(2,L>3?12:6);return {story:`Egy szénből és egy botból 4 fáklya készül. Van ${n} szened és ${n} botod.`,q:'Hány fáklyát tudsz készíteni?',ans:4*n,expl:`${n} × 4 = ${4*n}`,wrong:[n+4]};},
+  stack:L=>{const [s,it]=rand([[64,'kő'],[64,'deszka'],[16,'tojás'],[16,'hógolyó']]),k=ri(2,5);return {story:`Egy kötegben ${s} ${it} fér el. Van ${k} teljes köteged.`,q:`Hány ${it} ez összesen?`,ans:s*k,expl:`${k} × ${s} = ${s*k}`,wrong:[s+k]};},
+  stackDiv:L=>{const [s,it]=rand([[64,'kő'],[16,'tojás']]),k=ri(2,5),r=ri(1,s-1),t=s*k+r;return {story:`A ládában ${t} ${it} van. Egy kötegbe ${s} darab fér el.`,q:'Hány teljes köteget tudsz megtölteni?',ans:k,expl:`${k} × ${s} = ${s*k}, és még marad ${r}`,wrong:[k+1]};},
+  time:L=>{const s=ri(1,3)*5,n=ri(3,8);return {story:`A kemence egy vasércet ${s} másodperc alatt olvaszt ki.`,q:`Hány másodperc alatt olvaszt ki ${n} vasércet?`,ans:s*n,unit:'mp',expl:`${n} × ${s} = ${s*n}`,wrong:[s+n]};},
+  timeConv:L=>{ if(Math.random()<.5){const m=ri(2,6);return {story:'Egy perc 60 másodperc.',q:`Hány másodperc ${m} perc?`,ans:60*m,unit:'mp',expl:`${m} × 60 = ${60*m}`,wrong:[60+m,100*m]};} const n=ri(2,5);return {story:'A játékban egy teljes nap 20 percig tart.',q:`Hány percig tart ${n} nap?`,ans:20*n,unit:'perc',expl:`${n} × 20 = ${20*n}`,wrong:[20+n]}; },
+  area:L=>{const w=ri(3,9),h=ri(2,6);return {story:`Falat építesz. A fal ${w} blokk széles és ${h} blokk magas.`,q:'Hány blokk kell a falhoz?',ans:w*h,expl:`${w} × ${h} = ${w*h}`,wrong:[w+h,2*(w+h)]};},
+  perim:L=>{const a=ri(4,12),b=ri(3,9);return {story:`A kerted téglalap alakú: ${a} méter hosszú és ${b} méter széles. Körbe akarod keríteni.`,q:'Hány méter kerítés kell?',ans:2*(a+b),unit:'méter',expl:`${a} + ${b} + ${a} + ${b} = ${2*(a+b)}`,wrong:[a*b,a+b]};},
+  half:L=>{ if(L<4||Math.random()<.5){const n=ri(5,30)*2;return {story:`Van ${n} almád. A felét odaadod a barátodnak.`,q:'Hány almád marad?',ans:n/2,expl:`${n} : 2 = ${n/2}`,wrong:[n-2]};} const n=ri(3,15)*4;return {story:`Van ${n} répád. A negyedét megeteted a nyulakkal.`,q:'Hány répát etetsz meg?',ans:n/4,expl:`${n} : 4 = ${n/4}`,wrong:[n/2]}; },
+  twostep:L=>{const [w,n,o]=rand(RECIPES),k=ri(2,5),have=n*k+ri(2,15);return {story:`Van ${have} ${o}. Egy ${w} elkészítéséhez ${n} ${o} kell, és ${k} darabot készítesz.`,q:`Hány ${o} marad?`,ans:have-n*k,expl:`${k} × ${n} = ${n*k}, és ${have} − ${n*k} = ${have-n*k}`,wrong:[have-n,have-k]};},
+};
+const POOLS = {
+  1:['add','sub','calc','recipe','money','calcMul'],
+  2:['add','sub','calcMul','recipe','recipeDiv','money','torch'],
+  3:['stack','time','area','money2','recipeDiv','calcMul','timeConv'],
+  4:['perim','stackDiv','half','addBig','subBig','money2','area'],
+  5:['twostep','money2','perim','stackDiv','timeConv','torch','half','calcMul'],
+};
+const mathLevel = d => Math.min(5, Math.ceil(d/6));
+function seeded(s){ return ()=>{ s|=0; s=s+0x6D2B79F5|0; let t=Math.imul(s^s>>>15,1|s); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function mathKinds(d){ const a=POOLS[mathLevel(d)].slice(), r=seeded(d*7919); for(let i=a.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a.slice(0,5); }
+function mathTask(k,L){ return Object.assign({id:'m:'+k,type:'mt',kind:k}, G[k](L)); }
+function mopts(ans,wrong){
+  const out=[ans];
+  const w=shuffle((wrong||[]).filter(x=>x>0&&Number.isInteger(x)&&x!==ans));
+  if(w.length) out.push(w[0]);
+  for(const x of shuffle([1,2,3,5,10,-1,-2,-3,-5,-10])){ if(out.length>=3) break; const v=ans+x; if(v>0&&!out.includes(v)) out.push(v); }
+  return shuffle(out).map(v=>({t:String(v),ok:v===ans}));
+}
+const sayMath = e => e.replace(/×/g,' szorozva ').replace(/−/g,' mínusz ').replace(/\+/g,' plusz ').replace(/ : /g,' osztva ');
+
+/* ===================== MENTÉS ===================== */
+const KEY = 'betubanya_v1';
+const DEF = () => ({xp:0,rounds:{},tasks:{},sessions:[],days:[],pin:null,unlockAll:false,time:0,start:null,
+  settings:{size:1,syl:true,space:true,rate:0.85,sound:true,ruler:false},review:{}});
+let S;
+function loadSave(){
+  const d=DEF(); let raw=null;
+  try{ raw=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ raw=null; }
+  if(!raw || typeof raw!=='object' || Array.isArray(raw)) return d;
+  const obj=v=>v&&typeof v==='object'&&!Array.isArray(v);
+  const num=v=>typeof v==='number'&&isFinite(v)&&v>=0;
+  const day=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
+  if(num(raw.xp)) d.xp=Math.floor(raw.xp);
+  if(num(raw.time)) d.time=raw.time;
+  if(typeof raw.unlockAll==='boolean') d.unlockAll=raw.unlockAll;
+  if(typeof raw.pin==='string' && /^[0-9a-f]{1,8}$/.test(raw.pin)) d.pin=raw.pin;
+  if(day(raw.start)) d.start=raw.start;
+  if(Array.isArray(raw.days)) d.days=raw.days.filter(day);
+  if(obj(raw.rounds)) for(const [k,r] of Object.entries(raw.rounds)) if(obj(r)) d.rounds[k]={done:!!r.done,stars:num(r.stars)?Math.min(3,Math.floor(r.stars)):0};
+  if(obj(raw.tasks)) for(const [k,r] of Object.entries(raw.tasks)) if(obj(r)&&num(r.n)&&num(r.first)&&num(r.time)&&num(r.mist)) d.tasks[k]={n:r.n,first:r.first,time:r.time,mist:r.mist};
+  if(Array.isArray(raw.sessions)) d.sessions=raw.sessions.filter(s=>obj(s)&&typeof s.d==='string'&&!isNaN(Date.parse(s.d))&&num(s.score)&&num(s.max)&&num(s.dur)).slice(0,500).map(s=>({d:s.d,day:num(s.day)?Math.max(1,Math.floor(s.day)):(num(s.r)?Math.floor(s.r)+1:1),mode:s.mode==='m'?'m':'r',score:s.score,max:s.max,dur:s.dur}));
+  if(obj(raw.review)) for(const [k,r] of Object.entries(raw.review)) if(obj(r)&&num(r.box)&&day(r.due)) d.review[k]={box:Math.floor(r.box),due:r.due};
+  if(obj(raw.settings)){
+    const s=raw.settings, ds=d.settings;
+    if([0,1,2].includes(s.size)) ds.size=s.size;
+    for(const k of ['syl','space','sound','ruler']) if(typeof s[k]==='boolean') ds[k]=s[k];
+    if([0.7,0.85,1.05].includes(s.rate)) ds.rate=s.rate;
+    if(typeof s.name==='string') ds.name=s.name.trim().slice(0,16);
+  }
+  return d;
+}
+S = loadSave();
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+const nick = () => (typeof S.settings.name==='string' ? S.settings.name.trim().slice(0,16) : '');
+const nmc = () => nick() ? ', '+esc(nick()) : '';
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function dstr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* régi mentés átalakítása */
+for(const k of Object.keys(S.rounds)){ if(/^\d+$/.test(k)){ S.rounds['r'+(+k+1)]=S.rounds[k]; delete S.rounds[k]; } }
+S.sessions.forEach(s=>{ if(s.day===undefined){ s.day=(s.r||0)+1; s.mode='r'; } });
+if(!S.start) S.start = S.days.length ? S.days.slice().sort()[0] : dstr(new Date());
+save();
+
+/* ===================== SEGÉDEK ===================== */
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function addDays(n){ const d=new Date(); d.setDate(d.getDate()+n); return dstr(d); }
+const REVIEW_GAPS=[1,3,7];
+function dueReviews(mode,exclude,max){
+  const today=dstr(new Date());
+  return Object.entries(S.review).filter(([id,r])=>r.due<=today && (mode==='m')===id.startsWith('m:') && !exclude.includes(id) && (mode==='m'?MK[id.slice(2)]:TASK[id]))
+    .sort((a,b)=>a[1].due.localeCompare(b[1].due)).slice(0,max).map(([id])=>id);
+}
+function updateReview(id,firstTry,wasReview){
+  const r=S.review[id];
+  if(r){
+    if(firstTry){ r.box++; if(r.box>=REVIEW_GAPS.length) delete S.review[id]; else r.due=addDays(REVIEW_GAPS[r.box]); }
+    else { r.box=0; r.due=addDays(1); }
+  } else if(!firstTry){ S.review[id]={box:0,due:addDays(REVIEW_GAPS[0])}; }
+}
+const level = xp => Math.floor(xp/XP_PER_LEVEL)+1;
+function streak(){ const set=new Set(S.days); const d=new Date(); if(!set.has(dstr(d))) d.setDate(d.getDate()-1); let n=0; while(set.has(dstr(d))){n++;d.setDate(d.getDate()-1);} return n; }
+function hash(p){ let x=5381; for(const c of 'betubanya#'+p) x=((x<<5)+x+c.charCodeAt(0))|0; return (x>>>0).toString(16); }
+function dayNum(){ const [y,m,d]=S.start.split('-').map(Number); const s=new Date(y,m-1,d), n=new Date(), t=new Date(n.getFullYear(),n.getMonth(),n.getDate()); return Math.round((t-s)/864e5)+1; }
+const isOpen = d => S.unlockAll || d<=dayNum();
+const rec = (m,d) => S.rounds[m+d];
+const isDone = (m,d) => !!(rec(m,d)&&rec(m,d).done);
+const starStr = n => '★'.repeat(n)+'☆'.repeat(3-n);
+const starsOf = (m,d) => rec(m,d)?rec(m,d).stars:0;
+
+/* Magyar szótagolás (színezéshez) */
+const VOW = 'aáeéiíoóöőuúüűAÁEÉIÍOÓÖŐUÚÜŰ';
+const DIG = ['dzs','cs','dz','gy','ly','ny','sz','ty','zs'];
+function units(w){ const u=[]; let i=0; while(i<w.length){ let m=null; for(const d of DIG){ if(w.substr(i,d.length).toLowerCase()===d){ m=w.substr(i,d.length); break; } } if(m){u.push(m);i+=m.length;} else {u.push(w[i]);i++;} } return u; }
+function syl(w){
+  const u=units(w), vi=[]; u.forEach((x,i)=>{ if(VOW.includes(x[0])) vi.push(i); });
+  if(vi.length<2) return [w];
+  const cuts=[]; for(let k=0;k<vi.length-1;k++){ const a=vi[k], b=vi[k+1]; cuts.push(b-a-1===0 ? b : b-1); }
+  const out=[]; let s=0; for(const c of cuts){ out.push(u.slice(s,c).join('')); s=c; } out.push(u.slice(s).join('')); return out;
+}
+function fmt(s){
+  if(!S.settings.syl) return s;
+  return s.replace(/[A-Za-zÀ-ž]+/g, w => syl(w).map((p,i)=>`<span class="s${i%2+1}">${p}</span>`).join(''));
+}
+const splitS = t => (t.match(/[^.!?]+[.!?]*/g) || [t]).map(s=>s.trim()).filter(Boolean);
+const textOf = t => t.text || t.story || '';
+
+/* ===================== HANG ===================== */
+const TTS = (()=>{ try{ return 'speechSynthesis' in window && !!window.speechSynthesis && typeof SpeechSynthesisUtterance!=='undefined'; }catch(e){ return false; } })();
+const SHOWTTS = true;
+function toast(msg){ let t=document.getElementById('toast'); if(!t){ t=document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); } t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>{ t.hidden=true; },5000); }
+let huVoice=null, ttsTok=0;
+function loadV(){ try{ const v=speechSynthesis.getVoices(); huVoice = v.find(x=>/^hu/i.test(x.lang)) || null; }catch(e){} }
+try{ if(TTS){ loadV(); speechSynthesis.onvoiceschanged = loadV; } }catch(e){}
+function clearHL(){ document.querySelectorAll('.hl').forEach(e=>e.classList.remove('hl')); }
+function speakRaw(t,onEnd){
+  if(!TTS){ clearHL(); toast('A felolvasás itt nem érhető el. Nyisd meg a játékot Chrome böngészőben, ott működik.'); return; }
+  try{ if(!huVoice && !speakRaw.warned && speechSynthesis.getVoices().length){ speakRaw.warned=true; toast('Nem találtam magyar felolvasó hangot. A telefon beállításaiban (Szövegfelolvasás) töltsd le a magyar nyelvet.'); } }catch(e){}
+  try{
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang='hu-HU'; if(huVoice) u.voice=huVoice; u.rate=S.settings.rate;
+    u.onend = ()=>onEnd && onEnd(); u.onerror = ()=>onEnd && onEnd();
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopTTS(){ ttsTok++; try{ if(TTS) speechSynthesis.cancel(); }catch(e){} clearHL(); }
+function speak(t){ stopTTS(); const tok=ttsTok; speakRaw(t,()=>{ if(tok===ttsTok) clearHL(); }); }
+function speakSeq(arr,els){
+  stopTTS(); const tok=ttsTok;
+  (function step(i){
+    if(tok!==ttsTok) return; clearHL();
+    if(i>=arr.length) return;
+    if(els[i]){ els[i].classList.add('hl'); rulerToEl(els[i]); }
+    speakRaw(arr[i],()=>step(i+1));
+  })(0);
+}
+function spoken(s){ return s.replace(/___/g, P && P.filled ? P.filled : 'üres hely'); }
+
+let AC;
+function beep(good,small){
+  if(!S.settings.sound) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(), g=AC.createGain(), n=AC.currentTime;
+    o.type='square';
+    if(good){ o.frequency.setValueAtTime(660,n); o.frequency.setValueAtTime(880,n+.08); if(!small) o.frequency.setValueAtTime(1175,n+.16); }
+    else { o.frequency.setValueAtTime(240,n); o.frequency.setValueAtTime(190,n+.1); }
+    g.gain.setValueAtTime(.05,n); g.gain.exponentialRampToValueAtTime(.001,n+(small?.14:.32));
+    o.connect(g).connect(AC.destination); o.start(n); o.stop(n+.35);
+  }catch(e){}
+}
+
+/* ===================== ÁLLAPOT ===================== */
+let view='home', P=null, selDay=1, lockedMsg='', pinBuf='', pinFirst='', pinMsg='';
+const app = document.getElementById('app');
+
+function applySettings(){
+  const r=document.documentElement.style, st=S.settings;
+  r.setProperty('--fs', [18,21,25][st.size]+'px');
+  r.setProperty('--lh', st.space ? '2.0' : '1.6');
+  r.setProperty('--ls', st.space ? '.05em' : '0');
+}
+
+/* ===================== NÉZETEK ===================== */
+function topBar(right,logo=true){ return `<div class="top">${logo?'<div class="logo">BETŰBÁNYA</div>':''}${right}</div>`; }
+
+function missionBtns(d){
+  return `<div class="mission">
+    <button class="mb ${isDone('r',d)?'done':''}" data-a="start" data-v="r${d}"><span class="ico">📖</span>Olvasás<span class="stars">${starStr(starsOf('r',d))}</span></button>
+    <button class="mb ${isDone('m',d)?'done':''}" data-a="start" data-v="m${d}"><span class="ico">🔢</span>Matek<span class="stars">${starStr(starsOf('m',d))}</span></button>
+  </div>`;
+}
+
+function homeHTML(){
+  const into=S.xp%XP_PER_LEVEL, today=Math.max(1,Math.min(NDAYS,dayNum()));
+  let cur=null;
+  for(let d=1; d<=NDAYS; d++){ if(isOpen(d) && !(isDone('r',d)&&isDone('m',d))){ cur=d; break; } }
+  let card;
+  if(cur){
+    card=`<div class="panel today"><div class="dname">${DAYS[cur-1].ico} ${cur}. nap · ${DAYS[cur-1].name}</div>${missionBtns(cur)}</div>`;
+  } else if(isDone('r',NDAYS)&&isDone('m',NDAYS)){
+    card=`<div class="panel today center"><div class="big-ico">🏆</div><div class="dname">Gratulálok${nmc()}! Mind a ${NDAYS} nap kész!</div><div class="small">Bármelyik napot újrajátszhatod, a matekban mindig új számok jönnek.</div></div>`;
+  } else {
+    card=`<div class="panel today center"><div class="big-ico">✅</div><div class="dname">Mára mindent teljesítettél${nmc()}!</div><div class="small">Holnap nyílik a ${today+1}. nap. Addig újrajátszhatod a korábbi napokat.</div></div>`;
+  }
+  const tiles=DAYS.map((_,i)=>{
+    const d=i+1, open=isOpen(d), r=isDone('r',d), m=isDone('m',d);
+    const cls=!open?'locked':(r&&m)?'done':(r||m)?'half':'';
+    return `<button class="dt ${cls} ${d===cur?'cur':''}" data-a="${open?'day':'locked'}" data-v="${d}" aria-label="${d}. nap">${open?d:'🔒'}${open&&(r||m)?`<small>${r?'📖':''}${m?'🔢':''}</small>`:''}</button>`;
+  }).join('');
+  return topBar(`<button class="ibtn dark" data-a="go" data-v="settings" aria-label="Beállítások">⚙️</button>`) + `
+  <div class="hello">Szia${nmc()}! 👋</div>
+  <div class="panel">
+    <div class="row"><span>⭐ ${level(S.xp)}. szint</span><span>🔥 ${streak()} nap</span></div>
+    <div class="xpbar"><div style="width:${into/XP_PER_LEVEL*100}%"></div></div>
+    <div class="small">${into} / ${XP_PER_LEVEL} XP a következő szintig</div>
+  </div>
+  ${card}
+  <div class="h">${NDAYS} napos kaland</div>
+  <div class="days">${tiles}</div>
+  <div class="legend"><span><i style="background:var(--grass)"></i>kész</span><span><i style="background:#b8901a"></i>félig kész</span><span><i style="background:var(--stone)"></i>nyitva</span><span>🔒 később nyílik</span></div>
+  ${lockedMsg?`<div class="hint">${lockedMsg}</div>`:''}`;
+}
+
+function dayHTML(){
+  const d=selDay, D=DAYS[d-1];
+  return topBar(`<button class="ibtn dark" data-a="home" aria-label="Vissza">✖</button>`) + `
+  <div class="h">${D.ico} ${d}. nap</div>
+  <div class="panel today"><div class="dname">${D.name}</div>${missionBtns(d)}
+    <div class="small">A matekban minden alkalommal új számok jönnek.</div></div>
+  <button class="btn" data-a="home">🗺 Vissza a térképre</button>`;
+}
+
+function sentHTML(text){
+  return splitS(text).map((s,i)=>{
+    const parts=s.split('___').map(fmt);
+    const gap = P.filled ? `<span class="gap filled">${fmt(P.filled)}</span>` : `<span class="gap">&nbsp;</span>`;
+    return `<span class="sent" data-a="sent" data-v="${i}">${parts.join(gap)}</span>`;
+  }).join(' ');
+}
+
+function playHTML(){
+  const t=P.task;
+  const bar=P.list.map((_,i)=>`<div class="pb ${i<P.idx?'done':i===P.idx?'cur':''}"></div>`).join('');
+  let h = topBar(`<div class="pbar">${bar}</div><button class="ibtn dark" data-a="home" aria-label="Kilépés">✖</button>`, false);
+  const instr = t.type==='mt' ? (t.calc?INSTR.calc:INSTR.mt) : INSTR[t.type];
+  if(t.review) h += `<div class="chip">🔁 Ismétlés – ez már ismerős lehet!</div>`;
+  h += `<div class="instr"><span>${instr}</span>${SHOWTTS?`<button class="ibtn" data-a="sayinstr" aria-label="Felolvasás">🔊</button>`:''}</div>`;
+
+  if(t.type==='mt' && t.calc){
+    h += `<div class="panel"><div class="calcbig" id="calc">${t.calc} = ?</div>${SHOWTTS?`<button class="btn sm" data-a="readall">🔊 Felolvasás</button>`:''}</div>`;
+  } else if(t.type!=='or'){
+    const ru=S.settings.ruler;
+    h += `<div class="panel"><div class="rwrap"><div class="text" id="txt">${sentHTML(textOf(t))}</div>${ru?'<div class="ruler" id="ruler"></div>':''}</div>
+      <div class="tools">${SHOWTTS?`<button class="btn sm" data-a="readall">🔊 Felolvasás</button>`:''}<button class="ibtn ${ru?'on':'dark'}" data-a="ruler" aria-label="Olvasóvonalzó ${ru?'kikapcsolása':'bekapcsolása'}">📏</button></div>
+      ${ru?`<div class="tools"><button class="btn sm" data-a="rline" data-v="-1">▲ Előző sor</button><button class="btn sm" data-a="rline" data-v="1">▼ Következő sor</button></div>`:''}</div>`;
+  }
+  if(t.type==='mc'||t.type==='tf'||(t.type==='mt'&&t.q)){
+    h += `<div class="q"><div>${t.type==='tf'?'<b>Állítás:</b>':''}${fmt(t.q)}</div>${SHOWTTS?`<button class="ibtn" data-a="sayq" aria-label="Kérdés felolvasása">🔊</button>`:''}</div>`;
+  }
+  if(t.type==='mc'||t.type==='tf'||t.type==='gap'||t.type==='mt'){
+    const num=t.type==='mt';
+    h += `<div class="opts">${P.opts.map((o,i)=>`<button class="opt ${num?'num':''} ${P.state[i]||''}" data-a="pick" data-v="${i}" ${(P.done||P.state[i]==='no')?'disabled':''}>${P.state[i]==='ok'?'✔ ':P.state[i]==='no'?'✖ ':''}${num?o.t+(t.unit?' '+t.unit:''):fmt(o.t)}</button>`).join('')}</div>`;
+  }
+  if(t.type==='or'){
+    h += `<div class="lbl">A te sorrended:</div>` + P.picked.map((k,i)=> k===null
+        ? `<div class="slot empty">${i+1}. ide jön egy mondat</div>`
+        : `<button class="slot ${P.mark[i]||''}" data-a="unpick" data-v="${i}" ${P.done?'disabled':''}><b>${i+1}.</b> ${fmt(t.s[k])}</button>`).join('');
+    const left = P.order.filter(k=>!P.picked.includes(k));
+    if(left.length) h += `<div class="lbl">Mondatok:</div>` + left.map(k=>`<div class="card">
+        <button class="cardt" data-a="put" data-v="${k}">${fmt(t.s[k])}</button>
+        ${SHOWTTS?`<button class="ibtn" data-a="saysent" data-v="${k}" aria-label="Mondat felolvasása">🔊</button>`:''}</div>`).join('');
+    if(!P.done && !P.picked.includes(null)) h += `<button class="btn green" data-a="check">Ellenőrzés ✔</button>`;
+  }
+  if(t.type==='ma'){
+    const cls=(i,side)=>[P.matched.includes(i)?'ok':'', side==='w'&&P.sel===i?'sel':'', P.flash&&P.flash[side]===i?'no':''].join(' ');
+    h += `<div class="match">
+      <div class="col">${P.words.map(i=>`<button class="mw ${cls(i,'w')}" data-a="mword" data-v="${i}" ${P.matched.includes(i)||P.done?'disabled':''}>${fmt(t.pairs[i][0])}</button>`).join('')}</div>
+      <div class="col">${P.pics.map(i=>`<button class="mp ${cls(i,'p')}" data-a="mpic" data-v="${i}" ${P.matched.includes(i)||P.done?'disabled':''}>${t.pairs[i][1]}</button>`).join('')}</div>
+    </div>`;
+  }
+  if(P.hint && !P.done) h += `<div class="hint">${P.hint}</div>`;
+  if(P.done) h += `<div class="fb ${P.fbType}" id="fb">${P.fbMsg}</div>
+    <button class="btn green big" data-a="next">${P.idx===P.list.length-1?'Küldetés vége ➜':'Tovább ➜'}</button>`;
+  return h;
+}
+
+function sumHTML(){
+  const d=P.day, D=DAYS[d-1], other=P.mode==='r'?'m':'r', pct=P.score/P.max;
+  const stars = pct>=.9?3:pct>=.6?2:1;
+  let nextBtn='';
+  if(!isDone(other,d)) nextBtn=`<button class="btn green big" data-a="start" data-v="${other}${d}">▶ Jöhet ${other==='m'?'a matek 🔢':'az olvasás 📖'}</button>`;
+  else if(d<NDAYS && isOpen(d+1) && !isDone('r',d+1)) nextBtn=`<button class="btn green big" data-a="start" data-v="r${d+1}">▶ Következő: ${d+1}. nap</button>`;
+  const allDone = isDone('r',d)&&isDone('m',d);
+  return topBar('') + `<div class="big-ico">${allDone?'🏆':'⭐'}</div>
+  <div class="h center">${P.mode==='r'?'Olvasás':'Matek'} kész!</div>
+  <div class="stars-big">${starStr(stars)}</div>
+  <div class="panel center">
+    <div class="row" style="justify-content:center">${D.ico} ${d}. nap · ${D.name}</div>
+    <div style="font-size:22px;font-weight:700;margin-top:8px">+${P.score} XP</div>
+    <div class="small">${level(S.xp)}. szint · összesen ${S.xp} XP</div>
+  </div>
+  <div class="hint">🧘 ${allDone?`Mára mindent teljesítettél${nmc()}! Szép munka!`:`Szép munka${nmc()}! Állj fel, nyújtózz egyet, igyál egy pohár vizet. Egy perc szünet után jöhet a következő!`}</div>
+  ${nextBtn}
+  <button class="btn" data-a="home">🗺 Vissza a térképre</button>`;
+}
+
+function settingsHTML(){
+  const st=S.settings;
+  const seg=(key,vals,labels)=>`<div class="seg">${vals.map((v,i)=>`<button class="${st[key]===v?'on':''}" data-a="set" data-v="${key}:${v}">${labels[i]}</button>`).join('')}</div>`;
+  return topBar(`<button class="ibtn dark" data-a="home" aria-label="Vissza">✖</button>`) + `
+  <div class="h">Beállítások</div>
+  <div class="panel">
+    <div class="setrow"><span>Betűméret</span>${seg('size',[0,1,2],['A','A+','A++'])}</div>
+    <div class="setrow"><span>Szótagok színezése</span>${seg('syl',[true,false],['Be','Ki'])}</div>
+    <div class="setrow"><span>Tágabb sorköz</span>${seg('space',[true,false],['Be','Ki'])}</div>
+    <div class="setrow"><span>Olvasóvonalzó</span>${seg('ruler',[true,false],['Be','Ki'])}</div>
+    <div class="setrow"><span>Hangjelzések</span>${seg('sound',[true,false],['Be','Ki'])}</div>
+    ${SHOWTTS?`<div class="setrow"><span>Felolvasás</span>${seg('rate',[0.7,0.85,1.05],['Lassú','Normál','Gyors'])}</div>`:''}
+  </div>
+  <div class="panel">
+    <div class="setrow"><label for="nick">Becenév (nem kötelező)</label></div>
+    <input id="nick" type="text" maxlength="16" autocomplete="off" value="${esc(nick())}" placeholder="pl. Bányász" style="width:100%;min-height:48px;font:inherit;font-size:19px;padding:8px 12px;border:3px solid #000">
+    <div class="small">Csak ezen az eszközön marad, sehova nem kerül el.</div>
+  </div>
+  <div class="panel"><div class="text">${fmt('Így néz ki a szöveg. Olvasd el, és állítsd be, ami neked a legkényelmesebb!')}</div></div>
+  <button class="btn" data-a="teacher">🔐 Tanári nézet</button>`;
+}
+
+function pinHTML(){
+  if(!pinMsg) pinMsg = S.pin ? 'Add meg a tanári PIN kódot' : 'Állíts be egy 4 jegyű PIN kódot';
+  return topBar(`<button class="ibtn dark" data-a="go" data-v="settings" aria-label="Vissza">✖</button>`) + `
+  <div class="h center">🔐 Tanári nézet</div>
+  <div class="panel">
+    <div class="msg">${pinMsg}</div>
+    <div class="dots">${[0,1,2,3].map(i=>`<div class="dot ${i<pinBuf.length?'on':''}"></div>`).join('')}</div>
+    <div class="keypad">${['1','2','3','4','5','6','7','8','9','','0','del'].map(k=>k===''?'<div></div>':`<button data-a="pin" data-v="${k}">${k==='del'?'⌫':k}</button>`).join('')}</div>
+  </div>`;
+}
+
+function barRow(name,b){
+  const pct=b.n?Math.round(b.first/b.n*100):null;
+  return `<div class="trow"><div class="row"><span>${name}</span><span>${pct===null?'még nincs adat':pct+'% · '+b.n+' db · ⌀ '+Math.round(b.time/b.n)+' mp'}</span></div>
+    <div class="bar ${pct!==null&&pct<60?'weak':''}"><div style="width:${pct||0}%"></div></div></div>`;
+}
+function teacherHTML(){
+  const acc=()=>({n:0,first:0,time:0,mist:0});
+  const byType={}; Object.keys(TYPES).forEach(k=>byType[k]=acc());
+  const byKind={};
+  for(const [id,r] of Object.entries(S.tasks)){
+    let b;
+    if(id.startsWith('m:')){ const k=id.slice(2); b=byKind[k]=byKind[k]||acc(); }
+    else if(TASK[id]) b=byType[TASK[id].type];
+    if(!b) continue;
+    b.n+=r.n; b.first+=r.first; b.time+=r.time; b.mist+=r.mist;
+  }
+  const sumAll=Object.values(S.tasks).reduce((a,r)=>({n:a.n+r.n,f:a.f+r.first}),{n:0,f:0});
+  const rDone=DAYS.filter((_,i)=>isDone('r',i+1)).length, mDone=DAYS.filter((_,i)=>isDone('m',i+1)).length;
+  const lastDay=Math.min(NDAYS,Math.max(dayNum(),...DAYS.map((_,i)=>(isDone('r',i+1)||isDone('m',i+1))?i+1:0)));
+  const dayRows=DAYS.slice(0,Math.max(1,lastDay)).map((D,i)=>{const d=i+1;return `<tr><td>${d}. ${D.name}</td><td class="st">${isDone('r',d)?starStr(starsOf('r',d)):'–'}</td><td class="st">${isDone('m',d)?starStr(starsOf('m',d)):'–'}</td></tr>`;}).join('');
+  const kinds=Object.keys(byKind).sort((a,b)=>(MK[a]||a).localeCompare(MK[b]||b,'hu'));
+  const hard=Object.entries(S.tasks).filter(([,r])=>r.mist>0).sort((a,b)=>b[1].mist/b[1].n-a[1].mist/a[1].n).slice(0,5).map(([id,r])=>{
+    const label=id.startsWith('m:')?'Matek: '+(MK[id.slice(2)]||id):(TASK[id]?TYPES[TASK[id].type]+': '+(textOf(TASK[id])||TASK[id].s[0]).split(' ').slice(0,4).join(' ')+'…':id);
+    return `<tr><td>${label}</td><td>${r.mist}</td><td>${r.n}</td></tr>`;}).join('');
+  const sess=S.sessions.slice(0,15).map(s=>{ const d=new Date(s.d); return `<tr><td>${d.toLocaleDateString('hu-HU')}<br>${d.toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}</td>
+    <td>${s.day}. nap<br>${s.mode==='m'?'Matek':'Olvasás'}</td><td>${s.score}/${s.max}</td><td>${Math.max(1,Math.round(s.dur/60))} p</td></tr>`; }).join('');
+  return topBar(`<button class="ibtn dark" data-a="home" aria-label="Kilépés">✖</button>`) + `
+  <div class="h">📊 Tanári nézet</div>
+  <div class="panel"><div class="stat">
+    <div><b>${level(S.xp)}.</b>szint (${S.xp} XP)</div>
+    <div><b>${Math.min(dayNum(),NDAYS)}. nap</b>kezdés: ${S.start.replace(/-/g,'. ')}.</div>
+    <div><b>${rDone}/${NDAYS}</b>olvasás kész</div>
+    <div><b>${mDone}/${NDAYS}</b>matek kész</div>
+    <div><b>${sumAll.n?Math.round(sumAll.f/sumAll.n*100):0}%</b>elsőre helyes</div>
+    <div><b>${Math.round(S.time/60)} perc</b>gyakorlás</div>
+    <div><b>${S.sessions.length}</b>lejátszott kör</div>
+    <div><b>${streak()} nap</b>sorozat</div>
+    <div><b>${Object.keys(S.review).length}</b>ismétlésre vár</div>
+    <div><b>${Object.values(S.review).filter(r=>r.due<=dstr(new Date())).length}</b>ma esedékes</div>
+  </div></div>
+  <div class="panel"><div class="ptitle">📖 Olvasás feladattípusonként</div>${Object.entries(TYPES).map(([k,n])=>barRow(n,byType[k])).join('')}
+    <div class="small">% = elsőre helyes válaszok aránya. Narancs sáv = 60% alatt, erre érdemes több figyelmet fordítani.</div></div>
+  <div class="panel"><div class="ptitle">🔢 Matek témánként</div>${kinds.length?kinds.map(k=>barRow(MK[k]||k,byKind[k])).join(''):'<div class="small">Még nem volt matek feladat.</div>'}</div>
+  <div class="panel"><div class="ptitle">Napok</div><div class="tw"><table><tr><th>Nap</th><th>Olvasás</th><th>Matek</th></tr>${dayRows}</table></div></div>
+  ${hard?`<div class="panel"><div class="ptitle">Ahol a legtöbb hiba volt</div><div class="tw"><table><tr><th>Feladat</th><th>Hibák</th><th>Játszva</th></tr>${hard}</table></div></div>`:''}
+  <div class="panel"><div class="ptitle">Utolsó alkalmak</div>
+    ${sess?`<div class="tw"><table><tr><th>Mikor</th><th>Küldetés</th><th>XP</th><th>Idő</th></tr>${sess}</table></div>`:'<div class="small">Még nem volt befejezett kör.</div>'}</div>
+  <div class="panel">
+    <div class="setrow"><span>Minden nap nyitva</span><div class="seg">
+      <button class="${S.unlockAll?'on':''}" data-a="unlock" data-v="1">Be</button><button class="${!S.unlockAll?'on':''}" data-a="unlock" data-v="0">Ki</button></div></div>
+    <div class="small">Kikapcsolva naponta egy új nap nyílik meg.</div>
+  </div>
+  <button class="btn" data-a="export">📋 Adatok másolása (JSON)</button>
+  <textarea id="exp" hidden readonly style="width:100%;height:160px;font-size:12px"></textarea>
+  <button class="btn" data-a="newpin">🔑 PIN módosítása</button>
+  <button class="btn red" data-a="reset">🗑 Haladás törlése</button>`;
+}
+
+function rulerMetrics(){ const txt=document.getElementById('txt'); if(!txt) return null; const lh=parseFloat(getComputedStyle(txt).lineHeight)||30; return {txt,lh,n:Math.max(1,Math.round(txt.scrollHeight/lh))}; }
+function placeRuler(){ const r=document.getElementById('ruler'), m=rulerMetrics(); if(!r||!m||!P) return; P.line=Math.max(0,Math.min(m.n-1,P.line||0)); r.style.top=(P.line*m.lh)+'px'; r.style.height=m.lh+'px'; }
+function rulerToY(y){ if(!S.settings.ruler||!P) return; const m=rulerMetrics(); if(!m) return; P.line=Math.floor((y-m.txt.getBoundingClientRect().top)/m.lh); placeRuler(); }
+function rulerToEl(el){ if(!S.settings.ruler||!el||!el.getClientRects) return; const rc=el.getClientRects()[0]; if(rc) rulerToY((rc.top+rc.bottom)/2); }
+function render(){
+  applySettings();
+  app.innerHTML = view==='play'?playHTML():view==='sum'?sumHTML():view==='day'?dayHTML():view==='settings'?settingsHTML():view==='pin'?pinHTML():view==='teacher'?teacherHTML():homeHTML();
+  if(view==='play') placeRuler();
+}
+
+/* ===================== JÁTÉKMENET ===================== */
+function startMission(v){
+  const mode=v[0], d=+v.slice(1);
+  const list = mode==='r' ? DAYS[d-1].ids.map(id=>TASK[id]) : mathKinds(d).map(k=>mathTask(k,mathLevel(d)));
+  const rev = dueReviews(mode, list.map(t=>t.id), 2);
+  rev.forEach(id=>list.push(Object.assign({}, mode==='m'?mathTask(id.slice(2),mathLevel(d)):TASK[id], {review:true})));
+  P = {mode, day:d, list, idx:0, score:0, max:list.length*10, t0r:Date.now()};
+  lockedMsg='';
+  loadTask();
+}
+function loadTask(){
+  stopTTS();
+  const t = P.list[P.idx];
+  Object.assign(P,{task:t, mist:0, done:false, state:{}, hint:'', filled:null, line:0, t0:Date.now(), fbMsg:'', fbType:''});
+  if(t.type==='mc'||t.type==='gap') P.opts = shuffle(t.opts.map((x,i)=>({t:x, ok:i===t.a})));
+  if(t.type==='tf') P.opts = [{t:'Igaz',ok:t.a===true},{t:'Hamis',ok:t.a===false}];
+  if(t.type==='mt') P.opts = mopts(t.ans, t.wrong);
+  if(t.type==='or'){
+    const idx=t.s.map((_,i)=>i); let o; do{ o=shuffle(idx); }while(o.every((v,i)=>v===i));
+    P.order=o; P.picked=Array(t.s.length).fill(null); P.mark={};
+  }
+  if(t.type==='ma'){ const idx=t.pairs.map((_,i)=>i); P.words=shuffle(idx); P.pics=shuffle(idx); P.matched=[]; P.sel=null; P.flash=null; }
+  view='play'; render(); window.scrollTo(0,0);
+}
+function finish(pts){
+  const before=level(S.xp);
+  S.xp+=pts; P.score+=pts; P.done=true;
+  const dur=Math.round((Date.now()-P.t0)/1000); S.time+=dur;
+  const r=S.tasks[P.task.id]||{n:0,first:0,mist:0,time:0};
+  r.n++; if(P.mist===0) r.first++; r.mist+=P.mist; r.time+=dur; S.tasks[P.task.id]=r;
+  updateReview(P.task.id, P.mist===0, !!P.task.review);
+  const d=dstr(new Date()); if(!S.days.includes(d)) S.days.push(d);
+  save();
+  const up = level(S.xp)>before, t=P.task;
+  P.fbType = pts>=10?'good':pts>0?'okish':'soft';
+  P.fbMsg = (pts>=10?rand(PRAISE):pts>0?'Ügyes, sikerült! 👍':'Semmi baj, most már tudod! 💪')
+          + (pts?`<br>+${pts} XP`:'')
+          + (t.type==='mt'?`<div class="expl">${t.expl}${t.unit&&!t.calc?' '+t.unit:''}</div>`:'')
+          + (up?`<div class="lvup">⬆ SZINTLÉPÉS! ${level(S.xp)}. SZINT</div>`:'');
+  beep(pts>0);
+  render();
+  requestAnimationFrame(()=>{ const f=document.getElementById('fb'); if(f) f.scrollIntoView({behavior:'smooth',block:'center'}); });
+}
+function finishRound(){
+  stopTTS();
+  const key=P.mode+P.day, pct=P.score/P.max, stars=pct>=.9?3:pct>=.6?2:1, prev=S.rounds[key];
+  S.rounds[key]={done:true, stars:Math.max(stars, prev?prev.stars:0)};
+  S.sessions.unshift({d:new Date().toISOString(), day:P.day, mode:P.mode, score:P.score, max:P.max, dur:Math.round((Date.now()-P.t0r)/1000)});
+  S.sessions=S.sessions.slice(0,100);
+  save(); view='sum'; render(); window.scrollTo(0,0);
+}
+
+function pick(i){
+  if(P.done) return;
+  const o=P.opts[i], ty=P.task.type;
+  if(o.ok){ P.state[i]='ok'; if(ty==='gap') P.filled=o.t; finish(P.mist===0?10:5); return; }
+  P.state[i]='no'; P.mist++; beep(false);
+  if(P.mist>=2 || ty==='tf'){
+    P.opts.forEach((x,j)=>{ if(x.ok){ P.state[j]='ok'; if(ty==='gap') P.filled=x.t; } });
+    finish(0);
+  } else {
+    P.hint = ty==='mt' ? 'Majdnem! Olvasd el újra lassan, és számold ki még egyszer.' : 'Majdnem! Olvasd el újra a szöveget, és próbáld még egyszer. Ha koppintasz egy mondatra, felolvasom.';
+    render();
+  }
+}
+function put(k){ const i=P.picked.indexOf(null); if(i<0) return; P.picked[i]=k; delete P.mark[i]; P.hint=''; render(); }
+function unpick(i){ if(P.done) return; P.picked[i]=null; delete P.mark[i]; render(); }
+function check(){
+  const t=P.task; let ok=true; P.mark={};
+  P.picked.forEach((k,i)=>{ if(k===i) P.mark[i]='ok'; else { P.mark[i]='no'; ok=false; } });
+  if(ok){ finish(P.mist===0?10:5); return; }
+  P.mist++; beep(false);
+  if(P.mist>=2){ P.picked=t.s.map((_,i)=>i); P.mark={}; t.s.forEach((_,i)=>P.mark[i]='ok'); finish(0); return; }
+  P.hint='Majdnem! A zöld mondatok jó helyen vannak. A pirosakat visszaraktam, próbáld újra!';
+  render();
+  setTimeout(()=>{ if(P.done) return; P.picked=P.picked.map((k,i)=>P.mark[i]==='no'?null:k); Object.keys(P.mark).forEach(i=>{ if(P.mark[i]==='no') delete P.mark[i]; }); render(); }, 900);
+}
+function mword(i){ if(P.done) return; P.sel=i; P.hint=''; render(); }
+function mpic(i){
+  if(P.done || P.matched.includes(i)) return;
+  if(P.sel===null){ P.hint='Előbb koppints egy szóra a bal oldalon!'; render(); return; }
+  if(P.sel===i){
+    P.matched.push(i); P.sel=null; P.hint='';
+    if(P.matched.length===P.task.pairs.length) finish(P.mist===0?10:P.mist<=2?5:2);
+    else { beep(true,true); render(); }
+  } else {
+    P.mist++; P.flash={w:P.sel,p:i}; beep(false); render();
+    setTimeout(()=>{ P.flash=null; P.sel=null; render(); },700);
+  }
+}
+
+/* ===================== PIN ===================== */
+function pinKey(k){
+  if(k==='del') pinBuf=pinBuf.slice(0,-1); else if(pinBuf.length<4) pinBuf+=k;
+  render();
+  if(pinBuf.length===4) setTimeout(pinDone,180);
+}
+function pinDone(){
+  if(!S.pin){
+    if(!pinFirst){ pinFirst=pinBuf; pinBuf=''; pinMsg='Írd be még egyszer!'; }
+    else if(pinFirst===pinBuf){ S.pin=hash(pinBuf); save(); pinFirst=''; pinBuf=''; pinMsg=''; view='teacher'; }
+    else { pinFirst=''; pinBuf=''; pinMsg='Nem egyezett. Kezdd újra!'; }
+  } else {
+    if(hash(pinBuf)===S.pin){ pinBuf=''; pinMsg=''; view='teacher'; }
+    else { pinBuf=''; pinMsg='Hibás PIN kód. Próbáld újra!'; }
+  }
+  render(); window.scrollTo(0,0);
+}
+
+/* ===================== ESEMÉNYEK ===================== */
+const ACT = {
+  go:v=>{ stopTTS(); view=v; pinBuf=''; pinMsg=''; pinFirst=''; render(); window.scrollTo(0,0); },
+  home:()=>{ stopTTS(); lockedMsg=''; view='home'; render(); window.scrollTo(0,0); },
+  day:v=>{ selDay=+v; lockedMsg=''; view='day'; render(); window.scrollTo(0,0); },
+  start:v=>startMission(v),
+  locked:v=>{ lockedMsg=`🔒 A ${v}. nap később nyílik meg. Naponta egy új nap jön.`; render(); },
+  sayinstr:()=>{ const t=P.task; speak(t.type==='mt'?(t.calc?INSTR.calc:INSTR.mt):INSTR[t.type]); },
+  sayq:()=>speak((P.task.type==='tf'?'Állítás: ':'')+P.task.q),
+  saysent:v=>speak(P.task.s[+v]),
+  readall:()=>{
+    const t=P.task;
+    if(t.type==='mt'&&t.calc){ stopTTS(); const el=document.getElementById('calc'); if(el) el.classList.add('hl'); const tok=ttsTok; speakRaw(sayMath(t.calc)+', egyenlő?',()=>{ if(tok===ttsTok) clearHL(); }); return; }
+    const arr=splitS(textOf(t)).map(spoken), els=[...document.querySelectorAll('#txt .sent')];
+    if(t.type==='mt'&&t.q) arr.push(t.q);
+    speakSeq(arr, els);
+  },
+  sent:(v,el,e)=>{ stopTTS(); if(e) rulerToY(e.clientY); el.classList.add('hl'); const tok=ttsTok; speakRaw(spoken(splitS(textOf(P.task))[+v]),()=>{ if(tok===ttsTok) clearHL(); }); },
+  ruler:()=>{ S.settings.ruler=!S.settings.ruler; save(); render(); },
+  rline:v=>{ P.line=(P.line||0)+(+v); placeRuler(); },
+  pick:v=>pick(+v), put:v=>put(+v), unpick:v=>unpick(+v), check,
+  mword:v=>mword(+v), mpic:v=>mpic(+v),
+  next:()=>{ P.idx++; if(P.idx>=P.list.length) finishRound(); else loadTask(); },
+  set:v=>{ const [k,val]=v.split(':'); S.settings[k] = val==='true'?true:val==='false'?false:+val; save(); render(); },
+  teacher:()=>{ pinBuf=''; pinFirst=''; pinMsg=''; view='pin'; render(); },
+  pin:v=>pinKey(v),
+  unlock:v=>{ S.unlockAll=v==='1'; save(); render(); },
+  newpin:()=>{ S.pin=null; save(); pinBuf=''; pinFirst=''; pinMsg='Új PIN: írj be 4 számjegyet'; view='pin'; render(); },
+  export:(v,el)=>{
+    const data=Object.assign({}, S); delete data.pin;
+    const txt=JSON.stringify(data,null,2);
+    const ok=()=>{ el.textContent='✔ Kimásolva a vágólapra'; };
+    const fail=()=>{ const ta=document.getElementById('exp'); ta.hidden=false; ta.value=txt; ta.select(); el.textContent='Jelöld ki és másold ki a lenti szöveget'; };
+    try{ navigator.clipboard.writeText(txt).then(ok,fail); }catch(e){ fail(); }
+  },
+  reset:(v,el)=>{
+    if(!el.dataset.sure){ el.dataset.sure='1'; el.textContent='⚠ Biztos? Koppints újra a törléshez'; return; }
+    const keep={settings:S.settings, pin:S.pin}; S=Object.assign(DEF(), keep, {start:dstr(new Date())}); save(); render();
+  },
+};
+app.addEventListener('click', e=>{
+  const b=e.target.closest('[data-a]'); if(!b || b.disabled) return;
+  const f=ACT[b.dataset.a]; if(f) f(b.dataset.v, b, e);
+});
+app.addEventListener('change', e=>{
+  if(e.target && e.target.id==='nick'){ S.settings.name=String(e.target.value||'').trim().slice(0,16); save(); }
+});
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) stopTTS(); else if(view==='home') render(); });
+
+render();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

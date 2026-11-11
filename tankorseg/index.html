@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Páncélos őrség</title>
+<meta name="description" content="Retró felülnézetes tankcsata a régi 8-bites tankos játékok mintájára: védd a zászlós bunkert. Szétlőhető téglafal, acél, víz, erdő és csúszós jég, négyféle ellenséges tank, villogó tankokból bónuszok (csillag, pajzs, óra, bomba, erőd, élet). Hat pálya, utána egyre nehezebb körök.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Tank Guard">
+<meta name="games:description-en" content="Retro top-down tank battle in the style of old 8-bit tank games: guard the flag bunker. Breakable bricks, steel, water, forest and slippery ice, four kinds of enemy tanks, bonuses from flashing tanks (star, shield, clock, bomb, fortress, extra life). Six stages, then harder rounds. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: back link, HUD (stage, lives, enemies, score, pause), square canvas, touch pad (d-pad left, fire right), overlay */
+:root{
+  --bg:#0c0c0e; --panel:#1b1b20; --panel2:#26262e; --line:#3a3a46; --fg:#f4f2ea; --muted:#a8a69c;
+  --accent:#ffc533; --ok:#6fdc6a; --bad:#ff5a4a;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; --title:"Bungee","Chakra Petch",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:7px;max-width:760px;margin:0 auto;padding-block:8px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:5px;min-width:0}
+.chip{display:inline-flex;align-items:baseline;gap:4px;padding:6px 8px;border-radius:9px;background:var(--panel);border:1px solid var(--line);font:700 15px/1 var(--disp);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip small{font:600 10px/1 var(--disp);color:var(--muted);letter-spacing:.05em}
+.sp{flex:1;min-width:0}
+.ib{width:40px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:17px;cursor:pointer;flex:none}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#stage{flex:1;min-height:0;display:grid;place-items:center}
+#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#000;border:3px solid #2c2c34;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.6);touch-action:none}
+.pad{display:flex;justify-content:space-between;align-items:center;gap:10px;touch-action:none;padding-bottom:4px}
+.dpad{--b:min(80px,20vw);position:relative;width:calc(var(--b)*2.9);height:calc(var(--b)*2.9);flex:none;touch-action:none}
+.dpad button{position:absolute;width:var(--b);height:var(--b);border-radius:16px;border:2px solid var(--line);background:var(--panel);color:var(--fg);font:700 26px/1 var(--disp);touch-action:none;cursor:pointer}
+.dpad .u{left:calc(var(--b)*.95);top:0}.dpad .d{left:calc(var(--b)*.95);bottom:0}.dpad .l{left:0;top:calc(var(--b)*.95)}.dpad .r{right:0;top:calc(var(--b)*.95)}
+.dpad::after{content:"";position:absolute;left:calc(var(--b)*1.07);top:calc(var(--b)*1.07);width:calc(var(--b)*.76);height:calc(var(--b)*.76);border-radius:50%;background:var(--panel2)}
+.dpad button.on,.fire.on{background:var(--panel2);border-color:var(--accent)}
+.fire{width:min(140px,33vw);height:min(140px,33vw);border-radius:50%;border:3px solid #8a4a1c;background:radial-gradient(circle at 40% 35%,#e0752e,#9a3e12);color:#fff3e0;font:400 22px/1 var(--title);letter-spacing:.04em;text-shadow:2px 2px 0 #4a1a04;touch-action:none;cursor:pointer;flex:none}
+.fire.on{background:radial-gradient(circle at 40% 35%,#ffa055,#c24f18)}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
+@media (max-height:720px){.dpad{--b:min(64px,18vw)}.fire{width:112px;height:112px}}
+@media (max-width:430px){.hud{gap:4px}.chip{padding:5px 6px;font-size:14px;gap:3px}.chip small{font-size:9px}.ib{width:36px}}
+#ov{position:fixed;inset:0;background:rgba(6,6,8,.86);display:grid;place-items:center;padding:16px;z-index:9}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:18px 16px;width:min(470px,100%);max-height:calc(100% - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px;text-align:center}
+.card h1{margin:0;font:400 30px/1.05 var(--title);color:var(--accent);text-shadow:3px 3px 0 #000}
+.card h2{margin:0;font:400 26px/1.1 var(--title);color:var(--accent);text-shadow:2px 2px 0 #000}
+.card h2.bad{color:var(--bad)}
+.card p{margin:0;font:500 17px/1.45 var(--font)}
+.card .small{font-size:14px;color:var(--muted)}
+.btn{display:block;width:100%;padding:14px 12px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);font:700 19px/1 var(--disp);cursor:pointer}
+.btn.hot{background:var(--accent);border-color:#ffe08a;color:#231a04}
+.btns{display:flex;flex-direction:column;gap:8px}
+.lv{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.lv button{padding:10px 0;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);font:700 18px/1 var(--disp);cursor:pointer}
+.lv button:disabled{opacity:.3;cursor:not-allowed}
+.tally{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;text-align:left;font:600 16px/1 var(--disp)}
+.tally canvas{image-rendering:pixelated;width:32px;height:32px}
+.keys{font:500 13px/1.5 var(--font);color:var(--muted)}
+.bon{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;text-align:left;font:500 14px/1.25 var(--font);color:var(--muted)}
+.bon canvas{image-rendering:pixelated;width:28px;height:28px}
+.bon b{color:var(--fg)}
+.stat{font:400 24px/1 var(--title);color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <span class="chip"><small>PÁLYA</small><span id="stg">1</span></span>
+    <span class="chip" title="Életek"><small>ÉLET</small><span id="lives">3</span></span>
+    <span class="chip" title="Hátralévő ellenség"><small>TANK</small><span id="left">14</span></span>
+    <span class="chip"><small>PONT</small><span id="score" data-shots="0">0</span></span>
+    <span class="sp"></span>
+    <button class="ib" id="pauseBtn" aria-label="Szünet">❚❚</button>
+  </div>
+  <div id="stage"><canvas id="cv" width="208" height="208" aria-label="Csatatér"></canvas></div>
+  <div class="pad" id="pad">
+    <div class="dpad" id="dpad">
+      <button class="u" data-d="0" aria-label="Fel">▲</button>
+      <button class="r" data-d="1" aria-label="Jobbra">▶</button>
+      <button class="d" data-d="2" aria-label="Le">▼</button>
+      <button class="l" data-d="3" aria-label="Balra">◀</button>
+    </div>
+    <button class="fire" id="fireBtn" aria-label="Tűz">TŰZ</button>
+  </div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+'use strict';
+/* ---------------------------------------------------------------- world
+   The field is 13×13 tiles of 16 px; walls are kept in 8 px cells (26×26), so a shot bites half a tile.
+   Map letters: B brick, S steel, W water, T forest (covers tanks), I ice, . empty.
+   The flag bunker sits at the bottom middle; its brick ring is added by the code. */
+const W=208, C=8, NC=26, FPS=60;
+const EMPTY=0,BRICK=1,STEEL=2,WATER=3,TREE=4,ICE=5;
+const MAPS=[
+ {name:'Téglaváros',m:[
+ ".............",".B.B.B.B.B.B.",".B.B.B.B.B.B.",".B.B.BSB.B.B.",".B.B.....B.B.",".....B.B.....",
+ "BB.BB...BB.BB",".....B.B.....",".B.B.BBB.B.B.",".B.B.B.B.B.B.",".B.B.....B.B.",".B.B.....B.B.","............."]},
+ {name:'Erdei út',m:[
+ ".............",".TT.B...B.TT.",".TT.B.S.B.TT.","....B.S.B....","SS..BBBBB..SS","....B...B....",
+ ".TT...S...TT.",".TTBB...BBTT.","....B.S.B....",".BB.B...B.BB.",".BB.......BB.","TT.B.....B.TT","TT.........TT"]},
+ {name:'Tavak',m:[
+ ".............",".BBB.....BBB.",".B.........B.",".B.WWW.WWW.B.","...W.....W...","BB.W.SSS.W.BB",
+ "...W.....W...",".B.WWW.WWW.B.",".B....T....B.",".BBB.TTT.BBB.","......T......",".II.......II.",".II.......II."]},
+ {name:'Jégmező',m:[
+ ".............",".SS.S...S.SS.",".B..S.B.S..B.",".B..IIIII..B.",".BB.IIIII.BB.","....II.II....",
+ "SS..BB.BB..SS","....T...T....",".BBBTB.BTBBB.",".B.........B.",".B.SS...SS.B.","...B.....B...","...B.....B..."]},
+ {name:'Sűrű erdő',m:[
+ ".............","TTTT.....TTTT","TBBT.B.B.TBBT","T..T.B.B.T..T","T.....S.....T","BBB.WW.WW.BBB",
+ ".............",".SBB.TTT.BBS.","....TTTTT....",".BB.TBBBT.BB.",".B.........B.",".B.T.....T.B.","...T.....T..."]},
+ {name:'Erőd',m:[
+ ".............",".S.S.S.S.S.S.",".............","BBBBB...BBBBB","B...B.W.B...B","B.T.B.W.B.T.B",
+ "B...S.W.S...B","BB.BB...BB.BB","......S......",".WW.BBBBB.WW.",".............","SS.B.....B.SS","...B.....B..."]}
+];
+const BASE={x:96,y:192};
+const PSPAWN={x:64,y:192};
+const ESPAWN=[{x:96,y:0},{x:192,y:0},{x:0,y:0}];
+const BASE_RING=[[11,23],[12,23],[13,23],[14,23],[11,24],[11,25],[14,24],[14,25]];
+const DX=[0,1,0,-1],DY=[-1,0,1,0];
+const TYPES={ /* speed px/frame, hp, bullet speed, shot pause, points */
+  basic:{spd:.5,hp:1,bs:2,rate:.010,pts:100,name:'Alap'},
+  fast:{spd:1.05,hp:1,bs:2.4,rate:.012,pts:200,name:'Fürge'},
+  power:{spd:.6,hp:1,bs:3.6,rate:.018,pts:300,name:'Ágyús'},
+  armor:{spd:.5,hp:4,bs:2.6,rate:.014,pts:400,name:'Páncélos'}
+};
+const BONUS=['star','shield','clock','bomb','fort','life'];
+const BONUS_TXT={star:'Csillag: erősebb tank (gyorsabb lövés, két lövés, végül acélt is tör)',shield:'Pajzs: egy ideig nem talál el semmi',clock:'Óra: megállnak az ellenséges tankok',bomb:'Bomba: felrobban minden látható ellenség',fort:'Erőd: acélfal a bunker körül',life:'Tank: plusz egy élet'};
+const SAVE_KEY='tankorseg:save';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');ctx.imageSmoothingEnabled=false;
+
+/* ---------------------------------------------------------------- pixel art */
+function canvas16(w=16,h=16){const c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function spr(rows,pal,w=16,h=16){const c=canvas16(w,h),x=c.getContext('2d');rows.forEach((r,j)=>{for(let i=0;i<r.length;i++){const k=r[i];if(pal[k]){x.fillStyle=pal[k];x.fillRect(i,j,1,1)}}});return c}
+/* tank facing up; f = tread frame; kind changes hull and turret */
+function tankSprite(pal,f,kind){
+  const c=canvas16(),x=c.getContext('2d');
+  const R=(col,a,b,w,h)=>{x.fillStyle=col;x.fillRect(a,b,w,h)};
+  /* treads */
+  for(const tx of [1,12]){R(pal.dk,tx,2,3,14);for(let y=2+f;y<16;y+=2)R(pal.md,tx,y,3,1)}
+  /* hull */
+  const hx=kind==='fast'?4:3,hw=kind==='fast'?8:10;
+  R(pal.md,hx,4,hw,11);R(pal.lt,hx,4,hw,1);R(pal.lt,hx,4,1,11);R(pal.dk,hx,14,hw,1);
+  /* turret */
+  if(kind==='armor'){R(pal.dk,4,6,8,8);R(pal.lt,5,7,6,6);R(pal.md,6,8,4,4)}
+  else{R(pal.dk,5,7,6,6);R(pal.lt,6,8,4,4);R(pal.hl,6,8,2,1)}
+  /* barrel */
+  if(kind==='power'){R(pal.dk,6,0,1,8);R(pal.dk,9,0,1,8);R(pal.lt,6,0,1,1);R(pal.lt,9,0,1,1)}
+  else{R(pal.dk,7,0,2,8);R(pal.lt,7,0,1,6)}
+  return c;
+}
+const PAL={
+  player:{dk:'#5a3a00',md:'#d79a10',lt:'#ffd84a',hl:'#fff6c0'},
+  player2:{dk:'#5a3a00',md:'#e8b020',lt:'#ffe880',hl:'#ffffff'},
+  enemy:{dk:'#202628',md:'#8c9ea2',lt:'#d8e4e6',hl:'#ffffff'},
+  bonus:{dk:'#4a0a06',md:'#d03a2a',lt:'#ff8a70',hl:'#ffffff'},
+  a4:{dk:'#0c2a10',md:'#3d8a48',lt:'#8fd68a',hl:'#ffffff'},
+  a3:{dk:'#3a2a00',md:'#b08a2a',lt:'#f0d070',hl:'#ffffff'},
+  a2:{dk:'#202628',md:'#8c9ea2',lt:'#d8e4e6',hl:'#ffffff'}
+};
+const SPR={};
+function getTank(palKey,kind,f){const k=palKey+kind+f;if(!SPR[k])SPR[k]=tankSprite(PAL[palKey],f,kind);return SPR[k]}
+const BRICKC=spr(["rrrrrrrm","rrrrrrrm","rrrrrrrm","mmmmmmmm","rrrmrrrr","rrrmrrrr","rrrmrrrr","mmmmmmmm"],{r:'#b5502a',m:'#5e2410'},8,8);
+const BRICKH=spr(["hhhhhhhm","rrrrrrrm","rrrrrrrm","mmmmmmmm","hhhmhhhh","rrrmrrrr","rrrmrrrr","mmmmmmmm"],{r:'#b5502a',h:'#d8774a',m:'#5e2410'},8,8);
+const STEELC=spr(["hhhhhhhd","hsssssmd","hsssssmd","hsswssmd","hsssssmd","hsssssmd","hmmmmmmd","dddddddd"],{h:'#ffffff',s:'#b8bcc4',m:'#7c808a',d:'#4a4e56',w:'#ffffff'},8,8);
+const TREEC=spr(["..gGg.g.",".gGGgggG","gGgGGgGg","GggGgGGg","gGGgggGG","gGgGGgGg",".gGggGg.","..g.gg.."],{g:'#2f7a1e',G:'#5cbf38'},8,8);
+const ICEC=spr(["iiiiiiii","iwiiiiii","iiwiiiii","iiiwiiii","iiiiwiii","iiiiiwii","iiiiiiwi","iiiiiiii"],{i:'#9fb8c8',w:'#e8f4fa'},8,8);
+const FLAG=spr([
+"................","....p...........","....pRRRRRR.....","....pRRRRRRRR...","....pRRwwRRRR...","....pRRRRRRRR...","....pRRRRRR.....","....p...........",
+"....p...........","...ppp..........","..SSSSSSSSSSSS..",".SshhhhhhhhhhsS.",".SsddddddddddsS.",".SsddddddddddsS.",".SSSSSSSSSSSSSS.","................"],
+{p:'#e8e8e8',R:'#e03030',w:'#ffd84a',S:'#5a5a62',s:'#8a8a94',h:'#b8b8c2',d:'#3a3a42'});
+const RUBBLE=spr([
+"................","................","................","................","................","................","........r.......","......k.r.......",
+"...r.kkk.......r","..rkkkkkr..r.k..","..kkSkkkkkkkkk..",".SkkkSkkSkkkkSk.",".SskkkkkkskkksS.",".SsddkkddddkdsS.",".SSSSSSSSSSSSSSS.","................"],
+{r:'#e03030',k:'#2a2a2e',S:'#5a5a62',s:'#8a8a94',d:'#3a3a42'});
+const BONUSSPR={
+  star:spr(["............",".....yy.....",".....yy.....","....yyyy....","yyyyyyyyyyyy",".yyyyyyyyyy.","..yyyyyyyy..","...yyyyyy...","...yyyyyy...","..yyy..yyy..",".yy......yy.","............"],{y:'#ffd84a'},12,12),
+  shield:spr(["............","....cccc....","..cccccccc..",".cccwwcccc..",".ccwccccccc.",".cccccccccc.",".cccccccccc.","cccccccccccc","cccccccccccc","dddddddddddd","............","............"],{c:'#5fa8ff',w:'#ffffff',d:'#2a5a9a'},12,12),
+  clock:spr(["....wwww....","..ww....ww..",".w...k....w.",".w...k....w.","w....k.....w","w....kkkk..w","w..........w","w..........w",".w........w.",".w........w.","..ww....ww..","....wwww...."],{w:'#ffffff',k:'#ffd84a'},12,12),
+  bomb:spr(["........y...",".......y.y..","......k.....",".....k......","...kkkkk....","..kkkkkkk...",".kkwkkkkkk..",".kwkkkkkkk..",".kkkkkkkkk..",".kkkkkkkkk..","..kkkkkkk...","...kkkkk...."],{k:'#3a3a46',w:'#ffffff',y:'#ffd84a'},12,12),
+  fort:spr(["............","s.s.s..s.s.s","ssssss.sssss","sSSSSs.sSSSs","ssssss.sssss","............","rrrrrmrrrrrm","rrrrrmrrrrrm","mmmmmmmmmmmm","rrmrrrrrmrrr","rrmrrrrrmrrr","............"],{s:'#e8e8e8',S:'#9aa0a8',r:'#b5502a',m:'#5e2410'},12,12),
+  life:spr([".....yy.....",".....yy.....","dd...yy...dd","ddyyyyyyyydd","ddyywwwwyydd","ddyywyywyydd","ddyywyywyydd","ddyywwwwyydd","ddyyyyyyyydd","ddyyyyyyyydd","dd........dd","............"],{y:'#ffd84a',w:'#fff6c0',d:'#8a6a10'},12,12)
+};
+
+/* ---------------------------------------------------------------- save: local only, every field checked */
+const isInt=(v,lo,hi)=>typeof v==='number'&&Number.isInteger(v)&&v>=lo&&v<=hi;
+function loadSave(){
+  const s={best:0,reached:1};let raw=null;
+  try{const t=localStorage.getItem(SAVE_KEY);if(t)raw=JSON.parse(t)}catch(e){raw=null}
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return s;
+  if(isInt(raw.best,0,9999999))s.best=raw.best;
+  if(isInt(raw.reached,1,99))s.reached=raw.reached;
+  return s;
+}
+let SAVE=loadSave();
+function writeSave(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE))}catch(e){}}
+
+/* ---------------------------------------------------------------- sound (Web Audio) */
+let AC=null,engine=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){AC=null}}if(AC&&AC.state==='suspended')AC.resume().catch(()=>{});return AC}
+function tone(f,d,type='square',slide=0,vol=.06,delay=0){const a=AC;if(!a)return;try{const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+function noise(d,vol=.12,f=800){const a=AC;if(!a)return;try{const n=Math.floor(a.sampleRate*d),b=a.createBuffer(1,n,a.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),flt=a.createBiquadFilter(),g=a.createGain();flt.type='lowpass';flt.frequency.value=f;s.buffer=b;g.gain.value=vol;s.connect(flt);flt.connect(g);g.connect(a.destination);s.start()}catch(e){}}
+const SFX={
+  shot:()=>tone(880,.06,'square',-500,.04),
+  brick:()=>noise(.08,.08,1500),
+  steel:()=>tone(1400,.05,'square',0,.035),
+  hit:()=>tone(300,.08,'square',-150,.06),
+  boom:()=>{noise(.45,.2,600);tone(90,.35,'sawtooth',-50,.08)},
+  big:()=>{noise(.9,.28,400);tone(60,.7,'sawtooth',-30,.1)},
+  bonus:()=>[784,988,1319].forEach((f,i)=>tone(f,.09,'square',0,.05,i*.07)),
+  appear:()=>tone(520,.15,'triangle',300,.04),
+  life:()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f,.1,'square',0,.05,i*.08)),
+  start:()=>[392,523,659,784,659,784].forEach((f,i)=>tone(f,.12,'square',0,.05,i*.12)),
+  over:()=>[392,330,262,196].forEach((f,i)=>tone(f,.25,'square',0,.06,i*.22))
+};
+function engineSet(on){
+  if(!AC)return;
+  try{
+    if(on&&!engine){const o=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';o.frequency.value=48;g.gain.value=.012;o.connect(g);g.connect(AC.destination);o.start();engine={o,g}}
+    else if(!on&&engine){engine.o.stop();engine=null}
+  }catch(e){engine=null}
+}
+
+/* ---------------------------------------------------------------- state */
+const S={mode:'menu',stage:1,cells:new Uint8Array(NC*NC),score:0,lives:3,nextLife:10000,player:null,enemies:[],bullets:[],fx:[],pops:[],
+  bonus:null,reserve:[],spawnT:0,spawnIx:0,freeze:0,fort:0,baseDead:false,t:0,endT:0,kills:{basic:0,fast:0,power:0,armor:0},shots:0,banner:0,curBonusIx:0};
+const KEY={d:-1,stack:[],fire:false};
+
+function buildStage(n){
+  const map=MAPS[(n-1)%MAPS.length].m;S.cells.fill(0);
+  for(let ty=0;ty<13;ty++)for(let tx=0;tx<13;tx++){
+    const ch=map[ty][tx],v=ch==='B'?BRICK:ch==='S'?STEEL:ch==='W'?WATER:ch==='T'?TREE:ch==='I'?ICE:EMPTY;
+    for(let j=0;j<2;j++)for(let i=0;i<2;i++)S.cells[(ty*2+j)*NC+tx*2+i]=v;
+  }
+  for(let y=24;y<26;y++)for(let x=12;x<14;x++)S.cells[y*NC+x]=EMPTY;
+  ring(BRICK);
+}
+function ring(v){for(const [x,y] of BASE_RING)S.cells[y*NC+x]=v}
+function enemyList(n){
+  const loop=Math.floor((n-1)/MAPS.length);
+  const armor=Math.min(7,Math.floor(n/2)+loop*2),power=Math.min(5,1+Math.floor(n/3)+loop),fast=Math.min(6,2+Math.floor(n/2));
+  const list=[];for(let i=0;i<armor;i++)list.push('armor');for(let i=0;i<power;i++)list.push('power');for(let i=0;i<fast;i++)list.push('fast');
+  while(list.length<14)list.push('basic');list.length=14;
+  /* mix them, but keep the tougher ones a little towards the end */
+  for(let i=list.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[list[i],list[j]]=[list[j],list[i]]}
+  list.sort((a,b)=>(TYPES[a].hp+Math.random()*3)-(TYPES[b].hp+Math.random()*3));
+  return list.map((t,i)=>({type:t,bonus:i===3||i===8||i===12}));
+}
+function newTank(x,y,dir,enemy,type){return {x,y,dir,enemy,type:type||'player',hp:enemy?TYPES[type].hp:1,cd:0,f:0,moving:false,slide:0,
+  shield:0,spawn:enemy?56:0,think:30,lv:0,bonus:false,flash:0,shotWait:60+Math.random()*60}}
+function startStage(n,fresh){
+  S.stage=n;buildStage(n);
+  if(fresh){S.score=0;S.lives=3;S.nextLife=10000;S.shots=0}
+  const lv=S.player&&!fresh?S.player.lv:0;
+  S.player=newTank(PSPAWN.x,PSPAWN.y,0,false);S.player.lv=lv;S.player.shield=180;
+  S.enemies=[];S.bullets=[];S.fx=[];S.pops=[];S.bonus=null;S.reserve=enemyList(n);S.spawnT=30;S.spawnIx=0;
+  S.freeze=0;S.fort=0;S.baseDead=false;S.t=0;S.endT=0;S.kills={basic:0,fast:0,power:0,armor:0};S.banner=120;
+  S.mode='play';closeOv();hud();SFX.start();
+}
+
+/* ---------------------------------------------------------------- collision helpers */
+const cellAt=(cx,cy)=>cx<0||cy<0||cx>=NC||cy>=NC?STEEL:S.cells[cy*NC+cx];
+function boxFree(x,y,size){
+  if(x<0||y<0||x+size>W||y+size>W)return false;
+  for(let cy=Math.floor(y/C);cy<=Math.floor((y+size-.01)/C);cy++)for(let cx=Math.floor(x/C);cx<=Math.floor((x+size-.01)/C);cx++){
+    const v=cellAt(cx,cy);if(v===BRICK||v===STEEL||v===WATER)return false}
+  if(!S.baseDead&&x<BASE.x+16&&x+size>BASE.x&&y<BASE.y+16&&y+size>BASE.y)return false;
+  return true;
+}
+const overlap=(ax,ay,as,bx,by,bs)=>ax<bx+bs&&ax+as>bx&&ay<by+bs&&ay+as>by;
+function tanksAt(x,y,me){for(const t of allTanks()){if(t===me||t.dead)continue;if(t.enemy&&t.spawn>0)continue;
+  if(overlap(x,y,16,t.x,t.y,16)&&!overlap(me.x,me.y,16,t.x,t.y,16))return true}return false}
+function allTanks(){return S.player&&!S.player.dead?[S.player,...S.enemies]:S.enemies}
+function onIce(t){return cellAt(Math.floor((t.x+8)/C),Math.floor((t.y+8)/C))===ICE}
+
+/* turn and step a tank; returns true if it moved */
+function drive(t,dir,spd){
+  if(dir!==t.dir){
+    const vert=dir%2===0,wasVert=t.dir%2===0;
+    if(vert!==wasVert){ /* snap to the 8 px grid on the other axis so tanks fit between walls */
+      if(vert){const nx=Math.round(t.x/C)*C;if(boxFree(nx,t.y,16))t.x=nx}
+      else{const ny=Math.round(t.y/C)*C;if(boxFree(t.x,ny,16))t.y=ny}
+    }
+    t.dir=dir;
+  }
+  let moved=false,left=spd;
+  while(left>0){const s=Math.min(1,left);left-=s;
+    const nx=t.x+DX[dir]*s,ny=t.y+DY[dir]*s;
+    if(boxFree(nx,ny,16)&&!tanksAt(nx,ny,t)){t.x=nx;t.y=ny;moved=true}else break}
+  if(moved)t.f^=(S.t%4===0?1:0);
+  return moved;
+}
+
+/* ---------------------------------------------------------------- shooting */
+function fire(t){
+  if(t.cd>0||t.spawn>0)return;
+  const max=!t.enemy&&t.lv>=2?2:1;
+  if(S.bullets.filter(b=>b.owner===t).length>=max)return;
+  const spd=t.enemy?TYPES[t.type].bs:(t.lv>=1?4:2.8);
+  const cx=t.x+8+DX[t.dir]*7,cy=t.y+8+DY[t.dir]*7;
+  S.bullets.push({x:cx-2,y:cy-2,dir:t.dir,spd,owner:t,enemy:t.enemy,steel:!t.enemy&&t.lv>=3});
+  t.cd=t.enemy?30:(t.lv>=2?8:14);
+  if(!t.enemy){SFX.shot();S.shots++;$('score').dataset.shots=S.shots}
+}
+function stepBullets(){
+  for(const b of S.bullets){
+    if(b.dead)continue;
+    let left=b.spd;
+    while(left>0&&!b.dead){const s=Math.min(1,left);left-=s;b.x+=DX[b.dir]*s;b.y+=DY[b.dir]*s;bulletHits(b)}
+  }
+  /* bullets cancel each other out */
+  for(let i=0;i<S.bullets.length;i++)for(let j=i+1;j<S.bullets.length;j++){const a=S.bullets[i],c=S.bullets[j];
+    if(!a.dead&&!c.dead&&a.enemy!==c.enemy&&overlap(a.x,a.y,4,c.x,c.y,4)){a.dead=c.dead=true;spark(a.x+2,a.y+2)}}
+  S.bullets=S.bullets.filter(b=>!b.dead);
+}
+function bulletHits(b){
+  const cx=b.x+2,cy=b.y+2;
+  if(b.x<0||b.y<0||b.x+4>W||b.y+4>W){b.dead=true;spark(Math.max(2,Math.min(W-2,cx)),Math.max(2,Math.min(W-2,cy)));if(!b.enemy)SFX.steel();return}
+  /* walls: the band of cells across the shot's path */
+  const vert=b.dir%2===0;
+  const hitCells=[];
+  if(vert){const row=Math.floor((b.dir===0?b.y:b.y+3)/C);for(const xx of [cx-6,cx-1,cx+5]){const c=Math.floor(xx/C);if(!hitCells.some(h=>h[0]===c))hitCells.push([c,row])}}
+  else{const col=Math.floor((b.dir===3?b.x:b.x+3)/C);for(const yy of [cy-6,cy-1,cy+5]){const r=Math.floor(yy/C);if(!hitCells.some(h=>h[1]===r))hitCells.push([col,r])}}
+  /* only cells the bullet itself touches can stop it; neighbours in the band break along with it */
+  const core=hitCells.filter(([c,r])=>{const v=cellAt(c,r);return (v===BRICK||v===STEEL)&&overlap(b.x,b.y,4,c*C,r*C,C)});
+  if(core.length){
+    let broke=false,clank=false;
+    for(const [c,r] of hitCells){if(c<0||r<0||c>=NC||r>=NC)continue;const v=S.cells[r*NC+c];
+      if(v===BRICK){S.cells[r*NC+c]=EMPTY;broke=true}
+      else if(v===STEEL){if(b.steel){S.cells[r*NC+c]=EMPTY;broke=true}else clank=true}}
+    b.dead=true;spark(cx,cy);
+    if(!b.enemy){if(broke)SFX.brick();else if(clank)SFX.steel()}
+    return;
+  }
+  /* the bunker */
+  if(!S.baseDead&&overlap(b.x,b.y,4,BASE.x,BASE.y,16)){b.dead=true;baseHit();return}
+  /* tanks */
+  if(b.enemy){
+    const p=S.player;
+    if(p&&!p.dead&&overlap(b.x,b.y,4,p.x,p.y,16)){b.dead=true;if(p.shield>0){spark(cx,cy);return}killPlayer();}
+  }else{
+    for(const e of S.enemies){if(e.dead||e.spawn>0)continue;
+      if(overlap(b.x,b.y,4,e.x,e.y,16)){b.dead=true;hitEnemy(e);return}}
+  }
+}
+function hitEnemy(e){
+  if(e.bonus){e.bonus=false;dropBonus()}
+  e.hp--;e.flash=8;
+  if(e.hp>0){SFX.hit();return}
+  e.dead=true;S.kills[e.type]++;
+  boom(e.x+8,e.y+8,true);SFX.boom();
+  addScore(TYPES[e.type].pts,e.x+8,e.y+8);
+  hud();
+}
+function killPlayer(){
+  const p=S.player;p.dead=true;boom(p.x+8,p.y+8,true);SFX.big();
+  S.lives--;hud();
+  if(S.lives<=0){S.endT=120;S.mode='ending'}
+  else{S.respawn=70}
+}
+function baseHit(){
+  S.baseDead=true;boom(BASE.x+8,BASE.y+8,true);boom(BASE.x+4,BASE.y+10,true);SFX.big();
+  S.endT=120;S.mode='ending';
+}
+function addScore(n,x,y){
+  S.score=Math.min(9999999,S.score+n);
+  if(x!==undefined)S.pops.push({x,y,txt:String(n),t:50});
+  while(S.score>=S.nextLife){S.nextLife+=10000;if(S.lives<9){S.lives++;SFX.life()}}
+  hud();
+}
+function spark(x,y){S.fx.push({x,y,t:10,big:false})}
+function boom(x,y,big){S.fx.push({x,y,t:big?28:12,big})}
+
+/* ---------------------------------------------------------------- bonuses */
+function dropBonus(){
+  const kind=BONUS[S.curBonusIx%BONUS.length];S.curBonusIx+=1+Math.floor(Math.random()*3);
+  /* a free spot that is not the bunker and not the player's start */
+  for(let tries=0;tries<60;tries++){
+    const x=(1+Math.floor(Math.random()*11))*16,y=(1+Math.floor(Math.random()*10))*16;
+    if(overlap(x,y,16,BASE.x-16,BASE.y-16,48))continue;
+    S.bonus={kind,x,y,t:900};SFX.appear();return;
+  }
+}
+function takeBonus(){
+  const b=S.bonus,p=S.player;S.bonus=null;SFX.bonus();addScore(500,b.x+8,b.y+8);
+  switch(b.kind){
+    case 'star':p.lv=Math.min(3,p.lv+1);break;
+    case 'shield':p.shield=600;break;
+    case 'clock':S.freeze=480;break;
+    case 'bomb':for(const e of S.enemies)if(!e.dead&&e.spawn<=0){e.dead=true;S.kills[e.type]++;boom(e.x+8,e.y+8,true)}SFX.big();hud();break;
+    case 'fort':S.fort=900;ring(STEEL);break;
+    case 'life':if(S.lives<9)S.lives++;SFX.life();hud();break;
+  }
+}
+
+/* ---------------------------------------------------------------- enemies */
+function spawnEnemies(){
+  if(!S.reserve.length)return;
+  if(S.spawnT>0){S.spawnT--;return}
+  const alive=S.enemies.filter(e=>!e.dead).length;
+  if(alive>=4)return;
+  for(let k=0;k<3;k++){
+    const sp=ESPAWN[(S.spawnIx+k)%3];
+    if(allTanks().some(t=>!t.dead&&overlap(sp.x,sp.y,16,t.x,t.y,16)))continue;
+    const r=S.reserve.shift();const e=newTank(sp.x,sp.y,2,true,r.type);e.bonus=r.bonus;
+    if(r.bonus&&S.bonus)S.bonus=null;
+    S.enemies.push(e);S.spawnIx=(S.spawnIx+k+1)%3;
+    S.spawnT=Math.max(70,150-S.stage*8);hud();return;
+  }
+}
+function stepEnemy(e){
+  if(e.spawn>0){e.spawn--;return}
+  if(e.flash>0)e.flash--;
+  if(e.cd>0)e.cd--;
+  if(S.freeze>0)return;
+  const T=TYPES[e.type];
+  e.think--;
+  const moved=drive(e,e.dir,T.spd);
+  if(!moved||e.think<=0){
+    /* new direction: mostly towards the bunker, sometimes towards the player, sometimes anywhere */
+    const r=Math.random(),p=S.player;let d;
+    if(r<.45){const dx=BASE.x-e.x,dy=BASE.y-e.y;d=Math.abs(dx)>Math.abs(dy)&&Math.random()<.6?(dx>0?1:3):(dy>0?2:(dx>0?1:3))}
+    else if(r<.7&&p&&!p.dead){const dx=p.x-e.x,dy=p.y-e.y;d=Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0)}
+    else d=Math.floor(Math.random()*4);
+    if(!moved&&d===e.dir)d=(d+1+Math.floor(Math.random()*3))%4;
+    e.dir=d;e.think=40+Math.random()*140;
+    if(!moved&&Math.random()<.5)fire(e); /* shoot the wall in its way */
+  }
+  /* shoot: at random, more often when the player or the bunker is straight ahead */
+  e.shotWait--;
+  let want=Math.random()<T.rate;
+  const p=S.player;
+  if(p&&!p.dead&&lined(e,p.x,p.y))want=want||Math.random()<.05;
+  if(lined(e,BASE.x,BASE.y))want=want||Math.random()<.04;
+  if(want&&e.shotWait<=0){fire(e);e.shotWait=20}
+}
+function lined(e,x,y){
+  const ex=e.x+8,ey=e.y+8,tx=x+8,ty=y+8;
+  if(e.dir===0)return Math.abs(ex-tx)<8&&ty<ey;
+  if(e.dir===2)return Math.abs(ex-tx)<8&&ty>ey;
+  if(e.dir===1)return Math.abs(ey-ty)<8&&tx>ex;
+  return Math.abs(ey-ty)<8&&tx<ex;
+}
+
+/* ---------------------------------------------------------------- main step */
+function step(){
+  S.t++;
+  if(S.banner>0)S.banner--;
+  for(const f of S.fx)f.t--;S.fx=S.fx.filter(f=>f.t>0);
+  for(const q of S.pops){q.t--;q.y-=.3}S.pops=S.pops.filter(q=>q.t>0);
+  if(S.mode!=='play'&&S.mode!=='ending')return;
+  const p=S.player;
+  /* player */
+  if(p&&!p.dead&&S.mode==='play'){
+    if(p.cd>0)p.cd--;if(p.shield>0)p.shield--;if(p.spawn>0)p.spawn--;
+    const d=KEY.d;
+    if(d>=0){p.moving=drive(p,d,1);p.slide=onIce(p)?24:0}
+    else if(p.slide>0){p.slide--;if(!drive(p,p.dir,1))p.slide=0;p.moving=true}
+    else p.moving=false;
+    if(KEY.fire)fire(p);
+    if(S.bonus&&overlap(p.x,p.y,16,S.bonus.x,S.bonus.y,16))takeBonus();
+  }else if(p&&p.dead&&S.mode==='play'&&S.lives>0){
+    S.respawn--;if(S.respawn<=0){const lv=0;S.player=newTank(PSPAWN.x,PSPAWN.y,0,false);S.player.lv=lv;S.player.shield=180;KEY.fire=false}
+  }
+  engineSet(!!(p&&!p.dead&&p.moving&&S.mode==='play'));
+  if(S.mode==='play')spawnEnemies();
+  for(const e of S.enemies)if(!e.dead)stepEnemy(e);
+  S.enemies=S.enemies.filter(e=>!e.dead);
+  stepBullets();
+  if(S.freeze>0)S.freeze--;
+  if(S.fort>0){S.fort--;if(S.fort===0)ring(BRICK);else if(S.fort<180)ring(Math.floor(S.fort/15)%2?STEEL:BRICK)}
+  if(S.bonus){S.bonus.t--;if(S.bonus.t<=0)S.bonus=null}
+  /* stage end */
+  if(S.mode==='play'&&!S.reserve.length&&!S.enemies.length){S.mode='ending';S.endT=110;S.won=true}
+  if(S.mode==='ending'){S.endT--;if(S.endT<=0)finish()}
+}
+function finish(){
+  engineSet(false);KEY.fire=false;
+  const won=S.won&&!S.baseDead&&S.lives>0;S.won=false;
+  SAVE.best=Math.max(SAVE.best,S.score);
+  if(won)SAVE.reached=Math.max(SAVE.reached,Math.min(99,S.stage+1));
+  writeSave();
+  const rows=Object.keys(TYPES).map(k=>`<canvas data-t="${k}" width="16" height="16"></canvas><span>${TYPES[k].name} · ${S.kills[k]} db</span><b>${S.kills[k]*TYPES[k].pts}</b>`).join('');
+  if(won){
+    S.mode='clear';
+    showOv(`<h2>PÁLYA ${S.stage} · KÉSZ</h2><div class="tally">${rows}</div><p class="stat">${S.score} pont</p><p class="small">Rekord: ${SAVE.best}</p>
+      <div class="btns"><button class="btn hot" id="ovNext">Következő pálya</button><button class="btn" id="ovMenu">Menü</button></div>`);
+    $('ovNext').onclick=()=>{audio();startStage(S.stage+1,false)};
+  }else{
+    S.mode='over';SFX.over();
+    showOv(`<h2 class="bad">VÉGE</h2><p>${S.baseDead?'Eltalálták a zászlós bunkert.':'Elfogyott minden tankod.'}</p><div class="tally">${rows}</div>
+      <p class="stat">${S.score} pont</p><p class="small">Pálya: ${S.stage} · Rekord: ${SAVE.best}</p>
+      <div class="btns"><button class="btn hot" id="ovNew">Új játék</button><button class="btn" id="ovRetry">Újra a ${S.stage}. pályától</button><button class="btn" id="ovMenu">Menü</button></div>`);
+    $('ovNew').onclick=()=>{audio();startStage(1,true)};
+    $('ovRetry').onclick=()=>{audio();startStage(S.stage,true)};
+  }
+  $('ovMenu').onclick=menu;
+  document.querySelectorAll('.tally canvas').forEach(c=>{const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(getTank(c.dataset.t==='armor'?'a4':'enemy',c.dataset.t,0),0,0)});
+}
+
+/* ---------------------------------------------------------------- draw */
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,W);
+  /* ground layer */
+  for(let cy=0;cy<NC;cy++)for(let cx=0;cx<NC;cx++){
+    const v=S.cells[cy*NC+cx],x=cx*C,y=cy*C;
+    if(v===BRICK)ctx.drawImage(cellAt(cx,cy-1)===BRICK?BRICKC:BRICKH,x,y);
+    else if(v===STEEL)ctx.drawImage(STEELC,x,y);
+    else if(v===ICE)ctx.drawImage(ICEC,x,y);
+    else if(v===WATER){const ph=Math.floor(S.t/30)%2;ctx.fillStyle='#1c50c8';ctx.fillRect(x,y,C,C);ctx.fillStyle='#6aa2ff';
+      ctx.fillRect(x+((cx+ph)%2?1:4),y+2,3,1);ctx.fillRect(x+((cx+ph)%2?4:1),y+5,3,1)}
+  }
+  /* bunker */
+  ctx.drawImage(S.baseDead?RUBBLE:FLAG,BASE.x,BASE.y);
+  /* bonus */
+  if(S.bonus&&(S.bonus.t>180||Math.floor(S.t/8)%2)){const b=S.bonus;ctx.fillStyle='#000';ctx.fillRect(b.x,b.y,16,16);
+    ctx.strokeStyle=Math.floor(S.t/10)%2?'#ffd84a':'#ffffff';ctx.lineWidth=1;ctx.strokeRect(b.x+.5,b.y+.5,15,15);ctx.drawImage(BONUSSPR[b.kind],b.x+2,b.y+2)}
+  /* tanks */
+  for(const e of S.enemies)drawTank(e);
+  if(S.player&&!S.player.dead)drawTank(S.player);
+  /* bullets */
+  ctx.fillStyle='#f4f4f4';
+  for(const b of S.bullets){ctx.fillStyle=b.enemy?'#ffd0c0':'#ffffff';ctx.fillRect(Math.round(b.x),Math.round(b.y),4,4);ctx.fillStyle='#888';ctx.fillRect(Math.round(b.x)+1,Math.round(b.y)+1,2,2)}
+  /* forest on top */
+  for(let cy=0;cy<NC;cy++)for(let cx=0;cx<NC;cx++)if(S.cells[cy*NC+cx]===TREE)ctx.drawImage(TREEC,cx*C,cy*C);
+  /* effects */
+  for(const f of S.fx){
+    const k=f.big?1-f.t/28:1-f.t/12,r=f.big?3+k*11:2+k*4;
+    ctx.fillStyle=f.big?(k<.5?'#ffffff':'#ffb020'):'#ffffff';ctx.fillRect(Math.round(f.x-r),Math.round(f.y-r/2),Math.round(r*2),Math.round(r));ctx.fillRect(Math.round(f.x-r/2),Math.round(f.y-r),Math.round(r),Math.round(r*2));
+    if(f.big){ctx.fillStyle='#d83a1a';ctx.fillRect(Math.round(f.x-r/3),Math.round(f.y-r/3),Math.round(r*.66),Math.round(r*.66))}
+  }
+  ctx.font='bold 8px "Chakra Petch",monospace';ctx.textAlign='center';
+  for(const q of S.pops){ctx.fillStyle='#000';ctx.fillText(q.txt,q.x+1,q.y+1);ctx.fillStyle='#ffffff';ctx.fillText(q.txt,q.x,q.y)}
+  if(S.freeze>0&&Math.floor(S.t/20)%2){ctx.fillStyle='rgba(120,180,255,.12)';ctx.fillRect(0,0,W,W)}
+  if(S.banner>0&&S.mode==='play'){
+    ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(0,86,W,36);ctx.font='bold 14px "Chakra Petch",monospace';ctx.fillStyle='#ffd84a';
+    ctx.fillText(`${S.stage}. PÁLYA`,W/2,102);ctx.font='bold 9px "Chakra Petch",monospace';ctx.fillStyle='#ffffff';ctx.fillText(MAPS[(S.stage-1)%MAPS.length].name+' · Védd a zászlót!',W/2,115);
+  }
+  if(S.mode==='pause'){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,0,W,W)}
+}
+function drawTank(t){
+  if(t.enemy&&t.spawn>0){ /* arrival sparkle */
+    const k=Math.floor(t.spawn/4)%4,r=[2,4,6,4][k];ctx.fillStyle='#ffffff';
+    ctx.fillRect(t.x+8-r,t.y+7,r*2,2);ctx.fillRect(t.x+7,t.y+8-r,2,r*2);ctx.fillRect(t.x+8-r/2,t.y+8-r/2,r,r);return}
+  let pal='enemy';
+  if(!t.enemy)pal=t.lv>=2?'player2':'player';
+  else if(t.bonus&&Math.floor(S.t/8)%2)pal='bonus';
+  else if(t.type==='armor')pal=t.hp>=4?'a4':t.hp===3?'a3':'a2';
+  if(t.flash>0&&t.flash%2)pal='bonus';
+  const img=getTank(pal,t.enemy?t.type:(t.lv>=3?'power':t.lv>=1?'armor':'basic'),t.f);
+  ctx.save();ctx.translate(Math.round(t.x)+8,Math.round(t.y)+8);ctx.rotate(t.dir*Math.PI/2);ctx.drawImage(img,-8,-8);ctx.restore();
+  if(!t.enemy&&t.shield>0){ /* shield shimmer */
+    const ph=Math.floor(S.t/3)%2;ctx.strokeStyle=ph?'#ffffff':'#5fa8ff';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(Math.round(t.x)+8,Math.round(t.y)+8,10+ph,0,Math.PI*2);ctx.stroke()}
+}
+
+/* ---------------------------------------------------------------- UI */
+function hud(){
+  $('stg').textContent=S.stage;$('lives').textContent=S.lives;
+  $('left').textContent=S.reserve.length+S.enemies.filter(e=>!e.dead).length;$('score').textContent=S.score;
+}
+function showOv(html){$('ovc').innerHTML=html;$('ov').hidden=false;const h=$('ovc').querySelector('.btn.hot');if(h)try{h.focus({preventScroll:true})}catch(e){}}
+function closeOv(){$('ov').hidden=true}
+function menu(){
+  S.mode='menu';engineSet(false);KEY.fire=false;
+  let lv='';for(let i=1;i<=Math.min(12,Math.max(6,SAVE.reached));i++)lv+=`<button data-s="${i}" ${i<=SAVE.reached?'':'disabled'} aria-label="${i}. pálya">${i}</button>`;
+  const bon=BONUS.map(k=>`<canvas data-b="${k}" width="12" height="12"></canvas><span>${BONUS_TXT[k].replace(/^([^:]+):/,'<b>$1:</b>')}</span>`).join('');
+  showOv(`<h1>PÁNCÉLOS ŐRSÉG</h1>
+    <p>Védd a zászlós bunkert a pálya alján! Lőj szét minden ellenséges tankot. A tégla szétlőhető, az acél csak csillagokkal, a vízen nem lehet átmenni, az erdő eltakar, a jégen csúszik a tank.</p>
+    <div class="btns"><button class="btn hot" id="go">HARC!</button></div>
+    <p class="small">Pálya választása</p><div class="lv">${lv}</div>
+    <p class="small">A villogó piros tankot eltalálva bónusz jelenik meg:</p><div class="bon">${bon}</div>
+    <p class="small">Rekord: ${SAVE.best} pont</p>
+    <p class="keys">Gépen: nyilak vagy WASD · Space vagy J: tűz · P: szünet</p>`);
+  $('go').onclick=()=>{audio();startStage(1,true)};
+  document.querySelectorAll('.lv button[data-s]').forEach(b=>b.onclick=()=>{audio();startStage(+b.dataset.s,true)});
+  document.querySelectorAll('.bon canvas').forEach(c=>{const x=c.getContext('2d');x.drawImage(BONUSSPR[c.dataset.b],0,0)});
+}
+function pause(){
+  if(S.mode!=='play')return;S.mode='pause';engineSet(false);KEY.fire=false;
+  showOv(`<h2>SZÜNET</h2><div class="btns"><button class="btn hot" id="ovRes">Folytatás</button><button class="btn" id="ovMenu">Menü</button></div>`);
+  $('ovRes').onclick=resume;$('ovMenu').onclick=menu;
+}
+function resume(){if(S.mode!=='pause')return;audio();S.mode='play';closeOv()}
+
+/* ---------------------------------------------------------------- input: the newest held direction wins */
+function dirDown(d){KEY.stack=KEY.stack.filter(x=>x!==d);KEY.stack.push(d);KEY.d=d}
+function dirUp(d){KEY.stack=KEY.stack.filter(x=>x!==d);KEY.d=KEY.stack.length?KEY.stack[KEY.stack.length-1]:-1}
+function releaseAll(){KEY.stack=[];KEY.d=-1;KEY.fire=false;document.querySelectorAll('.on').forEach(b=>b.classList.remove('on'))}
+const KD={ArrowUp:0,KeyW:0,ArrowRight:1,KeyD:1,ArrowDown:2,KeyS:2,ArrowLeft:3,KeyA:3};
+addEventListener('keydown',e=>{
+  if(e.code==='KeyP'||e.code==='Escape'){if(S.mode==='play')pause();else if(S.mode==='pause')resume();e.preventDefault();return}
+  if(!$('ov').hidden)return;
+  if(e.code in KD){e.preventDefault();audio();if(!e.repeat)dirDown(KD[e.code]);return}
+  if(e.code==='Space'||e.code==='KeyJ'||e.code==='KeyK'||e.code==='Enter'){e.preventDefault();audio();KEY.fire=true}
+});
+addEventListener('keyup',e=>{
+  if(e.code in KD)dirUp(KD[e.code]);
+  if(e.code==='Space'||e.code==='KeyJ'||e.code==='KeyK'||e.code==='Enter')KEY.fire=false;
+});
+addEventListener('blur',()=>{releaseAll();pause()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){releaseAll();pause()}});
+/* d-pad: slide the thumb between arrows without lifting it */
+const dp=$('dpad');let dpId=null;
+function dpAt(e){const r=dp.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;
+  if(Math.hypot(x,y)<14)return -1;return Math.abs(x)>Math.abs(y)?(x>0?1:3):(y>0?2:0)}
+function dpSet(d){KEY.stack=d>=0?[d]:[];KEY.d=d;dp.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.d===d))}
+dp.addEventListener('pointerdown',e=>{e.preventDefault();audio();dpId=e.pointerId;try{dp.setPointerCapture(e.pointerId)}catch(_){}dpSet(dpAt(e))});
+dp.addEventListener('pointermove',e=>{if(e.pointerId===dpId)dpSet(dpAt(e))});
+['pointerup','pointercancel','lostpointercapture'].forEach(n=>dp.addEventListener(n,e=>{if(e.pointerId===dpId){dpId=null;dpSet(-1)}}));
+dp.addEventListener('contextmenu',e=>e.preventDefault());
+const fb=$('fireBtn');
+fb.addEventListener('pointerdown',e=>{e.preventDefault();audio();KEY.fire=true;fb.classList.add('on');try{fb.setPointerCapture(e.pointerId)}catch(_){}});
+['pointerup','pointercancel','lostpointercapture'].forEach(n=>fb.addEventListener(n,()=>{KEY.fire=false;fb.classList.remove('on')}));
+fb.addEventListener('contextmenu',e=>e.preventDefault());
+$('pauseBtn').addEventListener('click',()=>{audio();if(S.mode==='play')pause();else if(S.mode==='pause')resume()});
+
+/* ---------------------------------------------------------------- size and loop */
+function fit(){
+  const st=$('stage'),w=st.clientWidth-6,h=st.clientHeight-6;if(w<=0||h<=0)return;
+  const s=Math.max(1,Math.min(w,h)/W);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(W*s)+'px';
+}
+addEventListener('resize',fit);
+if(window.ResizeObserver)new ResizeObserver(fit).observe($('stage'));
+let last=performance.now(),acc=0;
+function frame(now){
+  acc+=Math.min(100,now-last);last=now;let n=0;
+  while(acc>=1000/FPS&&n<5){if(S.mode==='play'||S.mode==='ending')step();else S.t++;acc-=1000/FPS;n++}
+  if(n===5)acc=0;
+  draw();requestAnimationFrame(frame);
+}
+buildStage(1);fit();menu();requestAnimationFrame(frame);
+/* for the automatic tests only */
+window.__tank={S,KEY,step,startStage};
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Gyémántbánya</title>
+<meta name="description" content="Kockás logikai játék: soronként, oszloponként és blokkfajtánként egy gyémánt, ami nem érhet a többihez. 3 nehézség.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Diamond Mine">
+<meta name="games:description-en" content="Block logic puzzle: one diamond per row, column and block type, never touching another. Three difficulty levels.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: egyoszlopos bányászpult telefonra — fejléc, szabályok, nehézség, állapotsor, kocka-tábla, eszköztár */
+:root{
+  --bg:#141318;
+  --panel:#24222b;
+  --panel-2:#322f3a;
+  --edge:#08070a;
+  --fg:#f2ede4;
+  --muted:#aaa398;
+  --gem:#53e3d8;
+  --gold:#f2c14e;
+  --bad:#e0413a;
+  --ok:#73c34e;
+  --font:"Pixelify Sans","Courier New",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{
+  background-color:var(--bg);
+  background-size:128px 128px;
+  image-rendering:pixelated;
+  color:var(--fg);
+  font-family:var(--font);
+  font-size:16px;
+  line-height:1.35;
+  -webkit-tap-highlight-color:transparent;
+}
+.wrap{
+  max-width:560px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:18px 36px;
+  display:flex;flex-direction:column;gap:14px;
+}
+header{display:flex;flex-direction:column;gap:2px}
+h1{
+  margin:0;font-size:clamp(30px,9vw,42px);font-weight:700;letter-spacing:.02em;
+  color:var(--gold);text-shadow:3px 3px 0 var(--edge);text-wrap:balance;
+}
+.sub{margin:0;color:var(--muted);font-size:15px}
+.panel{
+  background:var(--panel);
+  border:3px solid var(--edge);
+  box-shadow:inset 3px 3px 0 rgba(255,255,255,.07),inset -3px -3px 0 rgba(0,0,0,.35);
+}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rule{padding:8px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;min-width:0}
+.rule img{width:20px;height:auto;image-rendering:pixelated}
+.seg{display:flex;gap:8px}
+.btn{
+  font:inherit;color:var(--fg);cursor:pointer;
+  background:var(--panel-2);
+  border:3px solid var(--edge);
+  box-shadow:inset 3px 3px 0 rgba(255,255,255,.16),inset -3px -3px 0 rgba(0,0,0,.4);
+  padding:9px 10px;min-height:46px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:15px;font-weight:600;
+  flex:1 1 0;min-width:0;
+}
+.btn small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+.btn .stack{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.btn:hover{background:#3b3844}
+.btn:active{box-shadow:inset -3px -3px 0 rgba(255,255,255,.12),inset 3px 3px 0 rgba(0,0,0,.45)}
+.btn:focus-visible,.cell:focus-visible,.toggle input:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.btn[aria-pressed="true"]{background:#2d5a4f;border-color:var(--edge);color:#fff}
+.btn[aria-pressed="true"] small{color:#cdeee8}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn img{width:20px;height:auto;image-rendering:pixelated}
+.status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px}
+.stat{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat img{width:26px;image-rendering:pixelated}
+.hearts{display:flex;gap:4px}
+.hearts img{width:26px;image-rendering:pixelated}
+.hearts img.lost{animation:hurt .5s}
+#timer{color:var(--muted);font-size:20px}
+.frame{border:4px solid var(--edge);background:var(--edge);box-shadow:0 6px 0 rgba(0,0,0,.45)}
+.board{
+  display:grid;width:100%;aspect-ratio:1/1;max-width:100%;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.cell{
+  position:relative;background-size:100% 100%;image-rendering:pixelated;
+  cursor:pointer;min-width:0;
+}
+.cell::before{content:"";position:absolute;inset:0;pointer-events:none}
+@media (hover:hover){.cell:hover::before{background:rgba(255,255,255,.14)}}
+.cell img{position:absolute;pointer-events:none;image-rendering:pixelated}
+.cell .gem{left:12%;top:16%;width:76%;filter:drop-shadow(0 3px 0 rgba(0,0,0,.55))}
+.cell .x{left:30%;top:30%;width:40%;opacity:.9}
+.cell .gem.pop{animation:pop .35s ease-out}
+.cell .gem.ghost{opacity:.5;filter:grayscale(.3)}
+.cell.bad::after{content:"";position:absolute;inset:0;background:rgba(224,65,58,.6);animation:flash .6s forwards;pointer-events:none}
+.cell.bad{animation:shake .35s}
+.board.won .gem{animation:bounce .6s ease-in-out infinite alternate}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toggles{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:15px;color:var(--muted)}
+.toggle{display:flex;align-items:center;gap:8px;cursor:pointer}
+.toggle input{width:20px;height:20px;accent-color:var(--ok);margin:0}
+.help{margin:0;color:var(--muted);font-size:14px;max-width:65ch}
+.best{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.overlay{
+  position:fixed;inset:0;z-index:20;
+  background:rgba(8,7,10,.72);
+  display:flex;align-items:center;justify-content:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+}
+.modal{width:min(100%,380px);padding:20px;display:flex;flex-direction:column;gap:12px;text-align:center}
+.modal h2{margin:0;font-size:28px;color:var(--gold);text-shadow:3px 3px 0 var(--edge)}
+.modal p{margin:0;color:var(--fg)}
+.modal .row{display:flex;gap:8px}
+.modal .big{width:56px;margin:0 auto;image-rendering:pixelated}
+.loading{font-size:20px;padding:22px 26px}
+@keyframes pop{0%{transform:scale(.2)}70%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes flash{0%{opacity:1}100%{opacity:0}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@keyframes hurt{0%{transform:scale(1.4)}100%{transform:scale(1)}}
+@keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-12%)}}
+@media (max-width:420px){
+  .rule{font-size:12.5px;padding:7px}
+  .btn{font-size:14px;padding:8px 6px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0 0 10px"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <header>
+    <h1>Gyémántbánya</h1>
+    <p class="sub">Találd meg az összes gyémántot a kockák között.</p>
+  </header>
+
+  <div class="rules" aria-label="Szabályok">
+    <div class="rule panel"><img id="r1" alt="">Soronként és oszloponként 1 gyémánt</div>
+    <div class="rule panel"><img id="r2" alt="">Minden blokkfajtában 1 gyémánt</div>
+    <div class="rule panel"><img id="r3" alt="">Két gyémánt nem érintkezhet, átlósan sem</div>
+  </div>
+
+  <div class="seg" role="group" aria-label="Nehézség">
+    <button class="btn" id="d-easy" data-diff="easy"><span class="stack">Könnyű<small>6×6</small></span></button>
+    <button class="btn" id="d-medium" data-diff="medium"><span class="stack">Közepes<small>8×8</small></span></button>
+    <button class="btn" id="d-hard" data-diff="hard"><span class="stack">Nehéz<small>10×10</small></span></button>
+  </div>
+
+  <div class="status panel">
+    <div class="stat" aria-live="polite"><img id="gemIcon" alt="Gyémánt"><span id="count">0/0</span></div>
+    <div class="hearts" id="hearts" aria-label="Életek"></div>
+    <div class="stat" id="timer">0:00</div>
+  </div>
+
+  <div class="frame">
+    <div class="board" id="board" role="grid" aria-label="Bánya"></div>
+  </div>
+
+  <div class="tools">
+    <button class="btn" id="m-place" aria-pressed="true"><img id="iPlace" alt="">Bányászás</button>
+    <button class="btn" id="m-mark" aria-pressed="false"><img id="iMark" alt="">Jelölés</button>
+    <button class="btn" id="hint">Tipp (<span id="hintN">0</span>)</button>
+    <button class="btn" id="newGame">Új pálya</button>
+  </div>
+
+  <div class="toggles">
+    <label class="toggle"><input type="checkbox" id="auto" checked>Automatikus X jelölés</label>
+    <label class="toggle"><input type="checkbox" id="sound" checked>Hang</label>
+    <span class="best" id="best"></span>
+  </div>
+
+  <p class="help">Bányászás módban bökj egy blokkra, ahol gyémántot sejtesz. Rossz helyen egy szív elveszik. Hosszan nyomva vagy Jelölés módban X-et teszel a kizárt mezőkre, húzással egyszerre többet is. Jelölt mezőre bökve a jelölés törlődik.</p>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="modal panel" id="modal"></div>
+</div>
+
+<script>
+(()=>{
+// ---------- Pixel grafika ----------
+function sprite(rows,pal){
+  const h=rows.length,w=rows[0].length,c=document.createElement('canvas');
+  c.width=w;c.height=h;const x=c.getContext('2d');
+  for(let y=0;y<h;y++)for(let i=0;i<w;i++){const col=pal[rows[y][i]];if(col){x.fillStyle=col;x.fillRect(i,y,1,1);}}
+  return c.toDataURL();
+}
+const GEM=sprite([
+  "...oooooooo...",
+  "..ohhllllmmo..",
+  ".ohhlllllmmmo.",
+  "ohllllllmmmmdo",
+  "olllllmmmmmddo",
+  ".ollllmmmmddo.",
+  "..olllmmmmdo..",
+  "...ollmmmdo...",
+  "....olmmdo....",
+  ".....omdo.....",
+  "......oo......"
+],{o:'#0d2a2d',h:'#f2fffe',l:'#a3f6f0',m:'#3fd3c9',d:'#1c8e88'});
+const HEART=[".oo.oo.","ohrorro","orrrrro","orrrrro",".orrro.","..oro..","...o..."];
+const HEART_FULL=sprite(HEART,{o:'#2a0708',h:'#ffb0a8',r:'#e0262b'});
+const HEART_EMPTY=sprite(HEART,{o:'#0c0b0e',h:'#4b464e',r:'#3a363d'});
+const XMARK=sprite([
+  "oo...oo","oxo.oxo",".oxoxo.","..oxo..",".oxoxo.","oxo.oxo","oo...oo"
+],{o:'rgba(255,255,255,.6)',x:'#1a1418'});
+
+function tex(def){
+  const s=16,c=document.createElement('canvas');c.width=c.height=s;const x=c.getContext('2d');
+  for(let y=0;y<s;y++)for(let i=0;i<s;i++){
+    let col=def.cols[Math.floor(Math.pow(Math.random(),1.7)*def.cols.length)];
+    if(def.kind==='planks'){
+      const seam=(Math.floor(y/4)%2)?4:11;
+      if(y%4===3||i===seam)col=def.line;
+    }
+    if(def.kind==='bricks'){
+      const off=(Math.floor(y/4)%2)?0:4;
+      if(y%4===3||(i+off)%8===7)col=def.line;
+    }
+    x.fillStyle=col;x.fillRect(i,y,1,1);
+  }
+  return c.toDataURL();
+}
+const BLOCKS=[
+  {name:'Fű',cols:['#6aa84f','#7cbd5b','#558c3e','#4a7d35']},
+  {name:'Föld',cols:['#86573a','#99684a','#6f472f','#5a3a26']},
+  {name:'Kő',cols:['#8e8e8e','#a2a2a2','#7a7a7a','#686868']},
+  {name:'Homok',cols:['#dccf94','#eadfa9','#cbbd80','#bcad6e']},
+  {name:'Deszka',cols:['#c08f52','#cfa063','#ad7e45'],line:'#7a5730',kind:'planks'},
+  {name:'Víz',cols:['#3f6fd8','#5283ea','#3462c4','#2a55ad']},
+  {name:'Ametiszt',cols:['#8c5fcf','#a47ee3','#7650b8','#5f3d9a']},
+  {name:'Tégla',cols:['#a8382f','#bb4a40','#93302a'],line:'#d9c8bd',kind:'bricks'},
+  {name:'Hó',cols:['#eef4f7','#ffffff','#dde7ec','#cbd8df']},
+  {name:'Prizmarin',cols:['#4aa898','#5ebdab','#3c9383','#2f7b6d']}
+];
+const TEX=BLOCKS.map(tex);
+document.body.style.backgroundImage=`url(${tex({cols:['#19181e','#1d1c23','#16151a','#222129','#121116']})})`;
+
+// ---------- Pálya-generátor ----------
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function randPerm(n){
+  const p=new Array(n),used=new Array(n).fill(false);
+  (function bt(r){
+    if(r===n)return true;
+    for(const c of shuffle([...Array(n).keys()])){
+      if(used[c]||(r>0&&Math.abs(c-p[r-1])<=1))continue;
+      used[c]=true;p[r]=c;if(bt(r+1))return true;used[c]=false;
+    }
+    return false;
+  })(0);
+  return p;
+}
+function growRegions(n,p){
+  const reg=new Array(n*n).fill(-1);
+  for(let r=0;r<n;r++)reg[r*n+p[r]]=r;
+  const w=Array.from({length:n},()=>0.25+Math.random()*1.9);
+  const tw=w.reduce((a,b)=>a+b,0);
+  let left=n*n-n;
+  while(left>0){
+    let t=Math.random()*tw,k=0;while(t>w[k]){t-=w[k];k++;}
+    const fr=[];
+    for(let i=0;i<n*n;i++){
+      if(reg[i]!==-1)continue;
+      const r=(i/n)|0,c=i%n;
+      if((r>0&&reg[i-n]===k)||(r<n-1&&reg[i+n]===k)||(c>0&&reg[i-1]===k)||(c<n-1&&reg[i+1]===k))fr.push(i);
+    }
+    if(!fr.length)continue;
+    reg[fr[(Math.random()*fr.length)|0]]=k;left--;
+  }
+  return reg;
+}
+function solve(n,reg,limit){
+  const sols=[],cur=new Array(n);let cm=0,rm=0;
+  (function bt(r,prev){
+    if(r===n){sols.push(cur.slice());return sols.length>=limit;}
+    for(let c=0;c<n;c++){
+      if(cm&(1<<c))continue;
+      if(r>0&&Math.abs(c-prev)<=1)continue;
+      const g=reg[r*n+c];if(rm&(1<<g))continue;
+      cm|=1<<c;rm|=1<<g;cur[r]=c;
+      if(bt(r+1,c))return true;
+      cm&=~(1<<c);rm&=~(1<<g);
+    }
+    return false;
+  })(0,-9);
+  return sols;
+}
+function neighbors4(n,i){
+  const r=(i/n)|0,c=i%n,o=[];
+  if(r>0)o.push(i-n);if(r<n-1)o.push(i+n);if(c>0)o.push(i-1);if(c<n-1)o.push(i+1);
+  return o;
+}
+function stillConnected(n,reg,p,k,skip){
+  const start=k*n+p[k],seen=new Set([start]),q=[start];let size=0;
+  for(let i=0;i<n*n;i++)if(reg[i]===k&&i!==skip)size++;
+  while(q.length){const i=q.pop();for(const j of neighbors4(n,i)){if(j!==skip&&reg[j]===k&&!seen.has(j)){seen.add(j);q.push(j);}}}
+  return seen.size===size;
+}
+// Csak egyértelmű megoldású pályát ad vissza. Ha az időkereten belül nem talál ilyet,
+// null-t ad, és a hívó hibaüzenetet mutat újrapróbálási lehetőséggel.
+// (Mérve: 6×6 ~1 ms, 8×8 ~10 ms, 10×10 ~0,2 s a medián.)
+const GEN_BUDGET_MS=4000;
+function generate(n){
+  const deadline=Date.now()+GEN_BUDGET_MS;
+  while(Date.now()<deadline){
+    const p=randPerm(n),reg=growRegions(n,p);
+    // Ha 100 javítási lépés alatt nem lesz egyértelmű, új alapról indul: így gyorsabb, mint sokáig javítgatni
+    // egy rossz elrendezést (500 próbán 10×10: 0 sikertelen, 95% 1 mp alatt; 400 lépéssel kb. 1% kifutott az időből).
+    for(let it=0;it<100;it++){
+      const sols=solve(n,reg,2);
+      if(sols.length===1)return {n,sol:p,reg};
+      const alt=sols.find(s=>s.some((c,r)=>c!==p[r]));
+      const rows=shuffle([...Array(n).keys()].filter(r=>alt[r]!==p[r]));
+      let changed=false;
+      for(const r of rows){
+        const idx=r*n+alt[r],from=reg[idx];
+        const targets=shuffle([...new Set(neighbors4(n,idx).map(j=>reg[j]))].filter(g=>g!==from));
+        if(!targets.length||!stillConnected(n,reg,p,from,idx))continue;
+        reg[idx]=targets[0];changed=true;break;
+      }
+      if(!changed)break;
+    }
+  }
+  return null;
+}
+
+// ---------- Játék ----------
+const DIFFS={
+  easy:{n:6,label:'Könnyű',hints:3},
+  medium:{n:8,label:'Közepes',hints:2},
+  hard:{n:10,label:'Nehéz',hints:1}
+};
+const $=id=>document.getElementById(id);
+const board=$('board');
+let S=null,mode='place',cells=[],tick=null,focusIdx=0;
+
+$('r1').src=GEM;$('r2').src=GEM;$('r3').src=XMARK;
+$('gemIcon').src=GEM;$('iPlace').src=GEM;$('iMark').src=XMARK;
+
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function fmt(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function elapsed(){return S?(S.startedAt!=null&&!S.done?S.elapsed+(performance.now()-S.startedAt):S.elapsed):0;}
+
+// hang
+let actx=null;
+function sfx(kind){
+  if(!$('sound').checked)return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const seq={gem:[[660,.06],[990,.1]],bad:[[160,.18]],mark:[[440,.025]],hint:[[520,.06],[780,.08]],
+      win:[[523,.1],[659,.1],[784,.1],[1046,.25]],lose:[[300,.18],[220,.18],[150,.3]]}[kind];
+    const t=actx.currentTime;let off=0;
+    for(const [f,d] of seq){
+      const o=actx.createOscillator(),g=actx.createGain();
+      o.type=(kind==='bad'||kind==='lose')?'sawtooth':'square';o.frequency.value=f;
+      g.gain.setValueAtTime(.05,t+off);g.gain.exponentialRampToValueAtTime(.0001,t+off+d);
+      o.connect(g);g.connect(actx.destination);o.start(t+off);o.stop(t+off+d+.02);off+=d;
+    }
+  }catch(e){}
+}
+
+function genFailed(diff,cls){
+  showModal(`
+    <h2>Nem sikerült pályát készíteni</h2>
+    <p>Most nem találtam egyértelmű megoldású ${DIFFS[diff].label.toLowerCase()} pályát. Próbáld újra, többnyire elsőre sikerül.</p>
+    <div class="row"><button class="${cls}" data-go="${diff}">Újrapróbálás</button></div>
+  `,!S);
+}
+function newGame(diff){
+  showModal('<div class="loading">Új járat ásása…</div>',true);
+  setTimeout(()=>{
+    const pz=generate(DIFFS[diff].n);
+    if(!pz){genFailed(diff,'btn');return;}
+    startPuzzle(diff,pz);
+    hideModal();
+  },40);
+}
+function startPuzzle(diff,pz,blockOf){
+  const n=pz.n;
+  S={
+    diff,n,sol:pz.sol.slice(),reg:pz.reg.slice(),
+    blockOf:blockOf||shuffle([...Array(BLOCKS.length).keys()]).slice(0,n),
+    gems:new Array(n*n).fill(0),marks:new Array(n*n).fill(0),
+    lives:3,hints:DIFFS[diff].hints,mistakes:0,found:0,elapsed:0,startedAt:null,done:false
+  };
+  focusIdx=0;
+  buildBoard();updateStatus();
+}
+function buildBoard(){
+  const n=S.n;board.innerHTML='';board.classList.remove('won');
+  board.style.gridTemplateColumns=`repeat(${n},1fr)`;
+  cells=[];
+  const thick='2px solid #0a090c',thin='1px solid rgba(0,0,0,.22)';
+  for(let i=0;i<n*n;i++){
+    const r=(i/n)|0,c=i%n,g=S.reg[i];
+    const d=document.createElement('div');
+    d.className='cell';d.dataset.i=i;d.setAttribute('role','gridcell');
+    d.tabIndex=i===focusIdx?0:-1;
+    d.style.backgroundImage=`url(${TEX[S.blockOf[g]]})`;
+    d.style.borderTop=(r>0&&S.reg[i-n]!==g)?thick:thin;
+    d.style.borderBottom=(r<n-1&&S.reg[i+n]!==g)?thick:thin;
+    d.style.borderLeft=(c>0&&S.reg[i-1]!==g)?thick:thin;
+    d.style.borderRight=(c<n-1&&S.reg[i+1]!==g)?thick:thin;
+    const gem=document.createElement('img');gem.className='gem';gem.src=GEM;gem.alt='';gem.hidden=true;
+    const x=document.createElement('img');x.className='x';x.src=XMARK;x.alt='';x.hidden=true;
+    d.append(gem,x);board.append(d);cells.push(d);
+    renderCell(i);
+  }
+}
+function renderCell(i,anim){
+  const d=cells[i];if(!d)return;
+  const gem=d.children[0],x=d.children[1];
+  gem.hidden=!S.gems[i];x.hidden=!(S.marks[i]&&!S.gems[i]);
+  gem.classList.toggle('ghost',S.gems[i]===2);
+  if(anim==='pop'){gem.classList.remove('pop');void gem.offsetWidth;gem.classList.add('pop');}
+  const r=((i/S.n)|0)+1,c=i%S.n+1;
+  d.setAttribute('aria-label',`${r}. sor, ${c}. oszlop, ${BLOCKS[S.blockOf[S.reg[i]]].name}`+(S.gems[i]===1?', gyémánt':S.marks[i]?', kizárva':''));
+}
+function updateStatus(prevLives){
+  $('count').textContent=`${S.found}/${S.n}`;
+  const h=$('hearts');h.innerHTML='';
+  for(let k=0;k<3;k++){
+    const im=document.createElement('img');im.alt='';
+    im.src=k<S.lives?HEART_FULL:HEART_EMPTY;
+    if(prevLives!=null&&k===S.lives&&k<prevLives)im.className='lost';
+    h.append(im);
+  }
+  h.setAttribute('aria-label',`${S.lives} élet`);
+  $('hintN').textContent=S.hints;
+  $('hint').disabled=S.done||S.hints<=0;
+  for(const k in DIFFS)$('d-'+k).setAttribute('aria-pressed',String(k===S.diff));
+  const b=lsGet('gyb-best-'+S.diff);
+  $('best').textContent=b?`Legjobb idő (${DIFFS[S.diff].label}): ${fmt(+b)}`:'';
+  $('timer').textContent=fmt(elapsed());
+}
+function startClock(){
+  if(S.startedAt==null&&!S.done){S.startedAt=performance.now();}
+}
+tick=setInterval(()=>{if(S)$('timer').textContent=fmt(elapsed());},250);
+
+function setMark(i,v){
+  if(S.done||S.gems[i])return;
+  startClock();
+  if(S.marks[i]===v)return;
+  S.marks[i]=v;renderCell(i);sfx('mark');
+}
+function tapPlace(i){
+  if(S.done||S.gems[i])return;
+  if(S.marks[i]){S.marks[i]=0;renderCell(i);sfx('mark');return;}
+  startClock();
+  const r=(i/S.n)|0,c=i%S.n;
+  if(S.sol[r]===c)placeGem(i);else wrong(i);
+}
+function placeGem(i,kind){
+  S.gems[i]=1;S.marks[i]=0;S.found++;
+  renderCell(i,'pop');
+  if($('auto').checked)autoMark(i);
+  sfx(kind||'gem');updateStatus();
+  if(S.found===S.n)win();
+}
+function autoMark(i){
+  const n=S.n,r=(i/n)|0,c=i%n,g=S.reg[i];
+  for(let j=0;j<n*n;j++){
+    if(j===i||S.gems[j])continue;
+    const rj=(j/n)|0,cj=j%n;
+    if(rj===r||cj===c||S.reg[j]===g||(Math.abs(rj-r)<=1&&Math.abs(cj-c)<=1)){
+      if(!S.marks[j]){S.marks[j]=1;renderCell(j);}
+    }
+  }
+}
+function wrong(i){
+  const prev=S.lives;
+  S.lives--;S.mistakes++;S.marks[i]=1;renderCell(i);
+  const d=cells[i];d.classList.remove('bad');void d.offsetWidth;d.classList.add('bad');
+  setTimeout(()=>d.classList.remove('bad'),650);
+  sfx('bad');updateStatus(prev);
+  if(S.lives<=0)lose();
+}
+function useHint(){
+  if(S.done||S.hints<=0)return;
+  const rows=[];for(let r=0;r<S.n;r++)if(!S.gems[r*S.n+S.sol[r]])rows.push(r);
+  if(!rows.length)return;
+  startClock();
+  S.hints--;
+  const r=rows[(Math.random()*rows.length)|0];
+  placeGem(r*S.n+S.sol[r],'hint');
+}
+function stopClock(){
+  if(S.startedAt!=null){S.elapsed+=performance.now()-S.startedAt;S.startedAt=null;}
+}
+function win(){
+  stopClock();S.done=true;board.classList.add('won');sfx('win');
+  const key='gyb-best-'+S.diff,b=lsGet(key);
+  const rec=!b||S.elapsed<+b;if(rec)lsSet(key,String(Math.round(S.elapsed)));
+  updateStatus();
+  setTimeout(()=>showModal(`
+    <img class="big" src="${GEM}" alt="">
+    <h2>Megvan mind!</h2>
+    <p>${DIFFS[S.diff].label} pálya ${fmt(S.elapsed)} alatt, ${S.mistakes} hibával.${rec?'<br>Új legjobb idő!':''}</p>
+    <div class="row"><button class="btn" id="mNew">Új pálya</button></div>
+    <div class="row">${Object.keys(DIFFS).filter(k=>k!==S.diff).map(k=>`<button class="btn" data-go="${k}">${DIFFS[k].label}</button>`).join('')}</div>
+  `),700);
+}
+function lose(){
+  stopClock();S.done=true;sfx('lose');
+  for(let r=0;r<S.n;r++){const i=r*S.n+S.sol[r];if(!S.gems[i]){S.gems[i]=2;renderCell(i);}}
+  updateStatus();
+  setTimeout(()=>showModal(`
+    <img class="big" src="${HEART_EMPTY}" alt="">
+    <h2>Elfogyott az életed</h2>
+    <p>A halvány gyémántok mutatják, hol lett volna a többi.</p>
+    <div class="row"><button class="btn" id="mRetry">Újra ezt a pályát</button><button class="btn" id="mNew">Új pálya</button></div>
+    <div class="row"><button class="btn" id="mClose">Pálya megnézése</button></div>
+  `),900);
+}
+function showModal(html,noClose){
+  $('modal').innerHTML=html;$('overlay').hidden=false;
+  $('overlay').dataset.lock=noClose?'1':'';
+  const first=$('modal').querySelector('button');if(first)first.focus();
+}
+function hideModal(){$('overlay').hidden=true;}
+$('overlay').addEventListener('click',e=>{
+  const t=e.target.closest('button');
+  if(!t){if(e.target===$('overlay')&&!$('overlay').dataset.lock)hideModal();return;}
+  if(t.id==='mNew')newGame(S.diff);
+  else if(t.id==='mRetry'){hideModal();startPuzzle(S.diff,{n:S.n,sol:S.sol,reg:S.reg},S.blockOf);}
+  else if(t.id==='mClose')hideModal();
+  else if(t.dataset.go)newGame(t.dataset.go);
+});
+
+// ---------- Bevitel ----------
+function cellIdx(el){const c=el&&el.closest?el.closest('.cell'):null;return c?+c.dataset.i:-1;}
+let ptr=null;
+board.addEventListener('contextmenu',e=>e.preventDefault());
+board.addEventListener('pointerdown',e=>{
+  const i=cellIdx(e.target);if(i<0||!S||S.done)return;
+  e.preventDefault();
+  setFocus(i,false);
+  if(mode==='mark'){
+    if(S.gems[i])return;
+    const v=S.marks[i]?0:1;ptr={drag:true,v,last:i};setMark(i,v);
+  }else{
+    ptr={drag:false,idx:i,cancel:false,long:false};
+    ptr.timer=setTimeout(()=>{
+      if(!ptr||ptr.cancel)return;
+      ptr.long=true;
+      if(!S.gems[i]){const v=S.marks[i]?0:1;setMark(i,v);ptr.drag=true;ptr.v=v;ptr.last=i;try{navigator.vibrate&&navigator.vibrate(15);}catch(err){}}
+    },380);
+  }
+});
+board.addEventListener('pointermove',e=>{
+  if(!ptr)return;
+  const i=cellIdx(document.elementFromPoint(e.clientX,e.clientY));if(i<0)return;
+  if(ptr.drag){if(i!==ptr.last){ptr.last=i;setMark(i,ptr.v);}}
+  else if(i!==ptr.idx){clearTimeout(ptr.timer);ptr.cancel=true;}
+});
+function endPtr(fire){
+  if(!ptr)return;clearTimeout(ptr.timer);
+  if(fire&&mode==='place'&&!ptr.drag&&!ptr.cancel&&!ptr.long)tapPlace(ptr.idx);
+  ptr=null;
+}
+window.addEventListener('pointerup',()=>endPtr(true));
+window.addEventListener('pointercancel',()=>endPtr(false));
+
+function setFocus(i,move){
+  if(cells[focusIdx])cells[focusIdx].tabIndex=-1;
+  focusIdx=i;cells[i].tabIndex=0;if(move)cells[i].focus();
+}
+board.addEventListener('keydown',e=>{
+  if(!S)return;const n=S.n;let i=focusIdx,r=(i/n)|0,c=i%n;
+  const k=e.key;
+  if(k==='ArrowUp'&&r>0)i-=n;else if(k==='ArrowDown'&&r<n-1)i+=n;
+  else if(k==='ArrowLeft'&&c>0)i--;else if(k==='ArrowRight'&&c<n-1)i++;
+  else if(k==='Enter'||k===' '){e.preventDefault();mode==='mark'?setMark(i,S.marks[i]?0:1):tapPlace(i);return;}
+  else if(k==='x'||k==='X'){e.preventDefault();setMark(i,S.marks[i]?0:1);return;}
+  else return;
+  e.preventDefault();setFocus(i,true);
+});
+
+function setMode(m){
+  mode=m;$('m-place').setAttribute('aria-pressed',String(m==='place'));$('m-mark').setAttribute('aria-pressed',String(m==='mark'));
+}
+$('m-place').addEventListener('click',()=>setMode('place'));
+$('m-mark').addEventListener('click',()=>setMode('mark'));
+$('hint').addEventListener('click',useHint);
+$('newGame').addEventListener('click',()=>newGame(S?S.diff:'easy'));
+document.querySelectorAll('[data-diff]').forEach(b=>b.addEventListener('click',()=>newGame(b.dataset.diff)));
+$('auto').addEventListener('change',()=>lsSet('gyb-auto',$('auto').checked?'1':'0'));
+$('sound').addEventListener('change',()=>lsSet('gyb-sound',$('sound').checked?'1':'0'));
+if(lsGet('gyb-auto')==='0')$('auto').checked=false;
+if(lsGet('gyb-sound')==='0')$('sound').checked=false;
+
+// ---------- Indítás, állapot megőrzése frissítéskor ----------
+function snapshot(){
+  if(!S)return {};
+  return {S:Object.assign({},S,{elapsed:elapsed(),startedAt:null}),mode};
+}
+try{window.claude?.hot?.snapshot?.(snapshot);}catch(e){}
+function start(data){
+  if(data&&data.S&&data.S.n){
+    S=data.S;if(!S.done&&S.elapsed>0)S.startedAt=performance.now();
+    buildBoard();updateStatus();setMode(data.mode||'place');
+    if(S.done&&S.found===S.n)board.classList.add('won');
+  }else{
+    newGame('easy');
+  }
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

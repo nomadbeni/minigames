@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Bike Shop</title>
+<meta name="description" content="Saját bringás műhely: a riderek leírják, mi a baj, te megtalálod a hibát, leveszed a polcról a jó alkatrészt, és beszereled. A pénzből szerszám, nagyobb műhely és saját versenybringa, amivel a Downhillen mész.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Bike Shop">
+<meta name="games:description-en" content="Your own bike workshop: riders tell you what is wrong, you find the fault, grab the right part off the shelf and fit it. Earn tools, a bigger shop and your own race bike for Downhill. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: one column workshop — top bar, customer ticket, bike stand (SVG), action area for the current step */
+:root{
+  --bg:#0b0c0f; --panel:#15171c; --panel2:#1e2128; --line:#2b2f38; --fg:#f1f3f6; --muted:#9aa1ad;
+  --accent:#ff7a1a; --ok:#3ddc84; --bad:#ff4d5a; --p0:#ffc15e; --p1:#5ccfff;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:18px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+#app{max-width:720px;margin:0 auto;padding-block:10px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+.bar{display:flex;align-items:center;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:20px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ticket{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:16px}
+.who .av{display:grid;place-items:center;width:44px;height:44px;border-radius:8px;background:var(--panel2)}
+.who b{color:var(--fg)}
+.tag{padding:2px 10px;border-radius:999px;background:var(--panel2);font-size:14px;color:var(--fg)}
+.say-row{display:flex;align-items:center;gap:12px}
+.bubble{font-size:26px;font-weight:600;line-height:1.3;flex:1}
+.stand{background:radial-gradient(ellipse at 50% 90%,#2a2f37 0,#1d2026 70%);border:1px solid var(--line);border-radius:16px;position:relative;overflow:hidden}
+.stand svg{display:block;width:100%;height:auto}
+.zone{fill:transparent;cursor:pointer}
+.stand.diag .zone:hover{fill:rgba(255,159,28,.18)}
+.zone.hit{fill:rgba(95,208,104,.3)}
+.zone.miss{fill:rgba(255,93,93,.3)}
+.wheel{transform-box:fill-box;transform-origin:center}
+.ride .bike{animation:ride 1.6s ease-in-out}
+.ride .wheel{animation:spin .4s linear 4}
+@keyframes ride{0%{transform:translateX(0)}45%{transform:translateX(110%)}50%{transform:translateX(-110%)}100%{transform:translateX(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.label{position:absolute;left:12px;bottom:10px;padding:4px 12px;border-radius:10px;background:rgba(0,0,0,.6);font-weight:600}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.step h2{margin:0;font-size:20px;color:var(--accent)}
+.step p{margin:0;color:var(--muted)}
+.shelf{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.box{display:flex;align-items:center;justify-content:center;gap:8px;min-height:84px;padding:12px;border-radius:12px;border:2px solid #7a5a35;background:linear-gradient(#b8864b,#94683a);color:#1d1208;font:600 22px/1.2 var(--font);cursor:pointer;text-align:center;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.box .w .p0{color:#5a1d00}.box .w .p1{color:#003a5c}
+.box.no{opacity:.45;filter:grayscale(1)}
+.box.yes{border-color:var(--ok);box-shadow:0 0 0 3px var(--ok)}
+.gauge{position:relative;height:44px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.gauge .g{position:absolute;top:0;bottom:0;background:rgba(95,208,104,.55)}
+.gauge .n{position:absolute;top:-4px;bottom:-4px;width:6px;margin-left:-3px;background:#fff;border-radius:3px;box-shadow:0 0 6px #000}
+.dots{display:flex;gap:8px}
+.dots i{width:18px;height:18px;border-radius:50%;background:var(--panel2);border:1px solid var(--line)}
+.dots i.ok{background:var(--ok)}.dots i.x{background:var(--bad)}
+.btn{font:700 19px/1.2 var(--font);padding:14px 18px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.btn.hot{background:var(--accent);border-color:var(--accent);color:#2a1500}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.msg{min-height:1.5em;font-weight:600}
+.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+#ov{position:fixed;inset:0;background:rgba(6,8,12,.82);display:grid;place-items:center;padding:16px;z-index:9}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 20px;width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;display:flex;flex-direction:column;gap:14px}
+.card h1,.card h2{margin:0;color:var(--accent);line-height:1.15}
+.card h1{font-size:32px}.card h2{font-size:26px}
+.card p{margin:0}
+.how{display:grid;grid-template-columns:40px 1fr;gap:8px 10px;align-items:center;font-size:17px}
+.how span:nth-child(odd){font-size:26px;text-align:center}
+.shop{display:flex;flex-direction:column;gap:10px}
+.item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--panel2)}
+.item .ic{font-size:28px;width:36px;text-align:center}
+.item .tx{flex:1;min-width:0}
+.item small{display:block;color:var(--muted);font-size:14px}
+.item .btn{padding:10px 12px;font-size:16px;white-space:nowrap}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+.stars{font-size:30px;letter-spacing:4px;color:var(--accent)}
+.toggle{display:flex;gap:8px;flex-wrap:wrap}
+.toggle .btn[aria-pressed="true"]{background:var(--accent);color:#2a1500;border-color:var(--accent)}
+
+.card h1,.card h2,.step h2,.panel h2,h1,h2{font-family:var(--disp);letter-spacing:.02em}
+.bar .chip{padding:5px 8px;font-size:15px;white-space:nowrap}
+.bar .ib{flex:none}
+@media (max-width:400px){.bar .rankchip{min-width:0;padding:4px 6px}}
+/* Reading kit: readable type, split-word colouring, speaker button */
+.w{white-space:nowrap;font-weight:600;letter-spacing:.03em}
+.w .p0{color:var(--p0,#ffb347)}
+.w .p1{color:var(--p1,#5ad1ff)}
+.w .dot{opacity:.55;margin:0 .1em;font-style:normal}
+.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say:disabled{opacity:.35;cursor:not-allowed}
+.say.talking{outline:2px solid var(--p1,#5ad1ff)}
+
+.px{image-rendering:pixelated;image-rendering:crisp-edges;vertical-align:middle;flex:none}
+.rankchip{display:inline-flex;flex-direction:column;gap:3px;padding:4px 10px;border-radius:8px;border:1px solid var(--rc);background:rgba(0,0,0,.35);min-width:84px;white-space:nowrap}
+.rankchip b{font:700 13px/1 var(--disp,system-ui);letter-spacing:.06em;color:var(--rc);text-transform:uppercase}
+.rankchip i{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.rankchip u{display:block;height:100%;background:var(--rc)}
+#ktoast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);transition:transform .25s ease;background:#0b0c10;border:1px solid #333;color:#fff;padding:10px 18px;border-radius:10px;font:600 16px/1.3 var(--font,system-ui);z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#ktoast.show{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#ktoast{transition:none}}
+.hud,.bar{flex-wrap:nowrap!important;min-width:0}
+.hud .ib,.bar .ib{flex:none}
+@media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="bar">
+    <span class="chip" title="Pénz">🪙 <span id="money">0</span></span>
+    <span class="chip" title="Nap">📅 <span id="day">1</span></span>
+    <span class="chip" title="Súgó">🔊 <span id="hints">3</span></span>
+    <span data-rank></span><span class="sp"></span>
+    <button class="ib" id="shopBtn" aria-label="Bolt">🛒</button>
+    <button class="ib" id="setBtn" aria-label="Beállítások">⚙️</button>
+  </div>
+  <div class="ticket">
+    <div class="who"><span class="av" id="av"></span><span><b id="cname">Ádám</b> · <span id="cnum">1/5</span></span><span class="tag" id="btype">BMX</span></div>
+    <div class="say-row"><div class="bubble" id="complaint"></div><span id="sayc"></span></div>
+  </div>
+  <div class="stand" id="stand"></div>
+  <div class="step" id="step"></div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+/* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+const K=(()=>{
+  /* storage: a saved value must have the same shape as the default, or the default is used.
+     For objects, each default key with a wrong type is put back to its default. */
+  const kind=v=>Array.isArray(v)?'array':v===null?'null':typeof v==='number'?(Number.isFinite(v)?'number':'bad'):typeof v;
+  const store={
+    get(k,d){
+      let v;try{const raw=localStorage.getItem(k);if(raw==null)return d;v=JSON.parse(raw)}catch(e){return d}
+      if(d===undefined||d===null)return v;
+      if(kind(v)!==kind(d))return d;
+      if(kind(d)==='object'){for(const key of Object.keys(d))if(key in v?kind(v[key])!==kind(d[key])&&d[key]!==null:true)v[key]=d[key]}
+      return v;
+    },
+    set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  };
+  const clampInt=(v,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,Math.floor(v))):lo;
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plain=w=>String(w).replace(/\|/g,'');
+  /* speech */
+  let voice=null;
+  const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+  function pick(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/^hu/i.test(v.lang))||null}catch(e){}}
+  if(hasTTS){pick();try{speechSynthesis.addEventListener('voiceschanged',pick)}catch(e){}}
+  function say(t){
+    if(!hasTTS)return false;
+    try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(plain(t));u.lang='hu-HU';if(voice)u.voice=voice;u.rate=.85;speechSynthesis.speak(u);return true}catch(e){return false}
+  }
+  /* mastery: how many times a word was read right, shared by all reading games */
+  const MK='olvaso:mastery';
+  /* only word -> non-negative count pairs survive; nothing can reach the object prototype */
+  const mastery=Object.create(null);
+  {const raw=store.get(MK,{});for(const k of Object.keys(raw).slice(0,5000))if(k.length<=60&&Number.isFinite(raw[k])&&raw[k]>0)mastery[k]=clampInt(raw[k],0,1e6)}
+  const settings=store.get('olvaso:settings',{split:'auto'});
+  if(settings.split!=='auto'&&settings.split!=='mindig')settings.split='auto';
+  function seen(w){const k=plain(w).toLowerCase();mastery[k]=Math.min(1e6,(mastery[k]||0)+1);store.set(MK,mastery);if(api.addXP)api.addXP(2)}
+  function level(w){
+    if(settings.split==='mindig')return 2;
+    const n=mastery[plain(w).toLowerCase()]||0;
+    return n<4?2:n<8?1:0;
+  }
+  /* word: "fék|betét" -> coloured parts; level 2 also shows a dot between parts */
+  function word(w,lv){
+    const toks=String(w).split(/(\|| )/);
+    if(lv==null)lv=level(w);
+    if(toks.length<2||lv===0)return `<span class="w">${esc(plain(w))}</span>`;
+    let i=0,h='';
+    for(const t of toks){if(t==='|')h+=lv===2?'<i class="dot">·</i>':'';else if(t===' ')h+=' ';else h+=`<span class="p${(i++)%2}">${esc(t)}</span>`}
+    return `<span class="w">${h}</span>`;
+  }
+  function sentence(s,lv){return String(s).split(' ').map(t=>t.includes('|')?word(t,lv):esc(t)).join(' ')}
+  function setSplit(v){settings.split=v==='mindig'?'mindig':'auto';store.set('olvaso:settings',settings)}
+  /* speaker buttons: <button class="say" data-say="text">; a game may set K.onSay(text) -> false to refuse */
+  const api={store,esc,plain,say,hasTTS,word,sentence,seen,level,settings,setSplit,onSay:null,
+    sayBtn:(t,label)=>hasTTS?`<button type="button" class="say" data-say="${esc(t)}" aria-label="${esc(label||'Felolvasás')}">🔊</button>`:''};
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-say]');if(!b||b.disabled)return;
+    e.stopPropagation();
+    const t=b.dataset.say;
+    if(api.onSay&&api.onSay(t,b)===false)return;
+    if(say(t)){b.classList.add('talking');setTimeout(()=>b.classList.remove('talking'),1200)}
+  },true);
+  /* sounds */
+  let ac=null;api.sound=store.get('olvaso:sound',true)!==false;
+  api.toggleSound=()=>{api.sound=!api.sound;store.set('olvaso:sound',api.sound);return api.sound};
+  api.beep=(f=440,d=.08,type='square',vol=.06,slide=0)=>{
+    if(!api.sound)return;
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
+      o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}
+  };
+  api.good=()=>{api.beep(660,.08,'square');setTimeout(()=>api.beep(990,.12,'square'),80)};
+  api.bad=()=>api.beep(160,.18,'sawtooth',.05,-60);
+  api.coin=()=>{api.beep(1200,.05,'square',.04);setTimeout(()=>api.beep(1600,.08,'square',.04),50)};
+
+  /* pixel sprites: {r:[rows], p:{char:color}}; '.' is transparent */
+  const sprCache=new Map();
+  api.spr=def=>{
+    const key=JSON.stringify(def);let c=sprCache.get(key);if(c)return c;
+    const w=Math.max(...def.r.map(r=>r.length)),h=def.r.length;
+    c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    def.r.forEach((row,y)=>{for(let i=0;i<row.length;i++){const col=def.p[row[i]];if(col){x.fillStyle=col;x.fillRect(i,y,1,1)}}});
+    c._url=null;sprCache.set(key,c);return c;
+  };
+  api.img=(def,size,alt)=>{const c=api.spr(def);if(!c._url)c._url=c.toDataURL();return `<img class="px" src="${c._url}" alt="${esc(alt||'')}" style="width:${size}px;height:${Math.round(size*c.height/c.width)}px">`};
+  api.draw=(ctx,def,cx,cy,w)=>{const c=api.spr(def),h=w*c.height/c.width;ctx.imageSmoothingEnabled=false;ctx.drawImage(c,Math.round(cx-w/2),Math.round(cy-h/2),Math.round(w),Math.round(h))};
+  /* a small pixel person, used for riders, customers and villagers */
+  api.human=(o={})=>{
+    const r=["...hhhh...","..hhhhhh..","..hssssh..","..sesses..","..ssssss..",o.beard?"..sbbbbs..":"...smms...","..tttttt..",".tttttttt.",".sttttttss",".s.tttt.s.","...pppp...","...p..p...","...p..p...","..kk..kk.."];
+    if(o.hat){r[0]="..HHHHHH..";r[1]=".HHHHHHHH."}
+    if(o.cap){r[0]="..HHHHHH..";r[1]="..HHHHHHHH"}
+    if(o.apron){r[7]=".twwwwwwt.";r[8]=".swwwwwwss";r[9]=".s.wwww.s."}
+    return {r,p:{h:o.hair||'#3a2a1a',s:o.skin||'#e8b48a',e:'#141414',m:o.mouth||'#b0705a',b:o.hair||'#3a2a1a',t:o.shirt||'#3a6ee8',p:o.pants||'#2a3550',k:'#1f1a16',H:o.hatC||'#555',w:'#f2f2f2'}};
+  };
+  const HAIR=['#2a1d14','#4a3020','#8a5a2a','#d9b25a','#1a1a1a','#a83a2a'],SKIN=['#f0c7a0','#e0a878','#c98a5a','#8a5a3a'],SHIRT=['#e8494a','#ff7a1a','#2fa86a','#3a6ee8','#8a4ae8','#222831','#f2f2f2','#e8c13a'];
+  api.randomHuman=()=>api.human({hair:api.pick(HAIR),skin:api.pick(SKIN),shirt:api.pick(SHIRT),pants:api.pick(['#2a3550','#1f1f24','#4a4a52','#3a5a2a']),cap:Math.random()<.35,hatC:api.pick(SHIRT),beard:Math.random()<.2});
+  /* shared XP and rank across all the reading games */
+  const RANKS=[[0,'Bronz','#c98a5a'],[120,'Ezüst','#c9d1dc'],[350,'Arany','#ffd166'],[800,'Platina','#6fe3d4'],[1600,'Gyémánt','#7fb6ff'],[3000,'Mester','#c38bff'],[5000,'Legenda','#ff5e6c']];
+  api.xp=clampInt(store.get('olvaso:xp',0),0,1e7);
+  const rankOf=x=>{let i=0;while(i+1<RANKS.length&&x>=RANKS[i+1][0])i++;return i};
+  api.rank=()=>{const i=rankOf(api.xp),cur=RANKS[i],nx=RANKS[i+1];return {i,name:cur[1],color:cur[2],pct:nx?(api.xp-cur[0])/(nx[0]-cur[0]):1,next:nx?nx[1]:null}};
+  api.rankChip=()=>{const r=api.rank();return `<span class="rankchip" style="--rc:${r.color}" title="Rang: ${r.name}, ${api.xp} XP"><b>◆ ${r.name}</b><i><u style="width:${Math.round(r.pct*100)}%"></u></i></span>`};
+  const paint=()=>document.querySelectorAll('[data-rank]').forEach(el=>el.innerHTML=api.rankChip());
+  api.addXP=n=>{const before=rankOf(api.xp);api.xp=clampInt(api.xp+Math.max(0,Math.round(Number(n)||0)),0,1e7);store.set('olvaso:xp',api.xp);paint();
+    const after=rankOf(api.xp);if(after>before)api.toast(`Új rang: <b style="color:${RANKS[after][2]}">◆ ${RANKS[after][1]}</b>`)};
+  api.clampInt=clampInt;
+  api.toast=h=>{let t=document.getElementById('ktoast');if(!t){t=document.createElement('div');t.id='ktoast';document.body.appendChild(t)}
+    t.innerHTML=h;t.className='show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
+  api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+  api.pick=a=>a[Math.random()*a.length|0];
+  return api;
+})();
+</script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const ZN={elso:'első kerék',hatso:'hátsó kerék',lanc:'lánc',pedal:'pedál',valto:'váltó',fek:'fék',nyereg:'nyereg',kormany:'kormány',csengo:'csengő',lampa:'lámpa',akku:'akku'};
+const PROBS=[
+  {t:'Lapos az első gumi.',z:'elso',p:'belső gumi'},
+  {t:'Lapos a hátsó gumi.',z:'hatso',p:'belső gumi'},
+  {t:'Kopott az első gumi.',z:'elso',p:'külső gumi'},
+  {t:'Törött a hátsó küllő.',z:'hatso',p:'küllő'},
+  {t:'Nem fog a fék.',z:'fek',p:'fék|betét'},
+  {t:'Csikorog a fék.',z:'fek',p:'fék|betét'},
+  {t:'Csörög a lánc.',z:'lanc',p:'lánc|olaj'},
+  {t:'Elszakadt a lánc.',z:'lanc',p:'lánc'},
+  {t:'Lötyög a nyereg.',z:'nyereg',p:'nyereg|csavar'},
+  {t:'Szakadt a nyereg.',z:'nyereg',p:'nyereg'},
+  {t:'Ferde a kormány.',z:'kormany',p:'kormány|szár'},
+  {t:'Nem vált a váltó.',z:'valto',p:'váltó|kábel'},
+  {t:'Nem világít a lámpa.',z:'lampa',p:'elem'},
+  {t:'Kilazult a pedál.',z:'pedal',p:'pedál'},
+  {t:'Nem szól a csengő.',z:'csengo',p:'csengő'},
+  {t:'Lemerült az akku.',z:'akku',p:'akku|töltő',ebike:true},
+  {t:'Nem tölt az akku.',z:'akku',p:'töltő|kábel',ebike:true}
+];
+const PARTS=['belső gumi','külső gumi','küllő','fék|betét','lánc|olaj','lánc','nyereg|csavar','nyereg','kormány|szár','váltó|kábel','elem','pedál','csengő','akku|töltő','töltő|kábel','szelep','markolat','sár|védő','csomag|tartó'];
+const BIKES=[
+  {n:'BMX',c:'#e84a5f',pay:20,lv:0},{n:'városi',c:'#4aa3e8',pay:25,lv:0},
+  {n:'MTB',c:'#5fbf4a',pay:35,lv:1},{n:'országúti',c:'#f2c14e',pay:45,lv:2},{n:'e-bringa',c:'#9b6bff',pay:60,lv:2,ebike:true}
+];
+const NAMES=['Márk','Levente','Dani','Tomi','Olivér','Gergő','Ricsi','Zsombi','Nóra','Réka','Dóra','Vivi','Kristóf','Bálint','Ádám','Szofi'];
+
+const COLORS=['#e84a5f','#ff9f1c','#f2c14e','#5fbf4a','#4aa3e8','#9b6bff','#f5f5f5','#333a44'];
+const UPG=[
+  {k:'szerszam',ic:'🔧',n:'Jobb szerszám',d:'Szélesebb zöld sáv.',max:3,price:l=>80+l*90},
+  {k:'muhely',ic:'🏠',n:'Nagyobb műhely',d:'Drágább bringák, több rider.',max:2,price:l=>150+l*200},
+  {k:'sugo',ic:'🔊',n:'Több súgó',d:'+1 felolvasás naponta.',max:3,price:l=>60+l*60}
+];
+const OWN=[
+  {k:'vaz',ic:'🚲',n:'Könnyű váz',d:'Gyorsabb a futamon.',max:3,price:l=>100+l*120},
+  {k:'gumi',ic:'🛞',n:'Terep|gumi',d:'A sár kevésbé lassít.',max:3,price:l=>90+l*100},
+  {k:'kormany',ic:'🎮',n:'Fürge kormány',d:'Gyorsabb sávváltás.',max:3,price:l=>90+l*100}
+];
+const SKEY='bringa-muhely:save';
+const isHex=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c);const ownFix=o=>{o.vaz=K.clampInt(o.vaz,0,3);o.gumi=K.clampInt(o.gumi,0,3);o.kormany=K.clampInt(o.kormany,0,3);if(!isHex(o.szin))o.szin='#ff9f1c';if('szinek' in o)o.szinek=Array.isArray(o.szinek)?o.szinek.filter(isHex).slice(0,20):['#ff9f1c'];return o};
+let S=K.store.get(SKEY,{day:1,served:0,lv:{szerszam:0,muhely:0,sugo:0},hintsUsed:0,dayEarn:0,dayStars:[],intro:false});
+S.day=K.clampInt(S.day,1,1e6);S.served=K.clampInt(S.served,0,99);S.hintsUsed=K.clampInt(S.hintsUsed,0,99);S.dayEarn=K.clampInt(S.dayEarn,0,1e7);S.dayStars=S.dayStars.filter(Number.isFinite).map(v=>K.clampInt(v,1,5)).slice(0,20);
+S.lv={szerszam:K.clampInt(S.lv.szerszam,0,3),muhely:K.clampInt(S.lv.muhely,0,2),sugo:K.clampInt(S.lv.sugo,0,3)};
+let own=ownFix(K.store.get('bringa:own',{szin:'#ff9f1c',szinek:['#ff9f1c'],vaz:0,gumi:0,kormany:0}));if(!own.szinek.length)own.szinek=['#ff9f1c'];
+let money=K.clampInt(K.store.get('bringa:penz',0),0,1e9);
+const save=()=>{K.store.set(SKEY,S);K.store.set('bringa:penz',money);K.store.set('bringa:own',own)};
+const perDay=()=>4+S.lv.muhely;
+const hintMax=()=>3+S.lv.sugo;
+const hintsLeft=()=>Math.max(0,hintMax()-S.hintsUsed);
+function hud(){$('#money').textContent=money;$('#day').textContent=S.day;$('#hints').textContent=hintsLeft()}
+
+K.onSay=(t,b)=>{
+  if(b.closest('#ov'))return true;
+  if(hintsLeft()<=0){msg('Mára elfogyott a súgó.','bad');K.bad();return false}
+  S.hintsUsed++;save();hud();return true;
+};
+
+/* ---------- bike drawing ---------- */
+function wheel(cx,id,thin){
+  let sp='';for(let i=0;i<8;i++){const a=i*Math.PI/4;sp+=`<line x1="${cx}" y1="175" x2="${(cx+Math.cos(a)*50).toFixed(1)}" y2="${(175+Math.sin(a)*50).toFixed(1)}" stroke="#9aa3ad" stroke-width="1.6"/>`}
+  return `<g class="wheel" id="${id}"><circle cx="${cx}" cy="175" r="56" fill="none" stroke="#111" stroke-width="${thin?7:11}"/><circle cx="${cx}" cy="175" r="50" fill="none" stroke="#c9cfd6" stroke-width="3"/>${sp}<circle cx="${cx}" cy="175" r="6" fill="#c9cfd6"/></g>`;
+}
+function bikeSVG(color,type){
+  const thin=type==='országúti',e=type==='e-bringa';
+  const f=`stroke="${color}" stroke-width="8" stroke-linecap="round" fill="none"`;
+  return `<svg viewBox="0 0 400 250" role="img" aria-label="Bringa a szerelő állványon">
+  <rect x="0" y="236" width="400" height="14" fill="#14161a"/>
+  <g class="bike">
+    ${wheel(100,'wr',thin)}${wheel(300,'wf',thin)}
+    <path d="M100 175 L185 175 L165 95 Z M165 95 L275 90 M185 175 L282 115 M275 90 L282 115" ${f}/>
+    <path d="M282 115 L300 175" stroke="${color}" stroke-width="7" stroke-linecap="round"/>
+    ${e?`<rect x="205" y="122" width="58" height="18" rx="5" fill="#2b2f36" stroke="#7cf" stroke-width="2" transform="rotate(-33 234 131)"/><rect x="216" y="128" width="14" height="5" fill="#5fd068" transform="rotate(-33 234 131)"/>`:''}
+    <path d="M165 95 L160 76" stroke="#888" stroke-width="6"/>
+    <path d="M136 72 Q160 62 190 70 L186 78 Q160 74 140 79 Z" fill="#222"/>
+    <path d="M275 90 L283 68" stroke="#888" stroke-width="6"/>
+    <path d="M272 66 L312 64" stroke="#555" stroke-width="6" stroke-linecap="round"/>
+    <rect x="304" y="60" width="14" height="9" rx="3" fill="#111"/>
+    <circle cx="262" cy="66" r="6" fill="#f2c14e" stroke="#8a6a10"/>
+    <rect x="306" y="90" width="20" height="14" rx="4" fill="#ddd"/><path d="M326 91 L340 86 L340 108 L326 103 Z" fill="#fff6c2" opacity=".8"/>
+    <rect x="290" y="111" width="20" height="9" rx="2" fill="#e84a5f"/>
+    <circle cx="185" cy="175" r="17" fill="none" stroke="#c9cfd6" stroke-width="4"/>
+    <path d="M185 160 L100 168 M185 190 L104 182" stroke="#666" stroke-width="3"/>
+    <path d="M185 175 L198 200" stroke="#c9cfd6" stroke-width="5"/><rect x="188" y="198" width="22" height="7" rx="2" fill="#333"/>
+    <path d="M100 175 L112 200 L120 196" stroke="#bbb" stroke-width="4" fill="none"/><circle cx="114" cy="203" r="5" fill="#777"/>
+  </g>
+  <g id="zones">
+    <circle class="zone" data-z="hatso" cx="100" cy="175" r="62"/>
+    <circle class="zone" data-z="elso" cx="300" cy="175" r="62"/>
+    <rect class="zone" data-z="lanc" x="112" y="156" width="64" height="38"/>
+    <circle class="zone" data-z="pedal" cx="199" cy="202" r="15"/>
+    <circle class="zone" data-z="valto" cx="113" cy="203" r="13"/>
+    <rect class="zone" data-z="fek" x="284" y="102" width="32" height="24"/>
+    <rect class="zone" data-z="nyereg" x="132" y="56" width="62" height="28"/>
+    <rect class="zone" data-z="kormany" x="275" y="52" width="46" height="26"/>
+    <circle class="zone" data-z="csengo" cx="262" cy="66" r="11"/>
+    <rect class="zone" data-z="lampa" x="304" y="84" width="38" height="26"/>
+    ${e?`<rect class="zone" data-z="akku" x="200" y="112" width="66" height="36" transform="rotate(-33 234 131)"/>`:''}
+  </g></svg><div class="label" id="lbl" hidden></div>`;
+}
+
+/* ---------- customer flow ---------- */
+let C=null,phase='',t0=0,gaugeRAF=0;
+function newCustomer(){
+  const bikes=BIKES.filter(b=>b.lv<=S.lv.muhely);
+  const b=K.pick(bikes);
+  const probs=PROBS.filter(p=>!p.ebike||b.ebike);
+  let p=K.pick(probs);
+  if(b.ebike&&Math.random()<.4)p=K.pick(probs.filter(x=>x.ebike));
+  C={b,p,name:K.pick(NAMES),av:K.randomHuman(),diagOK:true,partOK:true,hits:0,tries:0};
+  t0=Date.now();
+  $('#av').innerHTML=K.img(C.av,30);$('#cname').textContent=C.name;$('#cnum').textContent=(S.served+1)+'/'+perDay();
+  $('#btype').textContent=b.n;
+  $('#complaint').innerHTML=K.sentence(p.t);
+  $('#sayc').innerHTML=K.sayBtn(p.t);
+  $('#stand').innerHTML=bikeSVG(b.c,b.n);
+  $('#stand').querySelectorAll('.zone').forEach(z=>z.addEventListener('click',()=>tapZone(z)));
+  diagStep();hud();
+}
+function msg(t,cls){const m=$('#msg');if(m){m.className='msg '+(cls||'');m.innerHTML=t}}
+function diagStep(){
+  phase='diag';$('#stand').classList.add('diag');
+  $('#step').innerHTML=`<h2>1 · Diagnózis</h2><p>Mit ír a rider? Koppints a bringán a hibás részre.</p><div class="msg" id="msg"></div>`;
+}
+function showLabel(z){const l=$('#lbl');l.hidden=false;l.innerHTML=K.word(ZN[z])}
+function tapZone(el){
+  if(phase!=='diag')return;
+  const z=el.dataset.z;
+  showLabel(z);
+  if(z===C.p.z){
+    el.classList.add('hit');K.good();phase='';
+    $('#stand').classList.remove('diag');
+    msg(`Megvan: ${K.word(ZN[z])}.`,'ok');
+    setTimeout(partStep,900);
+  }else{
+    C.diagOK=false;el.classList.add('miss');K.bad();
+    msg(`Ez a(z) ${K.word(ZN[z])}. Nem ez a hiba.`,'bad');
+    setTimeout(()=>el.classList.remove('miss'),700);
+  }
+}
+function partStep(){
+  phase='part';
+  const right=C.p.p;
+  const pool=K.shuffle(PARTS.filter(x=>x!==right&&(!/akku|töltő/.test(x)||C.b.ebike))).slice(0,3);
+  const opts=K.shuffle([right,...pool]);
+  $('#step').innerHTML=`<h2>2 · Alkatrész</h2><p>A dobozokon csak a név van. Melyik kell?</p>
+   <div class="shelf">${opts.map(o=>`<button class="box" data-p="${K.esc(o)}">${K.word(o)}</button>`).join('')}</div>
+   <div class="row" style="align-items:center"><span style="color:var(--muted);font-size:15px">Súgó a dobozokhoz:</span>${opts.map((o,i)=>K.sayBtn(o,'Felolvasás: '+(i+1)+'. doboz').replace('🔊','🔊'+(i+1))).join('')}</div>
+   <div class="msg" id="msg"></div>`;
+  $('#step').querySelectorAll('.say').forEach(b=>{b.style.width='auto';b.style.padding='0 8px';b.style.fontSize='16px'});
+  $('#step').querySelectorAll('.box').forEach(bx=>bx.addEventListener('click',()=>{
+    if(phase!=='part')return;
+    if(bx.dataset.p===right){
+      bx.classList.add('yes');K.good();K.seen(right);phase='';
+      msg('Ez az. Mehet be.','ok');setTimeout(fixStep,800);
+    }else{
+      C.partOK=false;bx.classList.add('no');bx.disabled=true;K.bad();
+      msg(`Ez a(z) ${K.word(bx.dataset.p)}. Nem ez kell.`,'bad');
+    }
+  }));
+}
+function fixStep(){
+  phase='fix';cancelAnimationFrame(gaugeRAF);
+  const w=18+S.lv.szerszam*7;
+  let pos=0,dir=1,gx=0;
+  const speed=.9-S.lv.szerszam*.08;
+  $('#step').innerHTML=`<h2>3 · Szerelés</h2><p>Nyomd, amikor a csík a zöldben van. 3×.</p>
+    <div class="gauge" id="gauge"><div class="g" id="gz"></div><div class="n" id="gn"></div></div>
+    <div class="row" style="align-items:center"><button class="btn hot" id="fixb">🔧 Most!</button><div class="dots" id="dots"><i></i><i></i><i></i></div></div><div class="msg" id="msg"></div>`;
+  const place=()=>{gx=5+Math.random()*(90-w);$('#gz').style.left=gx+'%';$('#gz').style.width=w+'%'};place();
+  let last=performance.now();
+  const loop=t=>{const dt=Math.min(.05,(t-last)/1000);last=t;pos+=dir*speed*100*dt;if(pos>100){pos=100;dir=-1}if(pos<0){pos=0;dir=1}const n=$('#gn');if(n)n.style.left=pos+'%';if(phase==='fix')gaugeRAF=requestAnimationFrame(loop)};
+  gaugeRAF=requestAnimationFrame(loop);
+  const press=()=>{
+    if(phase!=='fix')return;
+    const ok=pos>=gx&&pos<=gx+w;const d=$('#dots').children[C.tries];
+    d.className=ok?'ok':'x';C.tries++;if(ok){C.hits++;K.beep(500+C.hits*150,.1)}else K.bad();
+    if(C.tries>=3){phase='';cancelAnimationFrame(gaugeRAF);setTimeout(testRide,500)}else place();
+  };
+  $('#fixb').addEventListener('click',press);$('#gauge').addEventListener('pointerdown',press);
+  fixPress=press;
+}
+let fixPress=null;
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&phase==='fix'&&fixPress){e.preventDefault();fixPress()}});
+function testRide(){
+  phase='ride';
+  $('#step').innerHTML=`<h2>4 · Teszt</h2><p>Próbakör…</p>`;
+  const st=$('#stand');st.classList.add('ride');$('#lbl').hidden=true;
+  K.beep(300,.3,'triangle',.05,300);
+  setTimeout(()=>{st.classList.remove('ride');pay()},1700);
+}
+function pay(){
+  const q=(C.diagOK?1:.7)*(C.partOK?1:.7)*[.55,.7,.85,1][C.hits];
+  const secs=Math.round((Date.now()-t0)/1000);
+  const fast=secs<=30;
+  const stars=Math.max(1,Math.min(5,Math.round(q*5)));
+  let earn=Math.round(C.b.pay*q)+(fast?5:0)+(stars===5?Math.round(C.b.pay*.1):0);
+  money+=earn;S.dayEarn+=earn;K.addXP(stars*3);S.dayStars.push(stars);S.served++;save();hud();K.coin();
+  const lines=[];
+  lines.push(C.diagOK?'✅ Diagnózis elsőre':'⚠️ Diagnózis: nem elsőre');
+  lines.push(C.partOK?'✅ Alkatrész elsőre':'⚠️ Rossz doboz is volt');
+  lines.push(`🔧 Szerelés: ${C.hits}/3`);
+  if(fast)lines.push('⚡ Gyors munka: +5');
+  const last=S.served>=perDay();
+  overlay(`<h2>${C.name} · ${C.b.n}</h2><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</div>
+    <p style="font-size:28px;font-weight:800">+${earn} 🪙</p><p>${lines.join('<br>')}</p>
+    <button class="btn hot" id="nx">${last?'Zárás →':'Következő rider →'}</button>`);
+  $('#nx').onclick=()=>{last?daySummary():(closeOv(),newCustomer())};
+}
+function daySummary(){
+  const avg=S.dayStars.length?(S.dayStars.reduce((a,b)=>a+b,0)/S.dayStars.length):0;
+  overlay(`<h2>${S.day}. nap · zárás</h2><p>Mai bevétel: <b>${S.dayEarn} 🪙</b></p><p>Átlag: <b>${avg.toFixed(1)} ★</b></p>
+   <p>Költsd el a boltban, vagy vidd a saját bringádat a <a href="../bringa-futam/index.html" style="color:var(--p1)">Downhillre</a>.</p>
+   <div class="row"><button class="btn" id="toShop">🛒 Bolt</button><button class="btn hot" id="nd">Új nap →</button></div>`);
+  $('#nd').onclick=()=>{S.day++;S.served=0;S.hintsUsed=0;S.dayEarn=0;S.dayStars=[];save();closeOv();newCustomer()};
+  $('#toShop').onclick=()=>shop(true);
+}
+/* ---------- overlay, shop, settings ---------- */
+function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function closeOv(){$('#ov').hidden=true}
+function shop(fromSummary){
+  const row=(u,lvl,set)=>{const done=lvl>=u.max,p=u.price(lvl);return `<div class="item"><span class="ic">${u.ic}</span><span class="tx">${K.word(u.n)} <small>${u.d} Szint: ${lvl}/${u.max}</small></span>
+     <button class="btn" data-buy="${set}:${u.k}" ${done||money<p?'disabled':''}>${done?'Kész':p+' 🪙'}</button></div>`};
+  overlay(`<h2>🛒 Bolt</h2><p>Pénzed: <b>${money} 🪙</b></p>
+   <div class="shop"><b>A műhelyed</b>${UPG.map(u=>row(u,S.lv[u.k],'m')).join('')}
+   <b>Saját bringád</b><div class="swatches">${COLORS.map(c=>`<button class="sw ${own.szin===c?'on':''}" data-c="${c}" style="background:${c}" aria-label="Szín"></button>`).join('')}</div>
+   <small style="color:var(--muted)">Új szín: 30 🪙. A már megvett színek ingyen.</small>
+   ${OWN.map(u=>row(u,own[u.k],'o')).join('')}</div>
+   <button class="btn hot" id="sx">${fromSummary?'Vissza':'Bezárás'}</button>`);
+  $('#ovc').querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
+    const [set,k]=b.dataset.buy.split(':');const u=(set==='m'?UPG:OWN).find(x=>x.k===k);
+    const cur=set==='m'?S.lv[k]:own[k];const p=u.price(cur);if(money<p||cur>=u.max)return;
+    money-=p;if(set==='m')S.lv[k]++;else own[k]++;save();hud();K.coin();shop(fromSummary);
+  });
+  $('#ovc').querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{
+    const c=b.dataset.c;
+    if(!own.szinek.includes(c)){if(money<30){K.bad();return}money-=30;own.szinek.push(c)}
+    own.szin=c;save();hud();K.coin();shop(fromSummary);
+  });
+  $('#sx').onclick=()=>fromSummary?daySummary():closeOv();
+}
+function settings(){
+  overlay(`<h2>⚙️ Beállítások</h2>
+   <p>Hosszú szavak bontása színekkel:</p>
+   <div class="toggle"><button class="btn" data-sp="auto" aria-pressed="${K.settings.split!=='mindig'}">Magától</button><button class="btn" data-sp="mindig" aria-pressed="${K.settings.split==='mindig'}">Mindig</button></div>
+   <p style="color:var(--muted);font-size:15px">„Magától”: amit már sokszor jól olvastál, azt egyben mutatja.</p>
+   <p>Hang:</p><div class="toggle"><button class="btn" id="snd" aria-pressed="${K.sound}">${K.sound?'🔈 Be':'🔇 Ki'}</button></div>
+   ${K.hasTTS?'':'<p style="color:var(--bad)">Ez a böngésző nem tud felolvasni.</p>'}
+   <button class="btn hot" id="sx">Kész</button>`);
+  $('#ovc').querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{K.setSplit(b.dataset.sp);settings();refreshWords()});
+  $('#snd').onclick=()=>{K.toggleSound();settings()};
+  $('#sx').onclick=closeOv;
+}
+function refreshWords(){if(C)$('#complaint').innerHTML=K.sentence(C.p.t)}
+$('#shopBtn').onclick=()=>shop(false);
+$('#setBtn').onclick=settings;
+
+function intro(){
+  overlay(`<h1>BIKE SHOP</h1><p>Saját műhelyed van. A riderek hozzák a bringát, te rakod rendbe. Minél jobb a munka, annál több a pénz.</p>
+   <div class="how"><span>💬</span><span>Elolvasod, mi a baj.</span><span>👆</span><span>Rákoppintasz a hibás részre.</span><span>📦</span><span>Leveszed a jó dobozt.</span><span>🔧</span><span>Beszereled: nyomd a zöldben.</span><span>🔊</span><span>Súgó: felolvas. Naponta pár darab.</span></div>
+   <button class="btn hot" id="go">Műhely nyit</button>`);
+  $('#go').onclick=()=>{S.intro=true;save();closeOv();0};
+}
+if(S.served>=perDay())S.served=perDay()-1;
+newCustomer();
+if(!S.intro)intro();
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>Cornhole Scorekeeper</title>
+<meta name="description" content="Cornhole pontozó telefonra: ACL kancellációs és egyszerű mód, körök története, visszavonás, statisztika, játékosok és mérkőzésarchívum, magyar és angol felület, offline is működik.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Cornhole Scorekeeper">
+<meta name="games:description-en" content="Phone-friendly cornhole scorekeeper: ACL cancellation and simple scoring, round history, undo, stats, players and match archive, Hungarian and English interface, works offline.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+[hidden]{display:none!important}
+:root{--red:#c0392b;--red-light:#e74c3c;--red-bg:#fdf2f2;--blue:#1a6fad;--blue-light:#2980b9;--blue-bg:#f0f7fd;--dark:#1a1a2e;--gold:#f39c12;--gold-bg:#fef9e7;--bg:#f4f5f7;--card:#ffffff;--border:#e2e5ea;--text:#1a1a2e;--muted:#7f8c8d;--radius:14px;--radius-sm:8px;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+button{touch-action:manipulation;}
+button:disabled{opacity:.45;cursor:not-allowed;}
+html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);}
+nav{background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;height:56px;position:sticky;top:0;z-index:100;}
+nav h1{font-size:17px;font-weight:600;letter-spacing:-0.3px;white-space:nowrap;}
+.nav-tabs{display:flex;gap:3px;}
+.nav-tab{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:none;padding:6px 10px;border-radius:20px;font-size:13px;cursor:pointer;white-space:nowrap;}
+@media(max-width:400px){.logo-emoji{display:none;}.nav-tab{padding:6px 9px;font-size:12.5px;}}
+.nav-tab.active{background:#fff;color:var(--dark);font-weight:500;}
+.screen{display:none;padding:16px;padding-bottom:32px;}
+.screen.active{display:block;}
+.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.mode-card{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:16px 12px;text-align:center;cursor:pointer;}
+.mode-card.selected{border-color:var(--dark);background:var(--dark);color:#fff;}
+.mode-card.selected .mode-desc{color:rgba(255,255,255,0.6);}
+.mode-icon{font-size:28px;margin-bottom:6px;}
+.mode-title{font-size:14px;font-weight:600;margin-bottom:4px;}
+.mode-desc{font-size:11px;color:var(--muted);line-height:1.4;}
+.mode-card.selected .mode-desc{color:rgba(255,255,255,0.6);}
+.section-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:20px;}
+.team-setup{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.team-input-wrap{position:relative;}
+.color-dot{width:10px;height:10px;border-radius:50%;position:absolute;left:12px;top:50%;transform:translateY(-50%);}
+.team-input{width:100%;padding:13px 12px 13px 30px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-weight:500;background:var(--card);color:var(--text);outline:none;}
+.team-input:focus{border-color:var(--dark);}
+.target-row{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:13px 14px;}
+.target-label{font-size:15px;}
+.target-controls{display:flex;align-items:center;gap:12px;}
+.target-btn{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.target-val{font-size:18px;font-weight:600;min-width:28px;text-align:center;}
+.start-btn{width:100%;background:var(--dark);color:#fff;border:none;border-radius:var(--radius);padding:16px;font-size:17px;font-weight:600;cursor:pointer;margin-top:24px;letter-spacing:-0.2px;}
+.start-btn:active{opacity:0.85;}
+.score-banner{background:var(--dark);border-radius:var(--radius);padding:16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:14px;color:#fff;}
+.banner-team{text-align:center;}
+.banner-name{font-size:13px;font-weight:500;opacity:0.7;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.banner-score{font-size:52px;font-weight:700;line-height:1;letter-spacing:-2px;}
+.banner-score.red{color:#e74c3c;}
+.banner-score.blue{color:#5dade2;}
+.banner-vs{font-size:14px;font-weight:600;opacity:0.4;}
+.banner-target{font-size:11px;opacity:0.4;text-align:center;margin-top:4px;}
+.round-label{font-size:12px;font-weight:600;color:var(--muted);text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;}
+.input-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.input-col-header{font-size:12px;font-weight:600;text-align:center;padding:6px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:#fff;margin-bottom:2px;}
+.input-col-header.red{background:var(--red);}
+.input-col-header.blue{background:var(--blue);}
+.bag-row{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;}
+.bag-type{font-size:11px;font-weight:600;color:var(--muted);text-align:center;padding:5px;background:var(--bg);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.4px;}
+.bag-counter{display:flex;align-items:center;justify-content:space-between;}
+.bag-btn{width:48px;height:52px;border:none;background:transparent;font-size:24px;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
+.bag-btn:active{background:var(--bg);}
+.bag-val{font-size:28px;font-weight:700;color:var(--text);min-width:30px;text-align:center;}
+.round-net{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.net-label{font-size:12px;color:var(--muted);font-weight:500;}
+.net-values{display:flex;align-items:center;gap:8px;}
+.net-val{font-size:18px;font-weight:700;}
+.net-val.red{color:var(--red);}
+.net-val.blue{color:var(--blue);}
+.net-sep{font-size:14px;color:var(--muted);}
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.action-btn{padding:14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);font-size:15px;font-weight:600;cursor:pointer;}
+.action-btn:active{transform:scale(0.97);}
+.action-btn.primary{background:var(--dark);color:#fff;border-color:var(--dark);}
+.action-btn.danger{color:var(--red);border-color:#f5b7b1;}
+.winner-bar{border-radius:var(--radius);padding:14px 16px;text-align:center;margin-bottom:14px;border:1.5px solid transparent;display:none;}
+.winner-bar.show{display:block;}
+.winner-bar.win-red{background:var(--red-bg);border-color:#f1948a;}
+.winner-bar.win-blue{background:var(--blue-bg);border-color:#7fb3d3;}
+.winner-bar.tie{background:var(--gold-bg);border-color:#f9ca72;}
+.winner-title{font-size:18px;font-weight:700;margin-bottom:2px;}
+.winner-sub{font-size:13px;color:var(--muted);}
+.history-table{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);font-size:13px;}
+.history-table th{background:var(--dark);color:#fff;padding:10px 8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;}
+.history-table td{padding:10px 8px;text-align:center;border-bottom:0.5px solid var(--border);}
+.history-table tr:last-child td{border-bottom:none;}
+.history-table tr:nth-child(even) td{background:#fafbfc;}
+.td-red{color:var(--red);font-weight:600;}
+.td-blue{color:var(--blue);font-weight:600;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 12px;text-align:center;}
+.stat-val{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px;}
+.stat-val.red{color:var(--red);}
+.stat-val.blue{color:var(--blue);}
+.stat-lbl{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.4px;}
+.stat-subrow{display:flex;justify-content:space-around;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);}
+.stat-sub{text-align:center;}
+.stat-sub-val{font-size:17px;font-weight:600;}
+.stat-sub-lbl{font-size:10px;color:var(--muted);}
+.bar-row{margin-bottom:12px;}
+.bar-label-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+.bar-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+ .bar-fill{height:100%;border-radius:4px;}
+.bar-fill.blue{background:var(--blue);}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+.empty-text{font-size:15px;line-height:1.6;}
+.rule-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;}
+.rule-title{font-size:15px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.rule-body{font-size:13px;color:#444;line-height:1.7;}
+ .rule-tag{background:var(--dark);color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;letter-spacing:0.4px;}
+.get-app{margin-top:28px;padding-top:4px;border-top:1px solid var(--border);}
+.get-app-buttons{display:grid;gap:8px;margin-top:8px;}
+.link-btn{display:block;text-align:center;text-decoration:none;color:var(--text);}
+.get-app-hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px;}
+.player-setup{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+.player-setup input{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);font-size:13px;}
+.pwa-update{display:none;background:#fff7df;border-bottom:1px solid #f0d58b;padding:10px 16px;text-align:center;font-size:13px;}
+.pwa-update.show{display:block;}
+.pwa-update button{margin-left:8px;border:0;border-radius:7px;background:var(--dark);color:#fff;padding:7px 10px;font-weight:600;}
+.archive-list{display:grid;gap:8px;margin-top:10px;}
+.archive-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;}
+.player-stat-row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+</style>
+</head>
+<body>
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0;padding:8px 12px;background:var(--dark);color:#fff"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+<nav>
+  <h1><span class="logo-emoji">🌽 </span>Cornhole</h1>
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="nav-match" onclick="openMatch()">Meccs</button>
+    <button class="nav-tab" id="nav-stats" onclick="showScreen('stats')">Stat</button>
+    <button class="nav-tab" id="nav-rules" onclick="showScreen('rules')">Szabály</button>
+    <button class="nav-tab" id="lang-toggle" onclick="toggleLanguage()">EN</button>
+  </div>
+</nav>
+<div id="pwa-update" class="pwa-update"><span id="pwa-update-text">Új verzió érhető el.</span><button onclick="applyPwaUpdate()" id="pwa-update-button">Frissítés</button></div>
+
+<div id="screen-setup" class="screen active">
+  <div class="section-label" id="setup-mode-label" style="margin-top:4px">Játékmód</div>
+  <div class="mode-cards">
+    <div class="mode-card selected" id="mode-acl" onclick="selectMode('acl')">
+      <div class="mode-icon">🏆</div>
+      <div class="mode-title">ACL mód</div>
+      <div class="mode-desc" id="mode-acl-desc">Kancellációs pontozás – a különbség számít</div>
+    </div>
+    <div class="mode-card" id="mode-simple" onclick="selectMode('simple')">
+      <div class="mode-icon">🎯</div>
+      <div class="mode-title" id="mode-simple-title">Egyszerű</div>
+      <div class="mode-desc" id="mode-simple-desc">Minden zsák pontot ér – összeadódnak</div>
+    </div>
+  </div>
+  <div class="section-label" id="setup-team-label">Csapatok</div>
+  <div class="team-setup">
+    <div class="team-input-wrap">
+      <div class="color-dot" style="background:#c0392b"></div>
+      <input class="team-input" id="name1" value="Csapat 1" maxlength="14"/>
+    </div>
+    <div class="team-input-wrap">
+      <div class="color-dot" style="background:#1a6fad"></div>
+      <input class="team-input" id="name2" value="Csapat 2" maxlength="14"/>
+    </div>
+  </div>
+  <div class="section-label" id="setup-target-label">Célpontszám</div>
+  <div class="target-row">
+    <span class="target-label" id="target-label">Győzelemhez szükséges pont</span>
+    <div class="target-controls">
+      <button class="target-btn" onclick="adjTarget(-1)">−</button>
+      <span class="target-val" id="target-display">21</span>
+      <button class="target-btn" onclick="adjTarget(1)">+</button>
+    </div>
+  </div>
+  <div class="section-label" id="setup-player-label">Játékosok (opcionális)</div>
+  <div class="player-setup">
+    <input id="player1a" maxlength="24" placeholder="Piros csapat – 1. játékos"/>
+    <input id="player2a" maxlength="24" placeholder="Kék csapat – 1. játékos"/>
+    <input id="player1b" maxlength="24" placeholder="Piros csapat – 2. játékos"/>
+    <input id="player2b" maxlength="24" placeholder="Kék csapat – 2. játékos"/>
+  </div>
+  <button class="start-btn" id="start-button" onclick="startGame()">Meccs indítása →</button>
+
+  <div class="get-app" id="get-app">
+    <div class="section-label" id="getapp-label">Alkalmazás</div>
+    <div class="get-app-buttons">
+      <button class="action-btn primary" id="install-button" onclick="installApp()" style="display:none">Telepítés a telefonra</button>
+      <a class="action-btn link-btn" id="download-link" href="index.html" download="cornhole-scorekeeper.html" type="text/html">Letöltés (.html fájl)</a>
+      <a class="action-btn link-btn" id="github-link" href="https://github.com/nomadbeni/minigames/tree/main/cornholescore" target="_blank" rel="noopener noreferrer">Forráskód a GitHubon</a>
+    </div>
+    <p class="get-app-hint" id="install-hint">Telepítés: böngészőmenü → „Hozzáadás a főképernyőhöz”. iPhone-on: Safari → Megosztás → „Főképernyőhöz adás”.</p>
+  </div>
+</div>
+
+<div id="screen-game" class="screen">
+  <div class="score-banner">
+    <div class="banner-team">
+      <div class="banner-name" id="g-name1">Csapat 1</div>
+      <div class="banner-score red" id="g-score1">0</div>
+    </div>
+    <div style="text-align:center">
+      <div class="banner-vs">VS</div>
+      <div class="banner-target" id="g-target">cél: 21</div>
+    </div>
+    <div class="banner-team">
+      <div class="banner-name" id="g-name2">Csapat 2</div>
+      <div class="banner-score blue" id="g-score2">0</div>
+    </div>
+  </div>
+
+  <div id="winner-bar" class="winner-bar">
+    <div class="winner-title" id="winner-title"></div>
+    <div class="winner-sub" id="winner-sub"></div>
+  </div>
+
+  <div class="round-label" id="round-label">1. kör</div>
+
+  <div class="input-grid">
+    <div class="input-col">
+      <div class="input-col-header red" id="col-name1">Csapat 1</div>
+      <div class="bag-row">
+        <div class="bag-type" data-kind="hole">Lyuk — 3 pt</div>
+        <div class="bag-counter">
+          <button class="bag-btn" onclick="adj(0,0,-1)" data-team="0" data-type="0" data-delta="-1">−</button>
+          <span class="bag-val" id="r-t1-hole">0</span>
+          <button class="bag-btn" onclick="adj(0,0,1)" data-team="0" data-type="0" data-delta="1">+</button>
+        </div>
+      </div>
+      <div class="bag-row">
+        <div class="bag-type" data-kind="board">Palán — 1 pt</div>
+        <div class="bag-counter">
+          <button class="bag-btn" onclick="adj(0,1,-1)" data-team="0" data-type="1" data-delta="-1">−</button>
+          <span class="bag-val" id="r-t1-board">0</span>
+          <button class="bag-btn" onclick="adj(0,1,1)" data-team="0" data-type="1" data-delta="1">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-col">
+      <div class="input-col-header blue" id="col-name2">Csapat 2</div>
+      <div class="bag-row">
+        <div class="bag-type" data-kind="hole">Lyuk — 3 pt</div>
+        <div class="bag-counter">
+          <button class="bag-btn" onclick="adj(1,0,-1)" data-team="1" data-type="0" data-delta="-1">−</button>
+          <span class="bag-val" id="r-t2-hole">0</span>
+          <button class="bag-btn" onclick="adj(1,0,1)" data-team="1" data-type="0" data-delta="1">+</button>
+        </div>
+      </div>
+      <div class="bag-row">
+        <div class="bag-type" data-kind="board">Palán — 1 pt</div>
+        <div class="bag-counter">
+          <button class="bag-btn" onclick="adj(1,1,-1)" data-team="1" data-type="1" data-delta="-1">−</button>
+          <span class="bag-val" id="r-t2-board">0</span>
+          <button class="bag-btn" onclick="adj(1,1,1)" data-team="1" data-type="1" data-delta="1">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="round-net">
+    <span class="net-label" id="net-label">Kör nettó</span>
+    <div class="net-values">
+      <span class="net-val red" id="net1">0</span>
+      <span class="net-sep">–</span>
+      <span class="net-val blue" id="net2">0</span>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn primary" id="save-round-button" onclick="confirmRound()">Kör mentése ✓</button>
+    <button class="action-btn danger" id="new-match-button" onclick="resetGame()">Új meccs</button>
+  </div>
+  <div class="action-row" style="grid-template-columns:1fr">
+    <button class="action-btn" id="undo-button" onclick="undoRound()" disabled>↶ Utolsó kör visszavonása</button>
+  </div>
+
+  <div id="history-section" style="display:none">
+    <div class="section-label" id="history-label">Előző körök</div>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th id="history-round-head">Kör</th>
+          <th id="history-hole1-head" style="color:#e74c3c">Lyuk</th>
+          <th id="history-board1-head" style="color:#e74c3c">Palán</th>
+          <th id="history-net1-head" style="color:#e74c3c">Net</th>
+          <th id="history-hole2-head" style="color:#5dade2">Lyuk</th>
+          <th id="history-board2-head" style="color:#5dade2">Palán</th>
+          <th id="history-net2-head" style="color:#5dade2">Net</th>
+        </tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="screen-stats" class="screen">
+  <div id="stats-content"></div>
+</div>
+
+<div id="screen-rules" class="screen">
+  <div class="rule-card">
+    <div class="rule-title">🎯 Alapszabályok <span class="rule-tag">ACL</span></div>
+    <div class="rule-body">A pályák 27 láb (≈8,2 m) távolságra vannak egymástól. Minden csapat felváltva dob, körönként 4 zsákot csapatonként.</div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-title">💡 Pontszámítás</div>
+    <div class="rule-body"><strong>Lyuk:</strong> 3 pont<br><strong>Palán:</strong> 1 pont<br><strong>Földre esett zsák:</strong> 0 pont</div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-title">❌ Kancellációs pontozás (ACL)</div>
+    <div class="rule-body">A két csapat pontjait egymásból vonják le. Csak a különbség számít be.<br><br><strong>Példa:</strong> Csapat 1 kap 7 pontot, Csapat 2 kap 4 pontot → Csapat 1 nyer 3 pontot ebben a körben.</div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-title">🏆 Győzelem</div>
+    <div class="rule-body">Az a csapat nyer, amelyik először éri el vagy lépi túl a célpontszámot (alapesetben <strong>21 pont</strong>). A célpontszám a meccs indításakor módosítható.</div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-title">🔄 Egyszerű mód</div>
+    <div class="rule-body">Kancellálás nélkül — minden zsák pontja összeadódik. Informális, gyors játékhoz.</div>
+  </div>
+</div>
+
+<script>
+var gameMode='acl',targetScore=21,rounds=[],currentRound=[0,0,0,0],gameActive=false;
+var completedMatches=[],currentMatchArchived=false,language='hu',pendingPwaWorker=null,reloadingForPwa=false,updateRequested=false;
+var WORDS={
+hu:{match:'Meccs',stats:'Stat',rules:'Szabály',mode:'Játékmód',teams:'Csapatok',players:'Játékosok (opcionális)',target:'Célpontszám',targetHint:'Győzelemhez szükséges pont',acl:'Kancellációs pontozás – a különbség számít',simple:'Egyszerű',simpleDesc:'Minden zsák pontot ér – összeadódnak',start:'Meccs indítása →',round:'kör',hole:'Lyuk',board:'Palán',net:'Kör nettó',save:'Kör mentése ✓',newMatch:'Új meccs',undo:'↶ Utolsó kör visszavonása',history:'Előző körök',targetPrefix:'cél: ',won:' nyert!',leads:' vezet',tie:'Döntetlen',points:' pont',total:'Összpontszám',avg:'Átlag pont / kör',holeRate:'Lyuk arány (%)',boardRate:'Palán arány (%)',bags:'Összes zsák',played:'Lejátszott körök: ',archive:'Korábbi mérkőzések',playerStats:'Játékos statisztikák',matches:'meccs',wins:'győzelem',empty:'Még nincs adat.<br>Játssz egy meccset!',noArchive:'Még nincs lezárt mérkőzés.',pwa:'Új verzió érhető el.',update:'Frissítés',getApp:'Alkalmazás',install:'Telepítés a telefonra',download:'Letöltés (.html fájl)',github:'Forráskód a GitHubon',installHint:'Telepítés: böngészőmenü → „Hozzáadás a főképernyőhöz”. iPhone-on: Safari → Megosztás → „Főképernyőhöz adás”.',confirmNew:'Biztosan új meccset kezdesz?',roundsWord:'kör',playersCount:'játékos',rulesHtml:'<div class="rule-card"><div class="rule-title">🎯 Alapszabályok <span class="rule-tag">ACL</span></div><div class="rule-body">A pályák 27 láb (≈8,2 m) távolságra vannak egymástól. Minden csapat felváltva dob, körönként 4 zsákot csapatonként.</div></div><div class="rule-card"><div class="rule-title">💡 Pontszámítás</div><div class="rule-body"><strong>Lyuk:</strong> 3 pont<br><strong>Palán:</strong> 1 pont<br><strong>Földre esett zsák:</strong> 0 pont</div></div><div class="rule-card"><div class="rule-title">❌ Kancellációs pontozás (ACL)</div><div class="rule-body">A két csapat pontjait egymásból vonják le. Csak a különbség számít be.<br><br><strong>Példa:</strong> az 1. csapat 7 pontot, a 2. csapat 4 pontot dob → az 1. csapat 3 pontot kap ebben a körben, a 2. csapat 0-t.</div></div><div class="rule-card"><div class="rule-title">🏆 Győzelem</div><div class="rule-body">Az a csapat nyer, amelyik eléri vagy túllépi a célpontszámot (alapesetben <strong>21 pont</strong>), és vezet. Döntetlen állásnál a játék folytatódik. A célpontszám a meccs indítása előtt módosítható.</div></div><div class="rule-card"><div class="rule-title">🔄 Egyszerű mód</div><div class="rule-body">Kancellálás nélkül – minden zsák pontja összeadódik. Informális, gyors játékhoz.</div></div>'},
+en:{match:'Match',stats:'Stats',rules:'Rules',mode:'Game mode',teams:'Teams',players:'Players (optional)',target:'Target score',targetHint:'Points needed to win',acl:'Cancellation scoring – only the difference counts',simple:'Simple',simpleDesc:'Every bag scores points – totals are added',start:'Start match →',round:'Round',hole:'Hole',board:'Board',net:'Round net',save:'Save round ✓',newMatch:'New match',undo:'↶ Undo last round',history:'Previous rounds',targetPrefix:'target: ',won:' wins!',leads:' leads',tie:'Tie',points:' points',total:'Total score',avg:'Average points / round',holeRate:'Hole rate (%)',boardRate:'Board rate (%)',bags:'Total bags',played:'Rounds played: ',archive:'Match history',playerStats:'Player statistics',matches:'matches',wins:'wins',empty:'No data yet.<br>Play a match!',noArchive:'No completed matches yet.',pwa:'A new version is available.',update:'Update',getApp:'App',install:'Install on your phone',download:'Download (.html file)',github:'Source code on GitHub',installHint:'To install: browser menu → “Add to Home screen”. On iPhone: Safari → Share → “Add to Home Screen”.',confirmNew:'Start a new match?',roundsWord:'rounds',playersCount:'players',rulesHtml:'<div class="rule-card"><div class="rule-title">🎯 Basic rules <span class="rule-tag">ACL</span></div><div class="rule-body">The boards are 27 feet (≈8.2 m) apart. The teams throw in turns, 4 bags per team in each round.</div></div><div class="rule-card"><div class="rule-title">💡 Scoring</div><div class="rule-body"><strong>Hole:</strong> 3 points<br><strong>Board:</strong> 1 point<br><strong>Bag on the ground:</strong> 0 points</div></div><div class="rule-card"><div class="rule-title">❌ Cancellation scoring (ACL)</div><div class="rule-body">The two teams scores cancel each other out; only the difference counts.<br><br><strong>Example:</strong> team 1 scores 7 and team 2 scores 4 → team 1 gets 3 points for the round and team 2 gets 0.</div></div><div class="rule-card"><div class="rule-title">🏆 Winning</div><div class="rule-body">The first team to reach or pass the target score (<strong>21 points</strong> by default) and lead wins. If the score is tied, play continues. The target can be changed before the match starts.</div></div><div class="rule-card"><div class="rule-title">🔄 Simple mode</div><div class="rule-body">No cancellation – the points of every bag are added up. For casual, quick games.</div></div>'}
+};
+function t(k){return WORDS[language][k]||WORDS.hu[k]||k;}
+
+
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.nav-tab').forEach(function(t,i){
+    t.classList.remove('active');
+    if(['setup','stats','rules'][i]===(name==='game'?'setup':name))t.classList.add('active');
+  });
+  document.getElementById('screen-'+name).classList.add('active');
+  if(name==='stats')renderStats();
+}
+
+function openMatch(){showScreen(gameActive?'game':'setup');}
+
+function selectMode(m){
+  gameMode=m;
+  document.getElementById('mode-acl').classList.toggle('selected',m==='acl');
+  document.getElementById('mode-simple').classList.toggle('selected',m==='simple');
+  saveState();
+}
+
+function adjTarget(d){
+  targetScore=Math.max(11,Math.min(50,targetScore+d));
+  document.getElementById('target-display').textContent=targetScore;
+  saveState();
+}
+
+function startGame(){
+  gameActive=true;currentMatchArchived=false;
+  rounds=[];currentRound=[0,0,0,0];
+  var n1=document.getElementById('name1').value||(language==='hu'?'Csapat 1':'Team 1');
+  var n2=document.getElementById('name2').value||(language==='hu'?'Csapat 2':'Team 2');
+  document.getElementById('g-name1').textContent=n1;
+  document.getElementById('g-name2').textContent=n2;
+  document.getElementById('col-name1').textContent=n1;
+  document.getElementById('col-name2').textContent=n2;
+  document.getElementById('g-target').textContent=t('targetPrefix')+targetScore;
+  renderGame();
+  showScreen('game');
+  saveState();
+}
+
+function getTeamBagCount(round,team){
+  return round[team*2]+round[team*2+1];
+}
+
+function canAddBag(round,team){
+  return getTeamBagCount(round,team)<4;
+}
+
+function isRoundValid(round){
+  return getTeamBagCount(round,0)<=4&&getTeamBagCount(round,1)<=4;
+}
+
+function getWinner(scores,target){
+  if(scores[0]>=target&&scores[0]>scores[1])return 0;
+  if(scores[1]>=target&&scores[1]>scores[0])return 1;
+  return null;
+}
+
+function isGameFinished(){
+  return getWinner(getScores(),targetScore)!==null;
+}
+
+function adj(team,type,delta){
+  if(!gameActive||isGameFinished())return;
+  if((team!==0&&team!==1)||(type!==0&&type!==1))return;
+  var index=team*2+type;
+  var next=Math.max(0,currentRound[index]+delta);
+  if(delta>0&&!canAddBag(currentRound,team))return;
+  currentRound[index]=next;
+  renderCurrentRound();
+  saveState();
+}
+
+function getScores(){
+  var t1=0,t2=0;
+  for(var i=0;i<rounds.length;i++){
+    var r=rounds[i],s1=r[0]*3+r[1],s2=r[2]*3+r[3];
+    if(gameMode==='acl'){t1+=Math.max(s1-s2,0);t2+=Math.max(s2-s1,0);}
+    else{t1+=s1;t2+=s2;}
+  }
+  return[t1,t2];
+}
+
+function updateBagButtons(){
+  var finished=isGameFinished();
+  document.querySelectorAll('.bag-btn').forEach(function(button){
+    var team=+button.dataset.team,type=+button.dataset.type,delta=+button.dataset.delta;
+    button.disabled=finished||(delta>0?!canAddBag(currentRound,team):currentRound[team*2+type]<=0);
+    button.setAttribute('aria-label',(delta>0?'+1 ':'−1 ')+t(type===0?'hole':'board')+' – '+document.getElementById(team===0?'g-name1':'g-name2').textContent);
+  });
+}
+
+function renderCurrentRound(){
+  document.getElementById('r-t1-hole').textContent=currentRound[0];
+  document.getElementById('r-t1-board').textContent=currentRound[1];
+  document.getElementById('r-t2-hole').textContent=currentRound[2];
+  document.getElementById('r-t2-board').textContent=currentRound[3];
+  var s1=currentRound[0]*3+currentRound[1],s2=currentRound[2]*3+currentRound[3];
+  var n1,n2;
+  if(gameMode==='acl'){n1=Math.max(s1-s2,0);n2=Math.max(s2-s1,0);}else{n1=s1;n2=s2;}
+  document.getElementById('net1').textContent=n1;
+  document.getElementById('net2').textContent=n2;
+  updateBagButtons();
+}
+
+function renderGame(preserveCurrentRound){
+  if(!preserveCurrentRound)currentRound=[0,0,0,0];
+  renderCurrentRound();
+  var tots=getScores();
+  document.getElementById('g-score1').textContent=tots[0];
+  document.getElementById('g-score2').textContent=tots[1];
+  document.getElementById('round-label').textContent=language==='hu'?(rounds.length+1)+'. kör':t('round')+' '+(rounds.length+1);
+  var wb=document.getElementById('winner-bar');
+  var wt=document.getElementById('winner-title');
+  var ws=document.getElementById('winner-sub');
+  wb.className='winner-bar';
+  var n1=document.getElementById('g-name1').textContent;
+  var n2=document.getElementById('g-name2').textContent;
+  var winner=getWinner(tots,targetScore);
+  if(winner===0){wb.classList.add('show','win-red');wt.textContent='🏆 '+n1+t('won');ws.textContent=tots[0]+' – '+tots[1]+t('points');}
+  else if(winner===1){wb.classList.add('show','win-blue');wt.textContent='🏆 '+n2+t('won');ws.textContent=tots[0]+' – '+tots[1]+t('points');}
+  else if(tots[0]>0||tots[1]>0){
+    wb.classList.add('show');
+    if(tots[0]>tots[1]){wb.classList.add('win-red');wt.textContent=n1+t('leads');}
+    else if(tots[1]>tots[0]){wb.classList.add('win-blue');wt.textContent=n2+t('leads');}
+    else{wb.classList.add('tie');wt.textContent=t('tie');}
+    ws.textContent=tots[0]+' – '+tots[1]+t('points');
+  }
+  var tbody=document.getElementById('history-body');
+  tbody.innerHTML='';
+  for(var i=rounds.length-1;i>=0;i--){
+    var r=rounds[i],rs1=r[0]*3+r[1],rs2=r[2]*3+r[3],rn1,rn2;
+    if(gameMode==='acl'){rn1=Math.max(rs1-rs2,0);rn2=Math.max(rs2-rs1,0);}else{rn1=rs1;rn2=rs2;}
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+(i+1)+'</td><td class="td-red">'+r[0]+'</td><td class="td-red">'+r[1]+'</td><td class="td-red" style="font-size:15px;font-weight:700">+'+rn1+'</td><td class="td-blue">'+r[2]+'</td><td class="td-blue">'+r[3]+'</td><td class="td-blue" style="font-size:15px;font-weight:700">+'+rn2+'</td>';
+    tbody.appendChild(tr);
+  }
+  document.getElementById('history-section').style.display=rounds.length>0?'block':'none';
+  var finished=isGameFinished();
+  updateBagButtons();
+  var saveButton=document.querySelector('.action-btn.primary');
+  if(saveButton)saveButton.disabled=finished;
+  var undoButton=document.getElementById('undo-button');
+  if(undoButton)undoButton.disabled=rounds.length===0;
+}
+
+function confirmRound(){
+  if(!gameActive||isGameFinished())return;
+  var team1Bags=currentRound[0]+currentRound[1];
+  var team2Bags=currentRound[2]+currentRound[3];
+  if(!isRoundValid(currentRound))return;
+  if(team1Bags+team2Bags===0)return;
+  rounds.push(currentRound.slice());
+  renderGame();
+  if(isGameFinished())archiveCurrentMatch();
+  saveState();
+}
+
+function undoLastRound(roundList){
+  if(!Array.isArray(roundList)||roundList.length===0)return false;
+  roundList.pop();
+  return true;
+}
+
+function undoRound(){
+  if(!gameActive||rounds.length===0)return;
+  if(currentMatchArchived){
+    var scores=getScores(),team1=document.getElementById('g-name1').textContent,team2=document.getElementById('g-name2').textContent;
+    for(var i=completedMatches.length-1;i>=0;i--){
+      var m=completedMatches[i];
+      if(m.team1===team1&&m.team2===team2&&m.mode===gameMode&&m.score1===scores[0]&&m.score2===scores[1]){
+        completedMatches.splice(i,1);break;
+      }
+    }
+    currentMatchArchived=false;
+  }
+  if(!undoLastRound(rounds))return;
+  currentRound=[0,0,0,0];
+  renderGame();
+  saveState();
+}
+
+function resetGame(){
+  if(rounds.length>0&&!isGameFinished()&&!confirm(t('confirmNew')))return;
+  gameActive=false;
+  showScreen('setup');
+  saveState();
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,function(char){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char];
+  });
+}
+
+function saveState(){
+  try{
+    localStorage.setItem('cornhole-score-state-v1',JSON.stringify({
+      gameMode:gameMode,targetScore:targetScore,rounds:rounds,
+      currentRound:currentRound,gameActive:gameActive,
+      name1:document.getElementById('name1').value,
+      name2:document.getElementById('name2').value,
+      team1:document.getElementById('g-name1').textContent,
+      team2:document.getElementById('g-name2').textContent,
+      player1a:document.getElementById('player1a').value,player1b:document.getElementById('player1b').value,
+      player2a:document.getElementById('player2a').value,player2b:document.getElementById('player2b').value,
+      completedMatches:completedMatches,currentMatchArchived:currentMatchArchived,language:language
+    }));
+  }catch(error){
+    console.warn('A meccs mentése nem sikerült:',error);
+  }
+}
+
+function isValidRound(round){
+  return Array.isArray(round)&&round.length===4&&
+    round.every(function(value){return Number.isInteger(value)&&value>=0&&value<=4;})&&
+    isRoundValid(round);
+}
+
+function loadState(){
+  try{
+    var raw=localStorage.getItem('cornhole-score-state-v1');
+    if(!raw)return false;
+    var state=JSON.parse(raw);
+    if(!state||!['acl','simple'].includes(state.gameMode)||
+       !Number.isInteger(state.targetScore)||state.targetScore<11||state.targetScore>50||
+       !Array.isArray(state.rounds)||!state.rounds.every(isValidRound)||
+       !isValidRound(state.currentRound)||typeof state.gameActive!=='boolean')return false;
+    gameMode=state.gameMode;
+    targetScore=state.targetScore;
+    rounds=state.rounds;
+    currentRound=state.currentRound;
+    gameActive=state.gameActive;
+    completedMatches=Array.isArray(state.completedMatches)?state.completedMatches.filter(isValidArchivedMatch).slice(-100):[];
+    currentMatchArchived=state.currentMatchArchived===true;language=state.language==='en'?'en':'hu';
+    var name1=typeof state.name1==='string'?state.name1.slice(0,14):(language==='hu'?'Csapat 1':'Team 1');
+    var name2=typeof state.name2==='string'?state.name2.slice(0,14):(language==='hu'?'Csapat 2':'Team 2');
+    document.getElementById('name1').value=name1;
+    document.getElementById('name2').value=name2;
+    ['player1a','player1b','player2a','player2b'].forEach(function(id){var p=state[id];document.getElementById(id).value=typeof p==='string'?p.slice(0,24):'';});
+    document.getElementById('target-display').textContent=targetScore;
+    document.getElementById('mode-acl').classList.toggle('selected',gameMode==='acl');
+    document.getElementById('mode-simple').classList.toggle('selected',gameMode==='simple');
+    var team1=typeof state.team1==='string'?state.team1.slice(0,14):name1;
+    var team2=typeof state.team2==='string'?state.team2.slice(0,14):name2;
+    document.getElementById('g-name1').textContent=team1;
+    document.getElementById('g-name2').textContent=team2;
+    document.getElementById('col-name1').textContent=team1;
+    document.getElementById('col-name2').textContent=team2;
+    document.getElementById('g-target').textContent=t('targetPrefix')+targetScore;
+    if(gameActive){
+      renderGame(true);
+      renderCurrentRound();
+      showScreen('game');
+    }
+    return true;
+  }catch(error){
+    console.warn('A mentett meccs betöltése nem sikerült:',error);
+    return false;
+  }
+}
+
+
+function isValidArchivedMatch(m){
+  var isName=function(v){return typeof v==='string';};
+  return !!m&&typeof m.date==='string'&&!isNaN(Date.parse(m.date))&&typeof m.team1==='string'&&typeof m.team2==='string'&&
+    Array.isArray(m.players1)&&m.players1.every(isName)&&Array.isArray(m.players2)&&m.players2.every(isName)&&
+    Number.isInteger(m.score1)&&Number.isInteger(m.score2)&&Number.isInteger(m.rounds)&&m.rounds>=0&&
+    (m.winner===0||m.winner===1)&&['acl','simple'].includes(m.mode);
+}
+function normalizePlayerName(name){return String(name).trim().replace(/\s+/g,' ').slice(0,24);}
+function buildPlayerStats(matches){
+  var map=new Map();
+  matches.forEach(function(m){
+    [[m.players1,m.score1,m.winner===0],[m.players2,m.score2,m.winner===1]].forEach(function(team){
+      var seen=new Set();
+      team[0].forEach(function(raw){
+        var name=normalizePlayerName(raw),key=name.toLowerCase();
+        if(!name||seen.has(key))return;
+        seen.add(key);
+        var p=map.get(key)||{name:name,played:0,wins:0,points:0};
+        p.played++;p.points+=team[1];if(team[2])p.wins++;
+        map.set(key,p);
+      });
+    });
+  });
+  return Array.from(map.values()).sort(function(a,b){return a.name.localeCompare(b.name);});
+}
+function archiveCurrentMatch(){if(currentMatchArchived||!isGameFinished())return;var scores=getScores(),winner=getWinner(scores,targetScore);if(winner===null)return;completedMatches.push({date:new Date().toISOString(),mode:gameMode,team1:document.getElementById('g-name1').textContent,team2:document.getElementById('g-name2').textContent,players1:[document.getElementById('player1a').value,document.getElementById('player1b').value].map(normalizePlayerName).filter(Boolean),players2:[document.getElementById('player2a').value,document.getElementById('player2b').value].map(normalizePlayerName).filter(Boolean),score1:scores[0],score2:scores[1],winner:winner,rounds:rounds.length});completedMatches=completedMatches.slice(-100);currentMatchArchived=true;}
+function renderLongTermStats(){
+  var html='<div class="section-label">'+t('archive')+'</div>';
+  if(!completedMatches.length)return html+'<div class="empty-state">'+t('noArchive')+'</div>';
+  var players=buildPlayerStats(completedMatches);
+  html+='<div class="stats-grid"><div class="stat-card"><div class="stat-val">'+completedMatches.length+'</div><div class="stat-lbl">'+t('matches')+'</div></div><div class="stat-card"><div class="stat-val">'+players.length+'</div><div class="stat-lbl">'+t('playersCount')+'</div></div></div>';
+  if(players.length){
+    html+='<div class="section-label">'+t('playerStats')+'</div><div class="rule-card">';
+    players.forEach(function(p){html+='<div class="player-stat-row"><strong>'+escapeHtml(p.name)+'</strong><span>'+p.played+' '+t('matches')+' · '+p.wins+' '+t('wins')+' · '+p.points+t('points')+'</span></div>';});
+    html+='</div>';
+  }
+  html+='<div class="section-label">'+t('archive')+'</div><div class="archive-list">';
+  completedMatches.slice().reverse().forEach(function(m){
+    var date=new Date(m.date).toLocaleDateString(language==='hu'?'hu-HU':'en-GB');
+    html+='<div class="archive-item"><strong>'+escapeHtml(m.team1)+' '+Number(m.score1)+' – '+Number(m.score2)+' '+escapeHtml(m.team2)+'</strong><div>'+date+' · '+(m.mode==='acl'?'ACL':escapeHtml(t('simple')))+' · '+Number(m.rounds)+' '+t('roundsWord')+'</div></div>';
+  });
+  return html+'</div>';
+}
+function applyLanguage(){document.documentElement.lang=language;document.getElementById('lang-toggle').textContent=language==='hu'?'EN':'HU';['nav-match','nav-stats','nav-rules'].forEach(function(id,i){document.getElementById(id).textContent=t(['match','stats','rules'][i]);});['setup-mode-label','setup-team-label','setup-player-label','setup-target-label'].forEach(function(id,i){document.getElementById(id).textContent=t(['mode','teams','players','target'][i]);});document.getElementById('mode-acl-desc').textContent=t('acl');document.getElementById('mode-simple-title').textContent=t('simple');document.getElementById('mode-simple-desc').textContent=t('simpleDesc');document.getElementById('target-label').textContent=t('targetHint');document.getElementById('start-button').textContent=t('start');document.querySelectorAll('.bag-type').forEach(function(el){var hole=el.dataset.kind==='hole';el.textContent=t(hole?'hole':'board')+' — '+(hole?'3':'1')+' pt';});document.getElementById('net-label').textContent=t('net');document.getElementById('save-round-button').textContent=t('save');document.getElementById('new-match-button').textContent=t('newMatch');document.getElementById('undo-button').textContent=t('undo');document.getElementById('history-label').textContent=t('history');
+ ['history-round-head','history-hole1-head','history-hole2-head'].forEach(function(id){document.getElementById(id).textContent=language==='hu'?(id==='history-round-head'?'Kör':'Lyuk'):(id==='history-round-head'?'Round':'Hole');});
+ ['history-board1-head','history-board2-head'].forEach(function(id){document.getElementById(id).textContent=t('board');});
+ ['history-net1-head','history-net2-head'].forEach(function(id){document.getElementById(id).textContent='Net';});
+ ['name1','name2'].forEach(function(id,i){var el=document.getElementById(id),hu='Csapat '+(i+1),en='Team '+(i+1);if(el.value===hu||el.value===en)el.value=language==='hu'?hu:en;});document.getElementById('getapp-label').textContent=t('getApp');document.getElementById('install-button').textContent=t('install');document.getElementById('download-link').textContent=t('download');document.getElementById('github-link').textContent=t('github');document.getElementById('install-hint').textContent=t('installHint');document.getElementById('pwa-update-text').textContent=t('pwa');document.getElementById('pwa-update-button').textContent=t('update');document.getElementById('player1a').placeholder=language==='hu'?'Piros csapat – 1. játékos':'Red team – Player 1';document.getElementById('player1b').placeholder=language==='hu'?'Piros csapat – 2. játékos':'Red team – Player 2';document.getElementById('player2a').placeholder=language==='hu'?'Kék csapat – 1. játékos':'Blue team – Player 1';document.getElementById('player2b').placeholder=language==='hu'?'Kék csapat – 2. játékos':'Blue team – Player 2';document.getElementById('screen-rules').innerHTML=WORDS[language].rulesHtml;document.getElementById('g-target').textContent=t('targetPrefix')+targetScore;if(gameActive)renderGame(true);if(document.getElementById('screen-stats').classList.contains('active'))renderStats();saveState();}
+function toggleLanguage(){language=language==='hu'?'en':'hu';applyLanguage();}
+function registerPwa(){navigator.serviceWorker.register('sw.js').then(function(reg){function waiting(){if(reg.waiting&&navigator.serviceWorker.controller){pendingPwaWorker=reg.waiting;document.getElementById('pwa-update').classList.add('show');}}waiting();reg.addEventListener('updatefound',function(){var worker=reg.installing;if(!worker)return;worker.addEventListener('statechange',function(){if(worker.state==='installed'&&navigator.serviceWorker.controller){pendingPwaWorker=worker;document.getElementById('pwa-update').classList.add('show');}});});}).catch(function(error){console.warn('PWA registration failed:',error);});navigator.serviceWorker.addEventListener('controllerchange',function(){if(!updateRequested||reloadingForPwa)return;reloadingForPwa=true;window.location.reload();});}
+var deferredInstall=null;
+function isStandalone(){return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
+function installApp(){
+  if(!deferredInstall)return;
+  var promptEvent=deferredInstall;
+  deferredInstall=null;
+  document.getElementById('install-button').style.display='none';
+  promptEvent.prompt();
+}
+function initGetApp(){
+  if(isStandalone()){document.getElementById('get-app').style.display='none';return;}
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault();
+    deferredInstall=e;
+    document.getElementById('install-button').style.display='block';
+  });
+  window.addEventListener('appinstalled',function(){
+    deferredInstall=null;
+    document.getElementById('get-app').style.display='none';
+  });
+}
+function applyPwaUpdate(){if(pendingPwaWorker){updateRequested=true;pendingPwaWorker.postMessage({type:'SKIP_WAITING'});}}
+
+function renderStats(){
+  var el=document.getElementById('stats-content');
+  if(rounds.length===0){el.innerHTML='<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">'+t('empty')+'</div></div>'+renderLongTermStats();return;}
+  var n1=escapeHtml(document.getElementById('g-name1').textContent||(language==='hu'?'Csapat 1':'Team 1'));
+  var n2=escapeHtml(document.getElementById('g-name2').textContent||(language==='hu'?'Csapat 2':'Team 2'));
+  var t1hole=0,t1board=0,t2hole=0,t2board=0;
+  for(var i=0;i<rounds.length;i++){t1hole+=rounds[i][0];t1board+=rounds[i][1];t2hole+=rounds[i][2];t2board+=rounds[i][3];}
+  var t1bags=t1hole+t1board,t2bags=t2hole+t2board;
+  var tots=getScores();
+  var t1hPct=t1bags>0?Math.round(t1hole/t1bags*100):0;
+  var t2hPct=t2bags>0?Math.round(t2hole/t2bags*100):0;
+  var t1bPct=t1bags>0?Math.round(t1board/t1bags*100):0;
+  var t2bPct=t2bags>0?Math.round(t2board/t2bags*100):0;
+  var t1avg=rounds.length>0?(tots[0]/rounds.length).toFixed(1):0;
+  var t2avg=rounds.length>0?(tots[1]/rounds.length).toFixed(1):0;
+  el.innerHTML=
+    '<div class="section-label" style="margin-top:4px">'+t('total')+'</div>'+
+    '<div class="stats-grid">'+
+      '<div class="stat-card"><div class="stat-val red">'+tots[0]+'</div><div class="stat-lbl">'+n1+'</div></div>'+
+      '<div class="stat-card"><div class="stat-val blue">'+tots[1]+'</div><div class="stat-lbl">'+n2+'</div></div>'+
+    '</div>'+
+    '<div class="section-label">'+t('avg')+'</div>'+
+    '<div class="stats-grid">'+
+      '<div class="stat-card"><div class="stat-val red">'+t1avg+'</div><div class="stat-lbl">'+n1+'</div></div>'+
+      '<div class="stat-card"><div class="stat-val blue">'+t2avg+'</div><div class="stat-lbl">'+n2+'</div></div>'+
+    '</div>'+
+    '<div class="section-label">'+t('holeRate')+'</div>'+
+    '<div class="bar-row"><div class="bar-label-row"><span style="color:var(--red);font-weight:600">'+n1+' – '+t1hPct+'%</span></div><div class="bar-track"><div class="bar-fill" style="width:'+t1hPct+'%;background:var(--red)"></div></div></div>'+
+    '<div class="bar-row"><div class="bar-label-row"><span style="color:var(--blue);font-weight:600">'+n2+' – '+t2hPct+'%</span></div><div class="bar-track"><div class="bar-fill blue" style="width:'+t2hPct+'%"></div></div></div>'+
+    '<div class="section-label">'+t('boardRate')+'</div>'+
+    '<div class="bar-row"><div class="bar-label-row"><span style="color:var(--red);font-weight:600">'+n1+' – '+t1bPct+'%</span></div><div class="bar-track"><div class="bar-fill" style="width:'+t1bPct+'%;background:var(--red)"></div></div></div>'+
+    '<div class="bar-row"><div class="bar-label-row"><span style="color:var(--blue);font-weight:600">'+n2+' – '+t2bPct+'%</span></div><div class="bar-track"><div class="bar-fill blue" style="width:'+t2bPct+'%"></div></div></div>'+
+    '<div class="section-label">'+t('bags')+'</div>'+
+    '<div class="stats-grid">'+
+      '<div class="stat-card"><div class="stat-val red">'+t1bags+'</div><div class="stat-lbl">'+n1+'</div>'+
+        '<div class="stat-subrow"><div class="stat-sub"><div class="stat-sub-val" style="color:var(--red)">'+t1hole+'</div><div class="stat-sub-lbl">'+t('hole')+'</div></div><div class="stat-sub"><div class="stat-sub-val" style="color:var(--red)">'+t1board+'</div><div class="stat-sub-lbl">'+t('board')+'</div></div></div>'+
+      '</div>'+
+      '<div class="stat-card"><div class="stat-val blue">'+t2bags+'</div><div class="stat-lbl">'+n2+'</div>'+
+        '<div class="stat-subrow"><div class="stat-sub"><div class="stat-sub-val" style="color:var(--blue)">'+t2hole+'</div><div class="stat-sub-lbl">'+t('hole')+'</div></div><div class="stat-sub"><div class="stat-sub-val" style="color:var(--blue)">'+t2board+'</div><div class="stat-sub-lbl">'+t('board')+'</div></div></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="section-label">'+t('played')+rounds.length+'</div>'+renderLongTermStats();
+}
+document.getElementById('name1').addEventListener('input',saveState);
+document.getElementById('name2').addEventListener('input',saveState);
+['player1a','player1b','player2a','player2b'].forEach(function(id){document.getElementById(id).addEventListener('input',saveState);});
+initGetApp();loadState();applyLanguage();
+if('serviceWorker' in navigator){window.addEventListener('load',registerPwa);}
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

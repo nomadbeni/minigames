@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>E-Útvesztő</title>
+<meta name="description" content="Retró labirintus a régi mobilok zöld kijelzőjén: találj ki a görgő útvesztőből, mielőtt lejár az idő. Szedd fel az E-érméket plusz időért, kerüld el az árnyékokat, és egyszer pályánként nézz rá a térképre. Minden szint nagyobb.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="E-Maze Retro">
+<meta name="games:description-en" content="Retro maze on an old phone's green screen: find the way out of the scrolling maze before time runs out. Pick up E coins for extra time, dodge the shadows and peek at the map once per level. Every level gets bigger.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: phone-like shell — status row, LCD screen with the scrolling maze, a 3×3 keypad */
+:root{
+  --bg:#1b2026; --shell:#2a3139; --line:#3c4651; --fg:#e8eee4; --muted:#93a19a;
+  --lcd:#a7b98a; --ink:#1f2a17; --key:#38414b; --keyhi:#4a5560; --accent:#c6e07a;
+  --pix:"IBM Plex Mono","Courier New",monospace;
+  --ui:"Chakra Petch","Trebuchet MS",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html{box-sizing:border-box;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;padding-block:10px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));box-sizing:border-box;max-width:520px;margin:0 auto}
+header{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stat{background:var(--shell);border:1px solid var(--line);border-radius:10px;padding:5px 8px;display:flex;flex-direction:column;align-items:center}
+.lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.val{font-family:var(--pix);font-weight:700;font-size:20px;line-height:1.1;font-variant-numeric:tabular-nums}
+.val.low{color:#ff8a7a}
+#stage{flex:1;min-height:0;display:grid;place-items:center;background:var(--shell);border:1px solid var(--line);border-radius:18px;padding:10px;position:relative}
+canvas{display:block;touch-action:none;image-rendering:pixelated;border-radius:6px;box-shadow:inset 0 0 0 2px #0006,0 0 0 3px #11151a}
+#toast{position:absolute;left:50%;top:18px;transform:translateX(-50%);font-family:var(--pix);font-weight:700;font-size:20px;color:var(--ink);background:#c3d4a4;border:2px solid var(--ink);padding:2px 12px;border-radius:4px;pointer-events:none;white-space:nowrap}
+#pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;touch-action:none}
+.k{font-family:var(--pix);font-weight:700;font-size:22px;color:var(--fg);background:var(--key);border:1px solid var(--keyhi);border-radius:14px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;cursor:pointer;touch-action:none;padding:0}
+.k small{font-family:var(--ui);font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.05em}
+.k.on{background:var(--keyhi);transform:translateY(1px)}
+.k:disabled{opacity:.4;cursor:default}
+.k:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ov{position:fixed;inset:0;display:grid;place-items:center;background:rgba(10,13,16,.84);z-index:5;padding-inline:16px}
+.card{display:flex;flex-direction:column;align-items:center;gap:10px;padding:24px 26px;background:var(--shell);border:1px solid var(--line);border-radius:16px;text-align:center;max-width:340px}
+.card h2{font-family:var(--pix);font-weight:700;font-size:34px;margin:0;color:var(--accent)}
+.card p{margin:0;color:var(--muted);font-size:16px;line-height:1.4}
+.card b{color:var(--fg)}
+.card ul{margin:0;padding:0;list-style:none;text-align:left;font-size:16px;line-height:1.5;color:var(--fg)}
+.btn{font-family:var(--ui);font-weight:700;font-size:17px;color:var(--fg);background:var(--key);border:1px solid var(--keyhi);border-radius:999px;padding:11px 22px;cursor:pointer}
+.btn.hot{background:var(--accent);color:#1a2210;border-color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+
+  <header>
+    <div class="stat"><span class="lbl">Szint</span><span class="val" id="lvl">1</span></div>
+    <div class="stat"><span class="lbl">Pont</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Idő</span><span class="val" id="time">0</span></div>
+    <div class="stat"><span class="lbl">Élet</span><span class="val" id="lives">3</span></div>
+  </header>
+
+  <div id="stage">
+    <canvas id="cv" width="105" height="133" aria-label="Labirintus"></canvas>
+    <div id="toast" hidden></div>
+  </div>
+
+  <div id="pad" aria-label="Billentyűzet">
+    <button type="button" class="k" id="kPause" aria-label="Szünet">1<small>SZÜNET</small></button>
+    <button type="button" class="k" data-d="up" aria-label="Fel">2<small>▲</small></button>
+    <button type="button" class="k" id="kSound" aria-label="Hang">3<small id="sndLbl">HANG BE</small></button>
+    <button type="button" class="k" data-d="left" aria-label="Balra">4<small>◀</small></button>
+    <button type="button" class="k" id="kMap" aria-label="Térkép">5<small>TÉRKÉP</small></button>
+    <button type="button" class="k" data-d="right" aria-label="Jobbra">6<small>▶</small></button>
+    <div></div>
+    <button type="button" class="k" data-d="down" aria-label="Le">8<small>▼</small></button>
+    <div></div>
+  </div>
+</div>
+
+<div class="ov" id="ovStart" hidden>
+  <div class="card">
+    <h2>E-Útvesztő</h2>
+    <ul>
+      <li>■ Te vagy a villogó kocka.</li>
+      <li>⌂ Keresd meg a kijáratot!</li>
+      <li>E Az E-érme +5 mp.</li>
+      <li>✕ Az árnyék életet visz.</li>
+      <li>5 = térkép, pályánként egyszer.</li>
+    </ul>
+    <p>Húzd az ujjad a képernyőn, vagy nyomd a 2-4-6-8 gombot. Gépen: nyilak vagy WASD.</p>
+    <div class="row"><button type="button" class="btn hot" id="bStart">Indul</button></div>
+  </div>
+</div>
+
+<div class="ov" id="ovPause" hidden>
+  <div class="card">
+    <h2>Szünet</h2>
+    <p>A játék áll, az idő nem megy.</p>
+    <div class="row"><button type="button" class="btn hot" id="bResume">Tovább</button><button type="button" class="btn" id="bRestart">Új játék</button></div>
+  </div>
+</div>
+
+<div class="ov" id="ovOver" hidden>
+  <div class="card">
+    <h2 id="overTitle">Vége</h2>
+    <p>Elérted a(z) <b id="overLvl">1</b>. szintet.</p>
+    <p>Pont: <b id="overScore">0</b> · Rekord: <b id="overBest">0</b></p>
+    <div class="row"><button type="button" class="btn hot" id="bNew">Új játék</button></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const SAVE='e-utveszto-save', BEST='e-utveszto-best', SND='e-utveszto-sound';
+const VW=15, VH=19, B=7;            // visible blocks and LCD pixels per block
+const $=id=>document.getElementById(id);
+const cv=$('cv'), cx=cv.getContext('2d');
+
+// ---------- Pálya-generátor ----------
+// Seeded, depth-first maze on a (2n+1)×(2n+1) block grid. Every maze is checked by a breadth-first
+// search before it is used: the exit and every coin must be reachable from the start.
+const GEN_BUDGET_MS=250;
+function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function bfs(g,w,h,sx,sy){
+  const d=new Int32Array(w*h).fill(-1),q=[sy*w+sx];d[q[0]]=0;
+  for(let i=0;i<q.length;i++){const c=q[i],x=c%w,y=(c-x)/w;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;const j=ny*w+nx;
+      if(!g[j]&&d[j]<0){d[j]=d[c]+1;q.push(j)}}}
+  return d;
+}
+function carve(n,R,braid){
+  const w=2*n+1,h=w,g=new Uint8Array(w*h).fill(1),seen=new Uint8Array(n*n),st=[0];seen[0]=1;g[w+1]=0;
+  while(st.length){const c=st[st.length-1],x=c%n,y=(c-x)/n,opts=[];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<n&&ny<n&&!seen[ny*n+nx])opts.push([nx,ny,dx,dy])}
+    if(!opts.length){st.pop();continue}
+    const [nx,ny,dx,dy]=opts[Math.floor(R()*opts.length)];seen[ny*n+nx]=1;st.push(ny*n+nx);
+    g[(2*y+1+dy)*w+(2*x+1+dx)]=0;g[(2*ny+1)*w+(2*nx+1)]=0;}
+  // Braid: open some dead ends so the shadows can be walked around.
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){const X=2*x+1,Y=2*y+1;
+    const walls=[[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy])=>g[(Y+dy)*w+X+dx]);
+    if(walls.length===3&&R()<braid){const inner=walls.filter(([dx,dy])=>X+2*dx>0&&X+2*dx<w-1&&Y+2*dy>0&&Y+2*dy<h-1);
+      if(inner.length){const [dx,dy]=inner[Math.floor(R()*inner.length)];g[(Y+dy)*w+X+dx]=0}}}
+  return {w,h,g};
+}
+function levelSize(lvl){return Math.min(5+2*lvl,22)}
+function generate(lvl,seed){
+  const t0=performance.now();
+  for(let k=0;performance.now()-t0<GEN_BUDGET_MS;k++){
+    const R=rng(seed+k*7919),n=levelSize(lvl),braid=lvl<3?0:Math.min(.12+.03*lvl,.35);
+    const {w,h,g}=carve(n,R,braid),d=bfs(g,w,h,1,1);
+    let far=-1,ex=1,ey=1;for(let i=0;i<d.length;i++)if(d[i]>far){far=d[i];ex=i%w;ey=(i-ex)/w}
+    const open=[];for(let i=0;i<d.length;i++)if(!g[i]&&i%w%2&&Math.floor(i/w)%2)open.push(i);
+    if(open.some(i=>d[i]<0))continue;                       // not one connected maze
+    const free=open.filter(i=>d[i]>4&&i!==ey*w+ex);
+    for(let i=free.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[free[i],free[j]]=[free[j],free[i]]}
+    const nCoins=Math.min(3+lvl,12),nEnemies=lvl<3?0:Math.min(Math.floor((lvl-1)/2),6);
+    const coins=free.slice(0,nCoins).map(i=>[i%w,Math.floor(i/w)]);
+    const enemies=free.slice(nCoins).filter(i=>d[i]>8).slice(0,nEnemies).map(i=>[i%w,Math.floor(i/w)]);
+    if(d[ey*w+ex]<4||coins.length<nCoins)continue;
+    return {w,h,g,ex,ey,coins,enemies,dist:far,seed:seed+k*7919,time:Math.round(20+far*.34)};
+  }
+  return null;
+}
+// ----------
+
+let S=null,M=null,enemies=[],held=null,repeatAt=0,running=false,mapUntil=0,toastT=0,lastT=0,blink=0,saveT=0;
+let sound=true;try{sound=localStorage.getItem(SND)!=='0'}catch(e){}
+let best=0;try{const b=Number(localStorage.getItem(BEST));if(Number.isInteger(b)&&b>=0&&b<1e9)best=b}catch(e){}
+
+let ac=null;
+function beep(f,d,type){if(!sound)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+  const o=ac.createOscillator(),g=ac.createGain();o.type=type||'square';o.frequency.value=f;g.gain.value=.05;
+  g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+
+function buildLevel(keepPos){
+  M=generate(S.lvl,S.seed);
+  if(!M){S.seed=(S.seed+1)>>>0;M=generate(S.lvl,S.seed)}
+  S.seed=M.seed;
+  enemies=M.enemies.map(([x,y])=>({x,y,px:x,py:y,t:0}));
+  if(!keepPos){S.px=1;S.py=1;S.time=M.time;S.got=[];S.map=0}
+}
+function newGame(){S={v:1,lvl:1,lives:3,score:0,seed:(Math.random()*4294967296)>>>0,px:1,py:1,time:0,got:[],map:0};buildLevel(false);store();ui()}
+function store(){try{localStorage.setItem(SAVE,JSON.stringify(S))}catch(e){}}
+function load(){
+  let o;try{o=JSON.parse(localStorage.getItem(SAVE))}catch(e){return false}
+  if(!o||typeof o!=='object'||Array.isArray(o))return false;
+  const int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b;
+  if(o.v!==1||!int(o.lvl,1,999)||!int(o.lives,1,3)||!int(o.score,0,1e9)||!int(o.seed,0,4294967295)||!int(o.map,0,1))return false;
+  if(typeof o.time!=='number'||!isFinite(o.time)||o.time<=0||o.time>600)return false;
+  if(!Array.isArray(o.got)||o.got.length>12||!o.got.every(v=>int(v,0,11)))return false;
+  S={v:1,lvl:o.lvl,lives:o.lives,score:o.score,seed:o.seed,px:1,py:1,time:o.time,got:[...new Set(o.got)],map:o.map};
+  const m=generate(S.lvl,S.seed);
+  if(!m||m.seed!==S.seed)return false;
+  M=m;enemies=M.enemies.map(([x,y])=>({x,y,px:x,py:y,t:0}));
+  if(!int(o.px,1,M.w-2)||!int(o.py,1,M.h-2)||M.g[o.py*M.w+o.px])return false;
+  if(S.got.some(i=>i>=M.coins.length))return false;
+  S.px=o.px;S.py=o.py;return true;
+}
+
+function toast(t,ms){const e=$('toast');e.textContent=t;e.hidden=false;toastT=performance.now()+(ms||1400)}
+function ui(){
+  $('lvl').textContent=S.lvl;$('score').textContent=S.score;
+  const t=Math.ceil(S.time);$('time').textContent=t;$('time').classList.toggle('low',t<=10);
+  $('lives').textContent='♥'.repeat(S.lives);
+  $('kMap').disabled=S.map>0;
+  $('sndLbl').textContent=sound?'HANG BE':'HANG KI';
+}
+function show(id,on){$(id).hidden=!on}
+function anyOverlay(){return ['ovStart','ovPause','ovOver'].some(id=>!$(id).hidden)}
+function start(){show('ovStart',false);show('ovPause',false);running=true;lastT=performance.now();beep(660,.08)}
+function pause(){if(!running)return;running=false;held=null;store();show('ovPause',true)}
+
+function wall(x,y){return x<0||y<0||x>=M.w||y>=M.h||M.g[y*M.w+x]===1}
+const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+function step(dir){
+  const [dx,dy]=DIRS[dir];if(wall(S.px+dx,S.py+dy))return;
+  S.px+=dx;S.py+=dy;
+  M.coins.forEach(([x,y],i)=>{if(x===S.px&&y===S.py&&!S.got.includes(i)){S.got.push(i);S.time+=5;S.score+=50;beep(1320,.07);toast('+5 mp')}});
+  if(S.px===M.ex&&S.py===M.ey){levelDone();return}
+  hitCheck();
+}
+function levelDone(){
+  const bonus=100*S.lvl+Math.ceil(S.time)*10;S.score+=bonus;beep(523,.1);setTimeout(()=>beep(784,.15),110);
+  toast(S.lvl+'. szint kész! +'+bonus,1800);
+  S.lvl++;S.seed=(Math.imul(S.seed,1103515245)+12345)>>>0;buildLevel(false);held=null;store();ui();
+}
+function loseLife(why){
+  S.lives--;beep(150,.3,'sawtooth');held=null;
+  if(S.lives<=0){gameOver();return}
+  toast(why,1600);buildLevel(false);store();ui();
+}
+function hitCheck(){if(enemies.some(e=>e.x===S.px&&e.y===S.py))loseLife('Elkapott az árnyék!')}
+function gameOver(){
+  running=false;S.lives=0;
+  if(S.score>best){best=S.score;try{localStorage.setItem(BEST,String(best))}catch(e){}}
+  try{localStorage.removeItem(SAVE)}catch(e){}
+  $('overLvl').textContent=S.lvl;$('overScore').textContent=S.score;$('overBest').textContent=best;
+  ui();show('ovOver',true);
+}
+function moveEnemies(dt,R){
+  const speed=Math.max(.32-.012*S.lvl,.18);
+  for(const e of enemies){e.t+=dt;if(e.t<speed)continue;e.t=0;
+    const opts=Object.values(DIRS).filter(([dx,dy])=>!wall(e.x+dx,e.y+dy)&&!(e.x+dx===M.ex&&e.y+dy===M.ey));
+    if(!opts.length)continue;
+    let pick=opts.filter(([dx,dy])=>!(e.x+dx===e.px&&e.y+dy===e.py));if(!pick.length)pick=opts;
+    // Sometimes they lean toward you when you are close.
+    if(Math.abs(e.x-S.px)+Math.abs(e.y-S.py)<7&&Math.random()<.45){pick.sort((a,b)=>(Math.abs(e.x+a[0]-S.px)+Math.abs(e.y+a[1]-S.py))-(Math.abs(e.x+b[0]-S.px)+Math.abs(e.y+b[1]-S.py)));pick=[pick[0]]}
+    const [dx,dy]=pick[Math.floor(Math.random()*pick.length)];e.px=e.x;e.py=e.y;e.x+=dx;e.y+=dy;}
+  hitCheck();
+}
+
+// ---------- drawing (LCD) ----------
+const LCD='#a7b98a',GHOST='#9cae80',INK='#1f2a17';
+function cell(x,y,ox,oy,b){cx.fillRect(ox+x*b,oy+y*b,b>=7?b-1:b,b>=7?b-1:b)}
+function draw(now){
+  cx.fillStyle=LCD;cx.fillRect(0,0,cv.width,cv.height);
+  if(!M)return;
+  const full=now<mapUntil;
+  let b=B,ox,oy,x0,y0,x1,y1;
+  if(full){b=Math.max(2,Math.floor(Math.min(cv.width/M.w,cv.height/M.h)));ox=Math.floor((cv.width-M.w*b)/2);oy=Math.floor((cv.height-M.h*b)/2);x0=0;y0=0;x1=M.w;y1=M.h}
+  else{
+    const cxl=M.w<=VW?-(VW-M.w)/2|0:Math.max(0,Math.min(M.w-VW,S.px-(VW>>1)));
+    const cyl=M.h<=VH?-(VH-M.h)/2|0:Math.max(0,Math.min(M.h-VH,S.py-(VH>>1)));
+    ox=-cxl*b;oy=-cyl*b;x0=Math.max(0,cxl);y0=Math.max(0,cyl);x1=Math.min(M.w,cxl+VW);y1=Math.min(M.h,cyl+VH);
+    cx.fillStyle=GHOST;for(let y=0;y<VH;y++)for(let x=0;x<VW;x++)cx.fillRect(x*b,y*b,b-1,b-1);
+  }
+  cx.fillStyle=INK;
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)if(M.g[y*M.w+x])cell(x,y,ox,oy,b);
+  const on=Math.floor(blink*4)%2===0,big=b>=7;
+  const px=(X,Y,rows)=>rows.forEach((r,j)=>{for(let i=0;i<r.length;i++)if(r[i]==='#')cx.fillRect(X+i,Y+j,1,1)});
+  // exit: a door with a knob
+  const exX=ox+M.ex*b,exY=oy+M.ey*b;
+  if(big)px(exX,exY,['######','#....#','#....#','#..#.#','#....#','#....#']);
+  else cx.fillRect(exX-1,exY-1,b+1,b+1);
+  M.coins.forEach(([x,y],i)=>{if(S.got.includes(i))return;const X=ox+x*b,Y=oy+y*b;
+    if(big)px(X+1,Y,['####','#...','###.','#...','####']);else cx.fillRect(X,Y,b,b)});
+  for(const e of enemies){const X=ox+e.x*b,Y=oy+e.y*b;
+    if(big)px(X,Y,on?['#....#','.#..#.','..##..','..##..','.#..#.','#....#']:['..##..','..##..','######','######','..##..','..##..']);
+    else if(on)cx.fillRect(X,Y,b,b)}
+  const X=ox+S.px*b,Y=oy+S.py*b;
+  if(big)px(X,Y,on?['######','######','######','######','######','######']:['######','#....#','#.##.#','#.##.#','#....#','######']);
+  else if(on||full){cx.fillRect(X-1,Y-1,b+2,b+2)}
+}
+function fit(){
+  const st=$('stage'),r=st.getBoundingClientRect(),aw=r.width-24,ah=r.height-24;
+  const k=Math.max(1,Math.min(aw/cv.width,ah/cv.height));const s=k>=2?Math.floor(k):k;
+  cv.style.width=Math.floor(cv.width*s)+'px';cv.style.height=Math.floor(cv.height*s)+'px';
+}
+
+// ---------- input ----------
+function press(dir){if(!running||anyOverlay())return;held=dir;step(dir);repeatAt=performance.now()+170}
+function release(dir){if(!dir||held===dir)held=null}
+const KEYS={ArrowUp:'up',KeyW:'up',Digit2:'up',Numpad2:'down',ArrowDown:'down',KeyS:'down',Digit8:'down',Numpad8:'up',ArrowLeft:'left',KeyA:'left',Digit4:'left',Numpad4:'left',ArrowRight:'right',KeyD:'right',Digit6:'right',Numpad6:'right'};
+addEventListener('keydown',e=>{
+  if(!$('ovStart').hidden&&(e.code==='Enter'||e.code==='Space')){e.preventDefault();start();return}
+  if(!$('ovPause').hidden&&(e.code==='Enter'||e.code==='Space'||e.code==='Escape')){e.preventDefault();start();return}
+  if(!$('ovOver').hidden&&(e.code==='Enter')){e.preventDefault();$('bNew').click();return}
+  const d=KEYS[e.code];
+  if(d){e.preventDefault();if(!e.repeat)press(d);return}
+  if(e.code==='Escape'||e.code==='KeyP'||e.code==='Digit1')pause();
+  if(e.code==='KeyM'||e.code==='Digit5'||e.code==='Numpad5')useMap();
+});
+addEventListener('keyup',e=>{const d=KEYS[e.code];if(d)release(d)});
+document.querySelectorAll('.k[data-d]').forEach(k=>{
+  const d=k.dataset.d;
+  k.addEventListener('pointerdown',e=>{e.preventDefault();try{k.setPointerCapture(e.pointerId)}catch(_){}k.classList.add('on');press(d)});
+  const up=()=>{k.classList.remove('on');release(d)};
+  k.addEventListener('pointerup',up);k.addEventListener('pointercancel',up);k.addEventListener('lostpointercapture',up);
+  k.addEventListener('contextmenu',e=>e.preventDefault());
+});
+// Swipe on the screen: the finger's direction from where it went down is held until it lifts.
+let sw=null;
+cv.addEventListener('pointerdown',e=>{e.preventDefault();sw={x:e.clientX,y:e.clientY,id:e.pointerId};try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(!sw||e.pointerId!==sw.id)return;const dx=e.clientX-sw.x,dy=e.clientY-sw.y;if(Math.hypot(dx,dy)<18)return;
+  const d=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up');
+  if(d!==held)press(d);sw.x=e.clientX-Math.sign(dx)*8;sw.y=e.clientY-Math.sign(dy)*8;});
+const swEnd=()=>{sw=null;held=null};
+cv.addEventListener('pointerup',swEnd);cv.addEventListener('pointercancel',swEnd);
+function useMap(){if(!running||S.map)return;S.map=1;mapUntil=performance.now()+3000;beep(880,.06);ui();store()}
+$('kMap').addEventListener('click',useMap);
+$('kPause').addEventListener('click',()=>{running?pause():(!$('ovPause').hidden&&start())});
+$('kSound').addEventListener('click',()=>{sound=!sound;try{localStorage.setItem(SND,sound?'1':'0')}catch(e){}ui();beep(660,.05)});
+$('bStart').addEventListener('click',start);
+$('bResume').addEventListener('click',start);
+$('bRestart').addEventListener('click',()=>{show('ovPause',false);newGame();start()});
+$('bNew').addEventListener('click',()=>{show('ovOver',false);newGame();start()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});
+addEventListener('resize',fit);
+
+function loop(now){
+  const dt=Math.min(.1,(now-lastT)/1000||0);lastT=now;blink+=dt;
+  if(running&&!anyOverlay()){
+    if(held&&now>=repeatAt){step(held);repeatAt=now+110}
+    if(running){
+      S.time-=dt;
+      if(S.time<=0){S.time=0;loseLife('Lejárt az idő!')}
+      else if(enemies.length)moveEnemies(dt);
+    }
+    if((saveT+=dt)>1&&running){saveT=0;store()}
+    if(running)ui();
+  }
+  if(toastT&&now>toastT){$('toast').hidden=true;toastT=0}
+  draw(now);requestAnimationFrame(loop);
+}
+if(load()){ui();show('ovPause',true)}
+else{newGame();show('ovStart',true)}
+fit();requestAnimationFrame(loop);
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

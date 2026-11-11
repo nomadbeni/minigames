@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Nomadbeni Játéktár</title>
+<meta name="description" content="Böngészőben futó, egyfájlos HTML játékok és Minecraft építési tervek.">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<style>
+/* Layout: one centered column — pixel masthead, then a card grid per shelf (games, Minecraft plans) */
+:root{
+  --bg:#eaf0ee; --surface:#ffffff; --ink:#15211f; --muted:#5a6b68; --line:#cfdad7;
+  --gem:#0f8f7e; --gold:#c98a12; --grass:#4f8a2c;
+  --display:"Pixelify Sans","Courier New",monospace;
+  --body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1514; --surface:#16201f; --ink:#e6efec; --muted:#93a6a2; --line:#26332f;
+  --gem:#3fd2bb; --gold:#f0b441; --grass:#8cc95c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --surface:#16201f; --ink:#e6efec; --muted:#93a6a2; --line:#26332f;
+  --gem:#3fd2bb; --gold:#f0b441; --grass:#8cc95c; color-scheme:dark}
+:root{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-block:32px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:40px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.lang button{font:700 13px/1 var(--body);letter-spacing:.08em;padding:8px 12px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.gh{display:inline-flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.gh svg{width:18px;height:18px;fill:currentColor}
+a:focus-visible,button:focus-visible{outline:2px solid var(--gem);outline-offset:2px}
+.mast{display:flex;flex-direction:column;gap:12px}
+.blocks{display:flex;gap:4px}
+.blocks i{width:14px;height:14px;display:block;border-radius:2px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(40px,9vw,72px);line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+.lede{margin:0;max-width:60ch;color:var(--muted);font-size:18px}
+#shelves{display:flex;flex-direction:column;gap:40px}
+section{display:flex;flex-direction:column;gap:16px}
+h2{font-family:var(--display);font-weight:500;font-size:26px;line-height:1.2;margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+h2 small{white-space:nowrap;font-family:var(--body);font-size:14px;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{position:relative;display:flex;flex-direction:column;gap:10px;padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;color:inherit;transition:transform .15s ease,border-color .15s ease}
+.card>a{color:inherit;text-decoration:none}
+.card>a::after{content:"";position:absolute;inset:0;border-radius:10px}
+.card>a:focus-visible{outline:none}
+.card:has(>a:focus-visible){outline:2px solid var(--gem);outline-offset:2px}
+.card .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.star{position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:700 14px/1 var(--body);cursor:pointer}
+.star svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.star[aria-pressed="true"]{color:var(--gold);border-color:var(--gold)}
+.star[aria-pressed="true"] svg{fill:currentColor}
+.star:hover{border-color:var(--gold);color:var(--gold)}
+.fav .card{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
+.rank{position:absolute;top:14px;right:14px;min-width:26px;height:26px;padding:0 6px;display:grid;place-items:center;border-radius:999px;background:var(--gold);color:#fff;font:800 13px/1 var(--body);font-variant-numeric:tabular-nums}
+.empty{margin:0;padding:18px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:15px}
+.note{margin:0;min-height:1.5em;color:var(--gold);font-weight:700;font-size:14px}
+.note:empty{min-height:0;margin-top:-16px}
+.card:hover{transform:translateY(-2px);border-color:var(--gem)}
+.card .tile{width:40px;height:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.card .tile i{border-radius:1px}
+.card h3{margin:0;font-size:19px;font-weight:800;line-height:1.25}
+.card p{margin:0;color:var(--muted);font-size:15px;min-width:0}
+.card .go{font-weight:700;font-size:14px;color:var(--gem)}
+footer{border-top:1px solid var(--line);padding-top:20px;display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:14px}
+footer a{color:inherit}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="lang" role="group" aria-label="Nyelv / Language">
+      <button type="button" id="lang-hu" data-lang="hu" aria-pressed="true">HU</button>
+      <button type="button" id="lang-en" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+    <a class="gh" href="https://github.com/nomadbeni/minigames" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span data-i18n="gh">Forráskód a GitHubon</span>
+    </a>
+  </div>
+
+  <header class="mast">
+    <div class="blocks" aria-hidden="true"><i style="background:var(--grass)"></i><i style="background:var(--gold)"></i><i style="background:var(--gem)"></i></div>
+    <h1 data-i18n="title">Játéktár</h1>
+    <p class="lede" data-i18n="lede">Böngészőben futó játékok és Minecraft építési tervek. Nincs telepítés, nincs regisztráció: koppints egyre, és már indul is, telefonon és gépen egyaránt.</p>
+  </header>
+
+  <main id="shelves"></main>
+
+  <footer>
+    <span data-i18n="license">Szabad felhasználás az MIT licenc szerint.</span>
+    <a href="https://github.com/nomadbeni/minigames/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="licenseLink">Licenc</a>
+    <span data-i18n="ai">A tárolóban minden kódot, játékot és leírást teljes egészében mesterséges intelligencia (Claude, Anthropic) készített, az ellenőrzést egy másik MI végezte.</span>
+  </footer>
+</div>
+
+<!-- The list below is generated by tools/build_site.py from each game's <head>. -->
+<script id="games-data" type="application/json">
+[
+ {
+  "slug": "betu-csata",
+  "category": "jatek",
+  "title": "Arena",
+  "title_en": "Arena",
+  "desc": "Felülnézetes arénacsata robotok ellen, szűkülő viharral. Lootolj ládákat: pajzs, rakéta, gyógyital, de csak ha a felvillanó szóhoz időre a jó ikont választod. Rövid, pörgős menetek, ranglista.",
+  "desc_en": "Top-down arena battle against robots inside a shrinking storm. Loot chests for shields, rockets and potions, but only if you match the flashing word to the right icon in time. Short, fast rounds. Hungarian."
+ },
+ {
+  "slug": "betubanya",
+  "category": "jatek",
+  "title": "Betűbánya",
+  "title_en": "Letter Mine",
+  "desc": "Blokkos, pixeles olvasás- és matekgyakorló kaland 30 napra: napi rövid szövegek és számolós feladatok, szótagszínezés, olvasóvonalzó, felolvasás, okos ismétlés és PIN-kóddal védett tanári nézet.",
+  "desc_en": "Blocky pixel-style 30-day reading and maths adventure: short daily texts and number puzzles, syllable colouring, reading ruler, read-aloud, spaced repetition and a PIN-protected teacher view. Hungarian."
+ },
+ {
+  "slug": "bringa-futam",
+  "category": "jatek",
+  "title": "Downhill",
+  "title_en": "Downhill",
+  "desc": "Lejtmenet-verseny három riderrel: válts sávot, kerüld a köveket, a kapuknál a jó táblát válaszd, mert az turbót ad, a rossz sarat. A Bike Shopban épített bringáddal mész, a nyeremény a műhelybe kerül.",
+  "desc_en": "Downhill race against three riders: switch lanes, dodge rocks and pick the right sign at each gate for a boost instead of mud. You ride the bike built in Bike Shop, and the prize money goes back to the shop. Hungarian."
+ },
+ {
+  "slug": "bringa-muhely",
+  "category": "jatek",
+  "title": "Bike Shop",
+  "title_en": "Bike Shop",
+  "desc": "Saját bringás műhely: a riderek leírják, mi a baj, te megtalálod a hibát, leveszed a polcról a jó alkatrészt, és beszereled. A pénzből szerszám, nagyobb műhely és saját versenybringa, amivel a Downhillen mész.",
+  "desc_en": "Your own bike workshop: riders tell you what is wrong, you find the fault, grab the right part off the shelf and fit it. Earn tools, a bigger shop and your own race bike for Downhill. Hungarian."
+ },
+ {
+  "slug": "bunyo",
+  "category": "jatek",
+  "title": "Bunyó",
+  "title_en": "Brawl",
+  "desc": "Oldalnézetes pixeles bunyó egy az egy ellen: BMX-es, gazda, bányász, streamer, szerelő és a végén egy robot. Ütés, rúgás, védés, ugrás, menetek, és szupermozdulat, ha időre elolvasod a felvillanó szót. Arcade létra hat ellenféllel, billentyűzettel vagy érintéssel.",
+  "desc_en": "Side-view pixel one-on-one fighter: BMX rider, farmer, miner, streamer, mechanic and a robot boss. Punch, kick, block, jump, best-of-three rounds, and a super move if you read the flashing word in time. Arcade ladder with six opponents, keyboard or touch. Hungarian."
+ },
+ {
+  "slug": "coloptorony",
+  "category": "minecraft",
+  "title": "Cölöptorony",
+  "title_en": "Stilt Tower",
+  "desc": "Egymásra rakott toronyház cölöpökön egy kis tóban, féltetővel és kéményekkel.",
+  "desc_en": "A stacked tower house on stilts in a small pond, with lean-to roofs and chimneys."
+ },
+ {
+  "slug": "cornholescore",
+  "category": "jatek",
+  "title": "Cornhole Scorekeeper",
+  "title_en": "Cornhole Scorekeeper",
+  "desc": "Cornhole pontozó telefonra: ACL kancellációs és egyszerű mód, körök története, visszavonás, statisztika, játékosok és mérkőzésarchívum, magyar és angol felület, offline is működik.",
+  "desc_en": "Phone-friendly cornhole scorekeeper: ACL cancellation and simple scoring, round history, undo, stats, players and match archive, Hungarian and English interface, works offline."
+ },
+ {
+  "slug": "csapda",
+  "category": "jatek",
+  "title": "Csapda",
+  "title_en": "Trap",
+  "desc": "Gonosz platformjáték: csak el kell jutni az ajtóig, de leszakad a padló, kibújik a tüske, leesik a plafon, és az ajtó is elszalad. Minden pályán van egy tábla, aki elolvassa, tudja, mi vár rá. 12 pálya, halálszámláló.",
+  "desc_en": "A devious platformer: just reach the door, except the floor drops, spikes pop up, the ceiling falls and the door runs away. Every level has a sign, and whoever reads it knows what is coming. 12 levels and a death counter. Hungarian."
+ },
+ {
+  "slug": "dobozmester",
+  "category": "jatek",
+  "title": "Dobozmester",
+  "title_en": "Box Master",
+  "desc": "Doboztologatós logikai játék pixeles raktárban: told a ládákat a jelölt helyekre. 44 ellenőrzött pálya egy ládától ötig, korlátlan visszavonás, koppintással is lehet menni, és szól, ha egy láda beragadt.",
+  "desc_en": "Box-pushing puzzle in a pixel warehouse: push every crate onto a marked spot. 44 checked levels from one crate to five, unlimited undo, tap-to-walk, and a warning when a crate gets stuck. Hungarian."
+ },
+ {
+  "slug": "e-utveszto",
+  "category": "jatek",
+  "title": "E-Útvesztő",
+  "title_en": "E-Maze Retro",
+  "desc": "Retró labirintus a régi mobilok zöld kijelzőjén: találj ki a görgő útvesztőből, mielőtt lejár az idő. Szedd fel az E-érméket plusz időért, kerüld el az árnyékokat, és egyszer pályánként nézz rá a térképre. Minden szint nagyobb.",
+  "desc_en": "Retro maze on an old phone's green screen: find the way out of the scrolling maze before time runs out. Pick up E coins for extra time, dodge the shadows and peek at the map once per level. Every level gets bigger."
+ },
+ {
+  "slug": "falbonto",
+  "category": "jatek",
+  "title": "Falbontó",
+  "title_en": "Wallbreaker",
+  "desc": "Klasszikus ütős téglatörő álló telefonra: mozgasd az ütőt, üsd vissza a labdát, gyűjts kapszulákat (lézer, nagy ütő, ragacs, több labda, lassítás, átütő labda, élet). Ezüst és arany téglák, bombák, 10 tervezett pálya, utána végtelen.",
+  "desc_en": "Classic paddle brick breaker for portrait phones: move the paddle, return the ball and catch capsules (laser, wide paddle, catch, multiball, slow, mega ball, extra life). Silver and gold bricks, bombs, 10 designed stages, then endless."
+ },
+ {
+  "slug": "feketevar-lovagerod",
+  "category": "minecraft",
+  "title": "Feketevár lovagerőd",
+  "title_en": "Blackcastle Knight Fortress",
+  "desc": "Sötét erőd mélypalából és feketekőből, kettős falgyűrű, kovácsműhely, istálló.",
+  "desc_en": "A dark fortress of deepslate and blackstone with double walls, a forge and stables."
+ },
+ {
+  "slug": "gyemantbanya",
+  "category": "jatek",
+  "title": "Gyémántbánya",
+  "title_en": "Diamond Mine",
+  "desc": "Kockás logikai játék: soronként, oszloponként és blokkfajtánként egy gyémánt, ami nem érhet a többihez. 3 nehézség.",
+  "desc_en": "Block logic puzzle: one diamond per row, column and block type, never touching another. Three difficulty levels."
+ },
+ {
+  "slug": "hegyormi-var",
+  "category": "minecraft",
+  "title": "Hegyormi vár",
+  "title_en": "Mountaintop Castle",
+  "desc": "Havas hegyre épített vár bástyás terasszal, díszlépcsővel és romos csúcsvárral. Szintenkénti terv, 3D előnézet, anyaglista.",
+  "desc_en": "A castle on a snowy peak with a bastion terrace, grand stairway and ruined keep. Layer-by-layer plan, 3D preview, material list."
+ },
+ {
+  "slug": "horda",
+  "category": "jatek",
+  "title": "Horda",
+  "title_en": "Horde",
+  "desc": "Zombihorda-túlélő álló telefonra: az osztagod magától lő, te jobbra-balra húzod. A kapuknál el kell olvasni, melyik erősít (több katona, gyors tüzelés) és melyik gyengít. Fegyverládák, egyre nagyobb hullámok, óriászombi főellenfelek, öt nehézségi szint (Alaptól Ultráig). Reklám nélkül.",
+  "desc_en": "Zombie horde survival for portrait phones: your squad fires on its own while you drag it left and right. At each gate you have to read which side helps (more soldiers, faster fire) and which hurts. Weapon crates, growing waves and giant zombie bosses, five difficulty levels (Basic to Ultra). No ads. Hungarian."
+ },
+ {
+  "slug": "kalandor",
+  "category": "jatek",
+  "title": "Dungeon",
+  "title_en": "Dungeon",
+  "desc": "Pixeles RPG: szörnyek lepték el a völgyet. Küldetések a falu lakóitól, iránytű a célhoz, körökre osztott harc nyálkák és csontvázak ellen, szintlépés, kard és pajzs, a barlang mélyén a kőóriás.",
+  "desc_en": "Pixel RPG: monsters have overrun the valley. Quests from the villagers, a compass to the target, turn-based fights against slimes and skeletons, levelling up, sword and shield, and a stone giant deep in the cave. Hungarian."
+ },
+ {
+  "slug": "kertvedo",
+  "category": "jatek",
+  "title": "Invázió",
+  "title_en": "Invasion",
+  "desc": "Toronyvédő: mutáns csigák, hernyók, bogarak, varjak és patkányok rohamozzák a bázist, te védőnövényekből húzol fel vonalat. Az új egységet szótagokból kell feloldani. 8 egyre durvább hullám.",
+  "desc_en": "Tower defence: mutant snails, caterpillars, beetles, crows and rats storm the base while you hold the line with defender plants. New units are unlocked by putting their syllables in order. Eight increasingly brutal waves. Hungarian."
+ },
+ {
+  "slug": "kincsvadasz",
+  "category": "jatek",
+  "title": "Kincsvadász",
+  "title_en": "Treasure Hunter",
+  "desc": "Ugyanez a logikai játék 8-bites RPG-kaland stílusban: kincsesládák, párbeszédek, XP és szintlépés.",
+  "desc_en": "The same logic puzzle as an 8-bit RPG adventure: treasure chests, dialogue, XP and levelling up."
+ },
+ {
+  "slug": "kocka-kert",
+  "category": "jatek",
+  "title": "Farm Empire",
+  "title_en": "Farm Empire",
+  "desc": "Pixeles farmbiznisz: ásás, vetés, öntözés, aratás, szerződések éttermeknek és piacoknak. Pontos szállításért dupla pénz. Új magok, nagyobb föld, farmszintek.",
+  "desc_en": "Pixel farming business: dig, sow, water, harvest and fill contracts for restaurants and markets. Exact deliveries pay double. New seeds, more land, farm levels. Hungarian."
+ },
+ {
+  "slug": "kokastely-arokkal",
+  "category": "minecraft",
+  "title": "Kőkastély árokkal",
+  "title_en": "Stone Castle with Moat",
+  "desc": "Négy bástya fa kilátóval, pártázatos fal, kapuház, favázas lakóépület és vizesárok.",
+  "desc_en": "Four towers with wooden lookouts, crenellated walls, a gatehouse, a timber-framed hall and a moat."
+ },
+ {
+  "slug": "kokori-kaland",
+  "category": "jatek",
+  "title": "Kőkori Kaland",
+  "title_en": "Stone Age Quest",
+  "desc": "Oldalnézetes pixeles ugrálós játék a kőkorban: ősember bunkóval, dínók, tüskés sünök, békák és repülő gyíkok, kőfalak, mocsár, jégbarlang és tűzhegy. Öt pálya, a végén a Nagy Mamut. Gyűjtsd az ételt, üsd le, amit kell.",
+  "desc_en": "Side-scrolling pixel platformer in the stone age: a caveman with a club against dinos, spiky hedgehogs, frogs and flying lizards, through a fern forest, a swamp, an ice cave and a fire mountain. Five levels and a mammoth boss. Collect food, bonk what you must. Hungarian."
+ },
+ {
+  "slug": "rejtekhaz",
+  "category": "minecraft",
+  "title": "Rejtekház",
+  "title_en": "Hideaway House",
+  "desc": "Faház kertekkel, alatta raktár, varázslókönyvtár és ametisztbarlang.",
+  "desc_en": "A wooden house with gardens, and below it a storeroom, a wizard library and an amethyst cave."
+ },
+ {
+  "slug": "sasfeszek-sziklavar",
+  "category": "minecraft",
+  "title": "Sasfészek sziklavár",
+  "title_en": "Eagle's Nest Cliff Castle",
+  "desc": "Kétszintes hegyi vár sziklán, kapuudvarral, felvezető lépcsővel, öregtoronnyal és palotával.",
+  "desc_en": "A two-level castle on a cliff with a gate courtyard, approach stairs, a keep and a palace."
+ },
+ {
+  "slug": "tankorseg",
+  "category": "jatek",
+  "title": "Páncélos őrség",
+  "title_en": "Tank Guard",
+  "desc": "Retró felülnézetes tankcsata a régi 8-bites tankos játékok mintájára: védd a zászlós bunkert. Szétlőhető téglafal, acél, víz, erdő és csúszós jég, négyféle ellenséges tank, villogó tankokból bónuszok (csillag, pajzs, óra, bomba, erőd, élet). Hat pálya, utána egyre nehezebb körök.",
+  "desc_en": "Retro top-down tank battle in the style of old 8-bit tank games: guard the flag bunker. Breakable bricks, steel, water, forest and slippery ice, four kinds of enemy tanks, bonuses from flashing tanks (star, shield, clock, bomb, fortress, extra life). Six stages, then harder rounds. Hungarian."
+ },
+ {
+  "slug": "teglatoro",
+  "category": "jatek",
+  "title": "Téglatörő Swipe",
+  "title_en": "Brick Swipe",
+  "desc": "Swipe-típusú téglatörő álló telefonra: célozz, lőj ki egy sorozat labdát, és ne engedd lejutni a számozott téglákat. Sor-, oszlop- és bombatéglák, másképp pattanó téglák, Shotgun-legyező, irányváltó pontok, kerülendő Felező, három nehézségi szint.",
+  "desc_en": "Swipe brick breaker for portrait phones: aim, fire a stream of balls and keep the numbered bricks from reaching the bottom. Row, column and bomb bricks, special bounce bricks, a Shotgun fan shot, direction changers, a Halver to avoid, three difficulty levels."
+ },
+ {
+  "slug": "tundervar",
+  "category": "minecraft",
+  "title": "Tündérvár",
+  "title_en": "Fairy Castle",
+  "desc": "Mesebeli kastély kalcitból, kerek tornyok kék kúpos süveggel és aranycsúcsokkal.",
+  "desc_en": "A storybook castle of calcite with round towers, blue conical roofs and golden spires."
+ }
+]
+</script>
+<script>
+(()=>{
+const T={
+  hu:{title:"Játéktár",lede:"Böngészőben futó játékok és Minecraft építési tervek. Nincs telepítés, nincs regisztráció: koppints egyre, és már indul is, telefonon és gépen egyaránt.",
+      gh:"Forráskód a GitHubon",license:"Szabad felhasználás az MIT licenc szerint.",licenseLink:"Licenc",
+      ai:"A tárolóban minden kódot, játékot és leírást teljes egészében mesterséges intelligencia (Claude, Anthropic) készített, az ellenőrzést egy másik MI végezte.",
+      jatek:"Játékok",minecraft:"Minecraft építési tervek",other:"Egyéb",play:"Indítás →",open:"Megnyitás →",count:n=>n+" db",
+      fav:"Kedvencek",favCount:n=>n+" / 10",favEmpty:"Még nincs kedvenc. Koppints a ☆ Kedvenc gombra egy játék alján, és ide kerül, abban a sorrendben, ahogy csillagozod. Legfeljebb 10 fér el.",
+      star:"Kedvenc",starOn:"Kedvenc",add:t=>t+" hozzáadása a kedvencekhez",remove:t=>t+" törlése a kedvencek közül",full:"Tele van a 10 hely. Előbb vegyél ki egy kedvencet."},
+  en:{title:"Game Shelf",lede:"Games and Minecraft build plans that run in your browser. Nothing to install, no sign-up: tap one and it starts, on phone or desktop.",
+      gh:"Source on GitHub",license:"Free to use under the MIT License.",licenseLink:"License",
+      ai:"All code, games and text in this repository were created entirely by AI (Claude, Anthropic) and reviewed by another AI.",
+      jatek:"Games",minecraft:"Minecraft build plans",other:"Other",play:"Play →",open:"Open →",count:n=>n===1?"1 item":n+" items",
+      fav:"Favourites",favCount:n=>n+" / 10",favEmpty:"No favourites yet. Tap ☆ Favourite at the bottom of a game and it lands here, in the order you star them. Up to 10.",
+      star:"Favourite",starOn:"Favourite",add:t=>"Add "+t+" to favourites",remove:t=>"Remove "+t+" from favourites",full:"All 10 spots are taken. Remove a favourite first."}
+};
+const games=JSON.parse(document.getElementById('games-data').textContent||'[]');
+const order=['jatek','minecraft'];
+const palettes={jatek:['var(--gem)','var(--gold)'],minecraft:['var(--grass)','var(--gold)']};
+
+function hash(s){let h=0;for(const ch of s)h=(h*31+ch.charCodeAt(0))>>>0;return h}
+function tile(slug,cat){
+  const [a,b]=palettes[cat]||['var(--muted)','var(--gem)'];
+  let h=hash(slug),out='';
+  for(let i=0;i<16;i++){const v=(h>>(i%30))&3;out+=`<i style="background:${v===0?b:a};opacity:${v===3?.35:1}"></i>`}
+  return `<span class="tile" aria-hidden="true">${out}</span>`;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+const MAX_FAV=10, FAV_KEY='games-favs';
+const slugs=new Set(games.map(g=>g.slug));
+function loadFavs(){
+  try{
+    const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');
+    if(!Array.isArray(v))return [];
+    const out=[];
+    for(const x of v){if(typeof x==='string'&&slugs.has(x)&&!out.includes(x)&&out.length<MAX_FAV)out.push(x)}
+    return out;
+  }catch(e){return []}
+}
+function saveFavs(){try{localStorage.setItem(FAV_KEY,JSON.stringify(favs))}catch(e){}}
+let favs=loadFavs(), note='';
+const STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.7 6.3.9-4.55 4.43 1.07 6.27L12 17.13 6.38 20.1l1.07-6.27L2.9 9.4l6.3-.9z"/></svg>';
+
+function card(g,t,lang,rank){
+  const name=lang==='en'?g.title_en:g.title, on=favs.includes(g.slug);
+  return `<div class="card">${rank?`<span class="rank" aria-hidden="true">${rank}</span>`:''}<a href="${esc(g.slug)}/index.html">${tile(g.slug,g.category)}</a>`+
+    `<h3>${esc(name)}</h3><p>${esc(lang==='en'?g.desc_en:g.desc)}</p>`+
+    `<div class="foot"><span class="go">${g.category==='minecraft'?t.open:t.play}</span>`+
+    `<button type="button" class="star" data-slug="${esc(g.slug)}" aria-pressed="${on}" aria-label="${esc(on?t.remove(name):t.add(name))}">${STAR}<span>${t.star}</span></button></div></div>`;
+}
+
+function render(lang,focusSlug,focusFav){
+  const t=T[lang];
+  document.documentElement.lang=lang;
+  document.title=lang==='en'?'Nomadbeni Game Shelf':'Nomadbeni Játéktár';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t[el.dataset.i18n]});
+  document.querySelectorAll('.lang button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.lang===lang));
+  const bySlug=Object.fromEntries(games.map(g=>[g.slug,g]));
+  const favList=favs.map(s=>bySlug[s]);
+  const favHtml=`<section class="fav" id="kedvencek"><h2>★ ${esc(t.fav)} <small>${t.favCount(favs.length)}</small></h2>`+
+    `<p class="note" role="status" aria-live="polite">${esc(note)}</p>`+
+    (favList.length?`<div class="grid">${favList.map((g,i)=>card(g,t,lang,i+1)).join('')}</div>`:`<p class="empty">${esc(t.favEmpty)}</p>`)+
+    `</section>`;
+  const cats=[...new Set(games.map(g=>g.category))].sort((a,b)=>(order.indexOf(a)+99)%99-(order.indexOf(b)+99)%99||a.localeCompare(b));
+  document.getElementById('shelves').innerHTML=favHtml+cats.map(cat=>{
+    const list=games.filter(g=>g.category===cat);
+    return `<section><h2>${esc(t[cat]||t.other)} <small>${t.count(list.length)}</small></h2><div class="grid">`+
+      list.map(g=>card(g,t,lang,0)).join('')+`</div></section>`;
+  }).join('');
+  // Fix: the card text sits outside the link, so the whole card stays clickable via the stretched link
+  document.querySelectorAll('.card>a').forEach(a=>a.setAttribute('aria-label',a.parentElement.querySelector('h3').textContent));
+  if(focusSlug){
+    const sel=`.star[data-slug="${CSS.escape(focusSlug)}"]`;
+    const el=(focusFav?document.querySelector('.fav '+sel):null)||document.querySelector('section:not(.fav) '+sel);
+    if(el)el.focus({preventScroll:true});
+  }
+}
+document.getElementById('shelves').addEventListener('click',e=>{
+  const b=e.target.closest('.star');if(!b)return;
+  e.preventDefault();
+  const s=b.dataset.slug, i=favs.indexOf(s), inFav=!!b.closest('.fav');
+  note='';
+  if(i>=0)favs.splice(i,1);
+  else if(favs.length>=MAX_FAV)note=T[lang].full;
+  else favs.push(s);
+  saveFavs();render(lang,s,inFav&&favs.includes(s));
+});
+let lang='hu';
+try{lang=localStorage.getItem('games-lang')||(navigator.language||'hu').slice(0,2)}catch(e){}
+if(!T[lang])lang='en';
+document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',()=>{
+  lang=b.dataset.lang;try{localStorage.setItem('games-lang',lang)}catch(e){}render(lang);
+}));
+render(lang);
+})();
+</script>
+</body>
+</html>

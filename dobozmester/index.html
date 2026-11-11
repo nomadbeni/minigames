@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Dobozmester</title>
+<meta name="description" content="Doboztologatós logikai játék pixeles raktárban: told a ládákat a jelölt helyekre. 44 ellenőrzött pálya egy ládától ötig, korlátlan visszavonás, koppintással is lehet menni, és szól, ha egy láda beragadt.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Box Master">
+<meta name="games:description-en" content="Box-pushing puzzle in a pixel warehouse: push every crate onto a marked spot. 44 checked levels from one crate to five, unlimited undo, tap-to-walk, and a warning when a crate gets stuck. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: back link, HUD (level, moves, pushes, buttons), status line, canvas board, touch pad, overlay card */
+:root{
+  --bg:#141018; --panel:#221c28; --panel2:#2f2738; --line:#433852; --fg:#f6f0ff; --muted:#b4a8c6;
+  --accent:#ffb43c; --ok:#5fe08a; --bad:#ff5d6c;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; --title:"Bungee","Chakra Petch",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:7px;max-width:760px;margin:0 auto;padding-block:8px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:6px;min-width:0}
+.chip{display:inline-flex;align-items:baseline;gap:5px;padding:6px 9px;border-radius:9px;background:var(--panel);border:1px solid var(--line);font:700 15px/1 var(--disp);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip small{font:600 11px/1 var(--disp);color:var(--muted);letter-spacing:.06em}
+.sp{flex:1;min-width:0}
+.ib{width:42px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:19px;cursor:pointer;flex:none}
+.ib:disabled{opacity:.35;cursor:default}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#msg{min-height:22px;text-align:center;font:600 16px/1.3 var(--font);color:var(--muted)}
+#msg.warn{color:var(--bad)}
+#msg.good{color:var(--ok)}
+#stage{flex:1;min-height:0;display:grid;place-items:center;position:relative;touch-action:none}
+#cv{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;cursor:pointer}
+.pad{display:flex;justify-content:space-between;align-items:center;gap:10px;touch-action:none;padding-bottom:4px}
+.dpad{--b:min(76px,21vw);display:grid;grid-template-columns:repeat(3,var(--b));grid-template-rows:repeat(3,var(--b));gap:5px;flex:none}
+.dpad button,.pad .big{border-radius:14px;border:2px solid var(--line);background:var(--panel);color:var(--fg);font:700 26px/1 var(--disp);cursor:pointer;touch-action:none}
+.dpad .u{grid-column:2;grid-row:1}.dpad .l{grid-column:1;grid-row:2}.dpad .d{grid-column:2;grid-row:3}.dpad .r{grid-column:3;grid-row:2}
+.dpad::after{content:"";grid-column:2;grid-row:2;border-radius:50%;background:var(--panel2);margin:18%}
+.pad .big{width:min(112px,27vw);height:min(160px,40vw);font-size:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.pad .big b{font-size:40px;line-height:1}
+.pad button.on,.pad button:active{background:var(--panel2);border-color:var(--accent)}
+.pad .big:disabled{opacity:.35}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
+@media (max-width:430px){.hud{gap:4px}.chip{padding:5px 6px;font-size:14px;gap:3px}.chip small{font-size:9px}.ib{width:36px;height:38px;font-size:17px}}
+@media (max-height:700px){.dpad{--b:min(60px,19vw)}.pad .big{height:120px;width:96px}}
+#ov{position:fixed;inset:0;background:rgba(12,8,16,.86);display:grid;place-items:center;padding:16px;z-index:9}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:18px 16px;width:min(470px,100%);max-height:calc(100% - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px;text-align:center}
+.card h1{margin:0;font:400 32px/1.05 var(--title);color:var(--accent);text-shadow:3px 3px 0 #000}
+.card h2{margin:0;font:400 26px/1.1 var(--title);color:var(--ok);text-shadow:2px 2px 0 #000}
+.card p{margin:0;font:500 17px/1.45 var(--font)}
+.card .small{font-size:14px;color:var(--muted)}
+.btn{display:block;width:100%;padding:14px 12px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);font:700 19px/1 var(--disp);cursor:pointer}
+.btn.hot{background:var(--accent);border-color:#ffd38a;color:#24170a}
+.btns{display:flex;flex-direction:column;gap:8px}
+.lv{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.lv button{padding:9px 0 7px;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);font:700 19px/1 var(--disp);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.lv button small{font:600 10px/1 var(--disp);color:var(--muted)}
+.lv button.done{border-color:var(--ok)}
+.lv button.done small{color:var(--ok)}
+.lv button.cur{outline:2px solid var(--accent);outline-offset:1px}
+.lv button:disabled{opacity:.3;cursor:not-allowed}
+.keys{font:500 13px/1.5 var(--font);color:var(--muted)}
+.stat{font:400 24px/1 var(--title);color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <span class="chip"><small>PÁLYA</small><span id="lvl">1</span></span>
+    <span class="chip"><small>LÉPÉS</small><span id="moves">0</span></span>
+    <span class="chip"><small>TOLÁS</small><span id="pushes">0</span></span>
+    <span class="sp"></span>
+    <button class="ib" id="undo" aria-label="Visszavonás">↶</button>
+    <button class="ib" id="restart" aria-label="Pálya újrakezdése">↻</button>
+    <button class="ib" id="menuBtn" aria-label="Pályák">☰</button>
+  </div>
+  <div id="msg">Told a ládákat a jelölt helyekre!</div>
+  <div id="stage"><canvas id="cv" aria-label="Raktár"></canvas></div>
+  <div class="pad" id="pad">
+    <div class="dpad">
+      <button class="u" data-d="0" aria-label="Fel">▲</button>
+      <button class="l" data-d="3" aria-label="Balra">◀</button>
+      <button class="d" data-d="2" aria-label="Le">▼</button>
+      <button class="r" data-d="1" aria-label="Jobbra">▶</button>
+    </div>
+    <button class="big" id="undo2" aria-label="Visszavonás"><b>↶</b>VISSZA</button>
+  </div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+'use strict';
+/* Levels: # wall, . target, $ crate, * crate on target, @ worker, + worker on target.
+   Every level was checked with a solver before it was put here (minimal pushes in PAR). */
+const LEVELS=[
+["########","#      #","#@ $.  #","#      #","########"],
+["  #####  ","### @ ###","#.$ #   #","#  ###  #","#.$ $  .#","###   ###","  #####  "],
+["#######","#    .#","#@    #","# $#  #","# $   #","#   . #","#######"],
+["  ######","  #   .#","### @# #","#  $   #","# # $###","#.   #  ","######  "],
+["########","# .   .#","# ##  @#","# $ $# #","#  #   #","#      #","########"],
+["########","##    ##","#@.    #","#  ##  #","# $##$ #","#.   $ #","##.   ##","########"],
+["########","#  #   #","#     .#","### ##$#","# $ $  #","# # #@ #","#  . . #","########"],
+["#########","###   ###","# .   ..#","# #@# # #","#   $$$ #","###   ###","#########"],
+["#########","#   #   #","#   $   #","## ###$##","#   . $ #","#.  #. @#","#########"],
+["#######","# $  .#","# .$$ #","#..#  #","#  $  #","#  @  #","#######"],
+["##########","#@   #  .#","#$ $   $$#","# ##  ##.#","#.  .#   #","#  #     #","#   #    #","##########"],
+["########","##   .##","#  .   #","# .##$$#","# $##  #","# @$  .#","##. $ ##","########"],
+["########","#.   @.#","#.## $ #","#   $# #","#$ # $ #","# .    #","########"],
+["########","#  # @.#","#      #","### ## #","#  $ $ #","# # #$.#","# . .$ #","########"],
+["  #######","  #    @#","###  #  #","#    #$ #","# ##.$.##","# $  #  #","#  #   .#","#########"],
+["##########","#  # .$  #","#     #  #","### ##  @#","#     .###","# #$ #   #","#.     $ #","##########"],
+["##########","#@ #     #","#     #$ #","### ## . #","#   $  ###","# #$ #   #","#     . .#","##########"],
+["##########","##   #   #","#.@. $   #","#  ##  #.#","#$#     $#","#  $.##  #","##   #   #","##########"],
+["  #######","  #. $. #","###  #. #","#.   #  #","# ## $ ##","#$  @#$ #","#  #    #","#########"],
+["##########","## $.# @ #","#  $.   $#","#  ##$ #.#","# #     .#","#    ##  #","##   #   #","##########"],
+["#########","## $ ..##","# @# #  #","# $ $ $ #","## ### ##","#      .#","# .# #  #","#########"],
+["##########","##   #  .#","# .      #","#  ##$ #.#","# #  $   #","# @  ##$ #","##   #   #","##########"],
+["#########","#  ###  #","#.      #","#$# # # #","#   $   #","### #$###","#.. @   #","#########"],
+["#########","##     ##","#  # #  #","#.   $$ #","## ### ##","#     $.#","# .# # @#","#########"],
+["##########","#@   #   #","#      $ #","#.##  ## #","#   .# $ #","# $# . $.#","#   #    #","##########"],
+["########","#   #  #","# $    #","# ## #.#","#   $# #","##$# . #","#  .   #","#  # @ #","########"],
+["########","#   #  #","#  $ .$#","#@## # #","# .$ # #","## #   #","#.  $  #","#  #  .#","########"],
+["#########","#  ###@ #","#  . .  #","# # #$#.#","#    $  #","###$# ###","#.  $   #","#########"],
+["#########","#   #   #","# $    .#","##$ #  ##","# @   . #","#  ###  #","# .   $ #","#########"],
+["#########","#   #   #","#       #","##  # $##","#.      #","# .###$ #","# @ . $ #","#########"],
+["########","# $.# @#","#   .  #","#.## # #","#. $ # #","## #   #","#  $$  #","#  #   #","########"],
+["  ######","###    #","# $ ## #","# #.   #","#@$  #.#","##$#  .#"," #   ###"," #####  "],
+["##########","#.   #   #","# $  @ . #","#$##  ## #","#    #   #","# $#     #","#   #   .#","##########"],
+["########","#   #  #","#   $  #","# ## #.#","# $ $# #","## #  .#","#.     #","#  # @ #","########"],
+["##########","#.. ##   #","#.@ $    #","## #  #$##","#      $ #","# #    # #","#   ##   #","##########"],
+["##########","#   ##.  #","# $     .#","## #  # ##","#.  $ $@ #","# #    # #","#   ## $.#","##########"],
+["###########","#    #    #","# $#   #  #","##.## ## ##","#    @  $ #","#  #. $#  #","#  . #    #","###########"],
+["#########","#  ###  #","#.  $  .#","#@#.#$# #","# $ $   #","### # ###","#    $..#","#########"],
+["##########","#   ##   #","#   $  . #","##$#  #.##","# @      #","# #$   # #","#   ##.  #","##########"],
+["##########","#    #  .#","# $ $    #","# ##  ##.#","#   $#   #","#  #   @ #","#.  #    #","##########"],
+["##########","#   ##   #","# .   .$.#","## #  #.##","#  $ $   #","# #  $ # #","#   ## @ #","##########"],
+["##########","#  .## ..#","# $ $    #","## #$.# ##","#.$      #","# #  $ # #","#   ##  @#","##########"],
+["#########","#.$ #  @#","# $     #","##  #. ##","#   $  .#","#  ###  #","#  .  $ #","#########"],
+["###########","#    # @  #","# $#   #. #","## ## ## ##","# $      .#","#  # $.#$ #","#    #   .#","###########"]
+];
+const PAR=[1,5,8,9,10,11,13,14,19,12,12,12,13,21,10,11,11,10,11,11,12,13,14,14,12,15,13,14,16,16,16,20,20,19,19,17,20,16,20,21,19,17,21,20];
+const NL=LEVELS.length, SAVE_KEY='dobozmester:save';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const DX=[0,1,0,-1],DY=[-1,0,1,0];
+
+/* ---------------------------------------------------------------- pixel sprites (16×16, drawn once, scaled up crisp) */
+function spr(rows,pal){const c=document.createElement('canvas');c.width=16;c.height=16;const x=c.getContext('2d');
+  rows.forEach((r,j)=>{for(let i=0;i<r.length;i++){const k=r[i];if(pal[k]){x.fillStyle=pal[k];x.fillRect(i,j,1,1)}}});return c}
+function flip(c){const f=document.createElement('canvas');f.width=c.width;f.height=c.height;const x=f.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(c,0,0);return f}
+const FLOOR=spr([
+"aaaaaaaabbbbbbbb","aaaaaaaabbbbbbbb","aaaaaaaabbbbbbbb","ccccccccbbbbbbbb","aaaaaaaabbbbbbbb","aaaaaaaabbbbbbbb","aaaaaaaabbbbbbbb","ccccccccdddddddd",
+"bbbbbbbbaaaaaaaa","bbbbbbbbaaaaaaaa","bbbbbbbbaaaaaaaa","bbbbbbbbcccccccc","bbbbbbbbaaaaaaaa","bbbbbbbbaaaaaaaa","bbbbbbbbaaaaaaaa","ddddddddcccccccc"],
+{a:'#3a2f45',b:'#352a40',c:'#2b2234',d:'#2b2234'});
+const WALL=spr([
+"hhhhhhhhhhhhhhhh","HHHHHHHHHHHHHHHH","mmmmmmmdmmmmmmmd","mmmmmmmdmmmmmmmd","mmmmmmmdmmmmmmmd","dddddddddddddddd","mmmdmmmmmmmdmmmm","mmmdmmmmmmmdmmmm",
+"mmmdmmmmmmmdmmmm","dddddddddddddddd","mmmmmmmdmmmmmmmd","mmmmmmmdmmmmmmmd","mmmmmmmdmmmmmmmd","dddddddddddddddd","ssssssssssssssss","ssssssssssssssss"],
+{h:'#9a8ab8',H:'#7d6d9c',m:'#5d4f78',d:'#3d3352',s:'#2a2238'});
+const TARGET=spr([
+"","","","","......yy......","....yyYYyy....","...yY....Yy...","...yY....Yy...","....yyYYyy....","......yy......","","","","","",""],{y:'#ffb43c',Y:'#ffe08a'});
+const CRATE=spr([
+"","kkkkkkkkkkkkkkkk","kwwwwwwwwwwwwwwk","kwLLLLLLLLLLLLwk","kwLtLLLLLLLLtLwk","kwLLtLLLLLLtLLwk","kwLLLtLLLLtLLLwk","kwLLLLtLLtLLLLwk",
+"kwLLLLLttLLLLLwk","kwLLLLtLLtLLLLwk","kwLLLtLLLLtLLLwk","kwLLtLLLLLLtLLwk","kwLtLLLLLLLLtLwk","kwwwwwwwwwwwwwwk","kkkkkkkkkkkkkkkk","SSSSSSSSSSSSSSSS"],
+{k:'#2a1608',w:'#c98a43',L:'#a8692c',t:'#7a4718',S:'rgba(0,0,0,.35)'});
+const CRATE_OK=spr([
+"","kkkkkkkkkkkkkkkk","kwwwwwwwwwwwwwwk","kwLLLLLLLLLLLLwk","kwLtLLLLLLLLtLwk","kwLLtLLLLLLtLLwk","kwLLLtLLLLtLLLwk","kwLLLLtLLtLLLLwk",
+"kwLLLLLttLLLLLwk","kwLLLLtLLtLLLLwk","kwLLLtLLLLtLLLwk","kwLLtLLLLLLtLLwk","kwLtLLLLLLLLtLwk","kwwwwwwwwwwwwwwk","kkkkkkkkkkkkkkkk","SSSSSSSSSSSSSSSS"],
+{k:'#0d2a17',w:'#8ff0a8',L:'#3fbf6a',t:'#1f7a40',S:'rgba(0,0,0,.35)'});
+const WORKER_R=spr([
+".....oooooo.....","....oOOOOOOo....","...oOOOOOOOOo...","..ooooooooooooo.","....ssssssss....","....ssKssKss....","....sssssssss...","....ssskkss.....",
+".....ssssss.....","...bbbbbbbbbb...","..bsbbbyybbbsb..","..sbbbbbbbbbbs..","....bbbbbbbb....","....bb....bb....","....kk....kk....","...kkk...kkk...."],
+{o:'#c56a0a',O:'#ffb43c',s:'#f1b27c',K:'#1a1020',k:'#2a1e30',b:'#3a73c8',y:'#ffe08a'});
+const WORKER_L=flip(WORKER_R);
+const WORKER_U=spr([
+".....oooooo.....","....oOOOOOOo....","...oOOOOOOOOo...","...oooooooooo...","....ssssssss....","....ssssssss....","....ssssssss....","....ssssssss....",
+".....ssssss.....","...bbbbbbbbbb...","..bbbbbbbbbbbb..","..sbbbbbbbbbbs..","....bbbbbbbb....","....bb....bb....","....kk....kk....","...kkk....kkk..."],
+{o:'#c56a0a',O:'#ffb43c',s:'#d99a66',k:'#2a1e30',b:'#2f5fa8'});
+const WORKER_D=spr([
+"...oooooooooo...","...oOOOOOOOOo...","..oooooooooooo..","....ssssssss....","....sKssssKs....","....ssssssss....","....sssmmsss....",".....ssssss.....",
+"....bbbbbbbb....","...bbbbbbbbbb...","..bbbbbyybbbbb..","..sbbbbbbbbbbs..","....bbbbbbbb....","....bb....bb....","....kk....kk....","...kkk....kkk..."],
+{o:'#c56a0a',O:'#ffb43c',s:'#f1b27c',K:'#1a1020',m:'#a8584a',k:'#2a1e30',b:'#3a73c8',y:'#ffe08a'});
+const WORKER=[WORKER_U,WORKER_R,WORKER_D,WORKER_L];
+
+/* ---------------------------------------------------------------- save: only local, every field checked */
+const isInt=(v,lo,hi)=>typeof v==='number'&&Number.isInteger(v)&&v>=lo&&v<=hi;
+function loadSave(){
+  const s={cur:0,won:[],best:new Array(NL).fill(0)};
+  let raw=null;try{const t=localStorage.getItem(SAVE_KEY);if(t)raw=JSON.parse(t)}catch(e){raw=null}
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return s;
+  if(Array.isArray(raw.won))s.won=[...new Set(raw.won.filter(n=>isInt(n,0,NL-1)))];
+  if(Array.isArray(raw.best))for(let i=0;i<NL;i++)if(isInt(raw.best[i],1,99999))s.best[i]=raw.best[i];
+  if(isInt(raw.cur,0,NL-1))s.cur=raw.cur;
+  return s;
+}
+let SAVE=loadSave();
+function writeSave(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE))}catch(e){}}
+const unlocked=i=>i<=Math.max(-1,...SAVE.won)+1;
+
+/* ---------------------------------------------------------------- sound */
+let AC=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){AC=null}}if(AC&&AC.state==='suspended')AC.resume().catch(()=>{});return AC}
+function tone(f,d,type='square',slide=0,vol=.06,delay=0){const a=AC;if(!a)return;try{const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+const SFX={step:()=>tone(220,.04,'triangle',0,.04),push:()=>tone(110,.09,'sawtooth',-30,.05),bump:()=>tone(80,.06,'square',0,.04),
+  lock:()=>{tone(660,.07);tone(990,.09,'square',0,.06,.07)},undo:()=>tone(330,.06,'triangle',-120,.05),
+  win:()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f,.14,'square',0,.06,i*.1)),stuck:()=>tone(150,.25,'sawtooth',-60,.05)};
+
+/* ---------------------------------------------------------------- state */
+const G={lvl:0,w:0,h:0,wall:[],goal:[],inside:[],dead:[],boxes:[],p:0,face:2,moves:0,pushes:0,hist:[],done:false,
+  anim:null,queue:[],tile:32,ox:0,oy:0};
+function load(i){
+  const rows=LEVELS[i];G.lvl=i;G.h=rows.length;G.w=Math.max(...rows.map(r=>r.length));
+  const N=G.w*G.h;G.wall=new Array(N).fill(false);G.goal=new Array(N).fill(false);G.boxes=[];G.p=0;
+  for(let y=0;y<G.h;y++)for(let x=0;x<G.w;x++){const c=rows[y][x]||' ',k=y*G.w+x;
+    G.wall[k]=c==='#';G.goal[k]=c==='.'||c==='*'||c==='+';if(c==='$'||c==='*')G.boxes.push(k);if(c==='@'||c==='+')G.p=k}
+  /* the inside of the warehouse: everything the worker could ever reach if crates were not there */
+  G.inside=new Array(N).fill(false);const st=[G.p];G.inside[G.p]=true;
+  while(st.length){const c=st.pop();for(let d=0;d<4;d++){const n=nb(c,d);if(n>=0&&!G.wall[n]&&!G.inside[n]){G.inside[n]=true;st.push(n)}}}
+  /* dead squares: a crate there can never be pushed to any target (found by pulling back from targets) */
+  G.dead=new Array(N).fill(true);const q=[];for(let k=0;k<N;k++)if(G.goal[k]){G.dead[k]=false;q.push(k)}
+  while(q.length){const b=q.pop();for(let d=0;d<4;d++){const n=nb(b,d),m=n>=0?nb(n,d):-1;if(n>=0&&m>=0&&!G.wall[n]&&!G.wall[m]&&G.dead[n]){G.dead[n]=false;q.push(n)}}}
+  G.face=2;G.moves=0;G.pushes=0;G.hist=[];G.done=false;G.anim=null;G.queue=[];
+  SAVE.cur=i;writeSave();
+  setMsg(i===0?'Menj a ládához, és told rá a jelre!':'Told a ládákat a jelölt helyekre!');
+  fit();hud();
+}
+function nb(k,d){const x=k%G.w+DX[d],y=Math.floor(k/G.w)+DY[d];return x<0||y<0||x>=G.w||y>=G.h?-1:y*G.w+x}
+const boxAt=k=>G.boxes.indexOf(k);
+
+function tryMove(d,fromQueue){
+  if(G.done)return false;
+  if(G.anim){if(!fromQueue&&G.queue.length<2)G.queue.push(d);return false}
+  G.face=d;
+  const n=nb(G.p,d);if(n<0||G.wall[n]){SFX.bump();draw();return false}
+  const bi=boxAt(n);
+  if(bi>=0){const m=nb(n,d);if(m<0||G.wall[m]||boxAt(m)>=0){SFX.bump();draw();return false}
+    G.hist.push({p:G.p,b:G.boxes.slice(),m:G.moves,pu:G.pushes,f:G.face});
+    G.boxes[bi]=m;G.pushes++;
+    G.anim={from:G.p,to:n,box:bi,bfrom:n,bto:m,t:0};SFX.push();if(G.goal[m])setTimeout(SFX.lock,90);
+  }else{
+    G.hist.push({p:G.p,b:G.boxes.slice(),m:G.moves,pu:G.pushes,f:G.face});
+    G.anim={from:G.p,to:n,box:-1,t:0};SFX.step();
+  }
+  if(G.hist.length>5000)G.hist.shift();
+  G.p=n;G.moves++;hud();
+  kick();
+  return true;
+}
+function afterMove(){
+  if(G.boxes.every(b=>G.goal[b])){win();return}
+  const stuck=G.boxes.some(b=>!G.goal[b]&&(G.dead[b]||frozen(b)));
+  if(stuck){setMsg('Ez a láda beragadt. Vonj vissza (↶)!','warn');SFX.stuck()}
+  else{const on=G.boxes.filter(b=>G.goal[b]).length;setMsg(on?`Helyen: ${on} / ${G.boxes.length}`:'Told a ládákat a jelölt helyekre!',on?'good':'')}
+}
+/* two crates side by side against a wall (or four in a square) can never move again */
+function frozen(b){
+  const blk=k=>k<0||G.wall[k]||boxAt(k)>=0;
+  for(const [a,c] of [[3,0],[1,0],[3,2],[1,2]]){
+    const A=nb(b,a),C=nb(b,c),E=A>=0?nb(A,c):-1;
+    if(blk(A)&&blk(C)&&blk(E)){const sq=[b,A,C,E].filter(k=>k>=0&&boxAt(k)>=0);if(sq.some(k=>!G.goal[k]))return true}
+  }
+  return false;
+}
+function undo(){
+  if(G.anim||!G.hist.length||G.done)return;
+  const h=G.hist.pop();G.p=h.p;G.boxes=h.b;G.moves=h.m;G.pushes=h.pu;G.face=h.f;G.queue=[];SFX.undo();
+  hud();afterMove();draw();
+}
+function restart(){if(G.anim)G.anim=null;load(G.lvl);draw()}
+function win(){
+  G.done=true;SFX.win();
+  if(!SAVE.won.includes(G.lvl))SAVE.won.push(G.lvl);
+  const prev=SAVE.best[G.lvl];if(!prev||G.moves<prev)SAVE.best[G.lvl]=G.moves;
+  const last=G.lvl===NL-1;if(!last)SAVE.cur=G.lvl+1;writeSave();
+  setMsg('Minden láda a helyén!','good');
+  const par=PAR[G.lvl],star=G.pushes<=par;
+  setTimeout(()=>{
+    showOv(`<h2>PÁLYA KÉSZ!</h2>
+      <p class="stat">${G.moves} lépés · ${G.pushes} tolás</p>
+      <p class="small">${star?'⭐ A lehető legkevesebb tolással!':`A legkevesebb tolás ezen a pályán: ${par}`} · Legjobb: ${SAVE.best[G.lvl]} lépés</p>
+      <div class="btns">${last?'<p>Ez volt az utolsó pálya. Igazi Dobozmester vagy!</p>':'<button class="btn hot" id="ovNext">Következő pálya</button>'}
+      <button class="btn" id="ovAgain">Újra ezt</button><button class="btn" id="ovMenu">Pályák</button></div>`);
+    if(!last)$('ovNext').onclick=()=>{closeOv();load(G.lvl+1);draw()};
+    $('ovAgain').onclick=()=>{closeOv();load(G.lvl);draw()};
+    $('ovMenu').onclick=menu;
+  },350);
+}
+
+/* tap a floor square: walk there; tap a crate next to the worker: push it */
+function tapCell(k){
+  if(G.done||G.anim||k<0||!G.inside[k])return;
+  const px=G.p%G.w,py=Math.floor(G.p/G.w),kx=k%G.w,ky=Math.floor(k/G.w);
+  if(boxAt(k)>=0){if(Math.abs(px-kx)+Math.abs(py-ky)===1)tryMove(kx>px?1:kx<px?3:ky>py?2:0);return}
+  /* shortest path around crates */
+  const prev=new Map([[G.p,-1]]),q=[G.p];
+  while(q.length){const c=q.shift();if(c===k)break;for(let d=0;d<4;d++){const n=nb(c,d);if(n>=0&&!G.wall[n]&&boxAt(n)<0&&!prev.has(n)){prev.set(n,c*4+d);q.push(n)}}}
+  if(!prev.has(k)){SFX.bump();return}
+  const path=[];let c=k;while(c!==G.p){const v=prev.get(c);path.unshift(v%4);c=Math.floor(v/4)}
+  G.queue=path.slice(1);if(path.length)tryMove(path[0],true);
+}
+
+/* ---------------------------------------------------------------- drawing */
+let rafOn=false;
+function kick(){if(!rafOn){rafOn=true;requestAnimationFrame(tick)}}
+let lastT=0;
+function tick(t){
+  const dt=lastT?Math.min(50,t-lastT):16;lastT=t;
+  if(G.anim){G.anim.t+=dt/(G.queue.length?70:95);if(G.anim.t>=1){G.anim=null;afterMove();if(G.queue.length&&!G.done){const d=G.queue.shift();tryMove(d,true)}}}
+  draw();
+  if(G.anim){requestAnimationFrame(tick)}else{rafOn=false;lastT=0}
+}
+function fit(){
+  const st=$('stage'),W=st.clientWidth,H=st.clientHeight;if(!W||!H||!G.w)return;
+  const dpr=Math.min(3,window.devicePixelRatio||1);
+  let t=Math.floor(Math.min(W/G.w,H/G.h));t=Math.max(12,Math.min(72,t));
+  G.tile=t*dpr; /* device pixels per tile */
+  cv.width=Math.round(G.w*G.tile);cv.height=Math.round(G.h*G.tile);
+  cv.style.width=(G.w*t)+'px';cv.style.height=(G.h*t)+'px';
+  ctx.imageSmoothingEnabled=false;
+  draw();
+}
+function draw(){
+  if(!G.w)return;
+  const T=G.tile;ctx.clearRect(0,0,cv.width,cv.height);ctx.imageSmoothingEnabled=false;
+  const at=(k,img,dx=0,dy=0)=>ctx.drawImage(img,Math.round((k%G.w+dx)*T),Math.round((Math.floor(k/G.w)+dy)*T),Math.ceil(T),Math.ceil(T));
+  for(let k=0;k<G.w*G.h;k++){
+    if(G.wall[k]){if(touchesInside(k))at(k,WALL)}
+    else if(G.inside[k]){at(k,FLOOR);if(G.goal[k])at(k,TARGET)}
+  }
+  /* soft shadow under walls on the floor below them */
+  ctx.fillStyle='rgba(0,0,0,.25)';
+  for(let k=0;k<G.w*G.h;k++)if(G.inside[k]&&!G.wall[k]){const u=nb(k,0);if(u>=0&&G.wall[u])ctx.fillRect(Math.round(k%G.w*T),Math.round(Math.floor(k/G.w)*T),Math.ceil(T),Math.ceil(T*.18))}
+  const a=G.anim,e=a?ease(a.t):1;
+  G.boxes.forEach((b,i)=>{
+    let dx=0,dy=0;
+    if(a&&a.box===i){dx=(a.bfrom%G.w-a.bto%G.w)*(1-e);dy=(Math.floor(a.bfrom/G.w)-Math.floor(a.bto/G.w))*(1-e)}
+    at(b,G.goal[b]&&!(a&&a.box===i&&e<1)?CRATE_OK:CRATE,dx,dy);
+  });
+  let wx=0,wy=0;if(a){wx=(a.from%G.w-a.to%G.w)*(1-e);wy=(Math.floor(a.from/G.w)-Math.floor(a.to/G.w))*(1-e)}
+  const bob=a&&Math.sin(e*Math.PI)>.5?-T/16:0;
+  at(G.p,WORKER[G.face],wx,wy+bob/T);
+}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function touchesInside(k){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const x=k%G.w+dx,y=Math.floor(k/G.w)+dy;if(x>=0&&y>=0&&x<G.w&&y<G.h&&G.inside[y*G.w+x])return true}return false}
+
+/* ---------------------------------------------------------------- UI */
+function hud(){
+  $('lvl').textContent=(G.lvl+1)+'/'+NL;$('moves').textContent=G.moves;$('pushes').textContent=G.pushes;
+  const dis=!G.hist.length;$('undo').disabled=dis;$('undo2').disabled=dis;
+}
+function setMsg(t,cls){const m=$('msg');m.textContent=t;m.className=cls||''}
+function showOv(html){$('ovc').innerHTML=html;$('ov').hidden=false;const h=$('ovc').querySelector('.btn.hot');if(h)try{h.focus({preventScroll:true})}catch(e){}}
+function closeOv(){$('ov').hidden=true}
+function menu(){
+  let lv='';
+  for(let i=0;i<NL;i++){const ok=SAVE.won.includes(i),open=unlocked(i);
+    lv+=`<button data-l="${i}" class="${ok?'done':''} ${i===G.lvl?'cur':''}" ${open?'':'disabled'} aria-label="${i+1}. pálya">${i+1}<small>${ok?'✓'+(SAVE.best[i]?' '+SAVE.best[i]:''):open?'•':'🔒'}</small></button>`}
+  const any=SAVE.won.length>0;
+  showOv(`<h1>DOBOZMESTER</h1>
+    <p>Told az összes ládát a jelölt helyre. Húzni nem lehet, csak tolni, ezért gondold végig előre!</p>
+    <div class="btns"><button class="btn hot" id="ovGo">${any||G.lvl>0?`Folytatás · ${G.lvl+1}. pálya`:'Indul'}</button></div>
+    <p class="small">Pályák · a megoldott után nyílik a következő</p><div class="lv">${lv}</div>
+    <p class="keys">Telefonon: húzd az ujjad, koppints oda, ahova menni akarsz, vagy használd a gombokat.<br>Gépen: nyilak vagy WASD · Z vagy Backspace: vissza · R: újra</p>`);
+  $('ovGo').onclick=()=>{audio();closeOv();draw()};
+  document.querySelectorAll('.lv button[data-l]').forEach(b=>b.onclick=()=>{audio();closeOv();load(+b.dataset.l);draw()});
+}
+
+/* ---------------------------------------------------------------- input */
+const KEYS={ArrowUp:0,KeyW:0,ArrowRight:1,KeyD:1,ArrowDown:2,KeyS:2,ArrowLeft:3,KeyA:3};
+addEventListener('keydown',e=>{
+  if(!$('ov').hidden){if(e.code==='Escape'){closeOv();e.preventDefault()}return}
+  audio();
+  if(e.code in KEYS){e.preventDefault();tryMove(KEYS[e.code]);return}
+  if(e.code==='KeyZ'||e.code==='Backspace'||e.code==='KeyU'){e.preventDefault();undo()}
+  else if(e.code==='KeyR'){e.preventDefault();restart()}
+  else if(e.code==='Escape'){menu()}
+});
+/* pad buttons: one step per press, repeat while held */
+document.querySelectorAll('.dpad button').forEach(b=>{
+  const d=+b.dataset.d;let rep=0,first=0;
+  const stop=()=>{clearTimeout(first);clearInterval(rep);b.classList.remove('on')};
+  b.addEventListener('pointerdown',e=>{e.preventDefault();audio();b.classList.add('on');tryMove(d);first=setTimeout(()=>{rep=setInterval(()=>tryMove(d),150)},320);try{b.setPointerCapture(e.pointerId)}catch(_){}});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(n=>b.addEventListener(n,stop));
+  b.addEventListener('contextmenu',e=>e.preventDefault());
+});
+/* board: swipe for one step, tap to walk or push */
+let sw=null;
+cv.addEventListener('pointerdown',e=>{e.preventDefault();audio();sw={x:e.clientX,y:e.clientY,moved:false}});
+cv.addEventListener('pointermove',e=>{
+  if(!sw)return;const dx=e.clientX-sw.x,dy=e.clientY-sw.y,lim=Math.max(22,cv.clientWidth/G.w*.6);
+  if(Math.abs(dx)>lim||Math.abs(dy)>lim){tryMove(Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0));sw={x:e.clientX,y:e.clientY,moved:true}}
+});
+cv.addEventListener('pointerup',e=>{
+  if(!sw)return;const moved=sw.moved;sw=null;if(moved)return;
+  const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*G.w),y=Math.floor((e.clientY-r.top)/r.height*G.h);
+  if(x>=0&&y>=0&&x<G.w&&y<G.h)tapCell(y*G.w+x);
+});
+cv.addEventListener('pointercancel',()=>{sw=null});
+$('undo').onclick=$('undo2').onclick=()=>{audio();undo()};
+$('restart').onclick=()=>{audio();restart()};
+$('menuBtn').onclick=()=>{audio();menu()};
+addEventListener('resize',fit);
+if(window.ResizeObserver)new ResizeObserver(fit).observe($('stage'));
+
+load(unlocked(SAVE.cur)?SAVE.cur:0);menu();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Dungeon</title>
+<meta name="description" content="Pixeles RPG: szörnyek lepték el a völgyet. Küldetések a falu lakóitól, iránytű a célhoz, körökre osztott harc nyálkák és csontvázak ellen, szintlépés, kard és pajzs, a barlang mélyén a kőóriás.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Dungeon">
+<meta name="games:description-en" content="Pixel RPG: monsters have overrun the valley. Quests from the villagers, a compass to the target, turn-based fights against slimes and skeletons, levelling up, sword and shield, and a stone giant deep in the cave. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: one-screen RPG — back link, HUD with quest line, tile map canvas, d-pad, dialog/battle overlays */
+:root{
+  --bg:#0a0810; --panel:#15111c; --panel2:#1e1828; --line:#2e2540; --fg:#f2edf8; --muted:#a99cbc;
+  --accent:#ff5e6c; --ok:#3ddc84; --bad:#ff4d5a; --p0:#ffd166; --p1:#7fdcff;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;max-width:760px;margin:0 auto;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;white-space:nowrap;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-variant-numeric:tabular-nums;font-size:16px}
+.sp{flex:1}
+.ib{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:19px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.quest{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:18px;font-weight:600;min-height:44px}
+.quest .q{flex:1}
+#stage{flex:1;min-height:0;position:relative}
+canvas{display:block;width:100%;height:100%;border-radius:12px;image-rendering:pixelated}
+.pad{position:absolute;left:12px;bottom:12px;display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:4px;touch-action:none}
+.pad button{border-radius:12px;border:1px solid var(--line);background:rgba(34,27,42,.8);color:#fff;font-size:22px;cursor:pointer;touch-action:none}
+.pad .u{grid-column:2;grid-row:1}.pad .l{grid-column:1;grid-row:2}.pad .r{grid-column:3;grid-row:2}.pad .d{grid-column:2;grid-row:3}
+#ov{position:fixed;inset:0;background:rgba(8,5,12,.8);display:grid;place-items:end center;padding:16px;z-index:9}
+#ov.mid{place-items:center}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:18px;width:min(520px,100%);max-height:calc(100% - 32px);overflow:auto;display:flex;flex-direction:column;gap:12px}
+.card h1,.card h2{margin:0;color:var(--accent);line-height:1.15}
+.card h1{font-size:32px}.card h2{font-size:24px}
+.card p{margin:0;line-height:1.45}
+.npc{display:flex;gap:12px;align-items:flex-start}
+.npc .face{font-size:44px;line-height:1}
+.npc .name{color:var(--muted);font-size:15px}
+.npc .line{font-size:24px;font-weight:600;line-height:1.35}
+.btn{font:700 18px/1.2 var(--font);padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.btn.hot{background:var(--accent);border-color:var(--accent);color:#2a1c00}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn small{display:block;font-weight:400;font-size:14px;color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.icons{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.icons button{font-size:44px;padding:12px 0;border-radius:16px;border:2px solid var(--line);background:var(--panel2);cursor:pointer}
+.icons button.yes{border-color:var(--ok);background:#1f4a33}.icons button.no{border-color:var(--bad);opacity:.5}
+.foe{display:flex;align-items:center;gap:16px}
+.foe .big{font-size:64px;line-height:1}
+.hpbar{height:12px;border-radius:6px;background:#000;overflow:hidden;flex:1}
+.hpbar i{display:block;height:100%;background:var(--bad);transition:width .25s}
+.hpbar.me i{background:var(--ok)}
+.blog{min-height:2.8em;font-size:18px;color:var(--muted)}
+.how{display:grid;grid-template-columns:36px 1fr;gap:8px 10px;align-items:center;font-size:17px}
+.how span:nth-child(odd){font-size:24px;text-align:center}
+.inv{display:flex;flex-wrap:wrap;gap:8px}
+.toggle .btn[aria-pressed="true"]{background:var(--accent);color:#2a1c00}
+
+.card h1,.card h2,.step h2,.panel h2,h1,h2{font-family:var(--disp);letter-spacing:.02em}
+/* Reading kit: readable type, split-word colouring, speaker button */
+.w{white-space:nowrap;font-weight:600;letter-spacing:.03em}
+.w .p0{color:var(--p0,#ffb347)}
+.w .p1{color:var(--p1,#5ad1ff)}
+.w .dot{opacity:.55;margin:0 .1em;font-style:normal}
+.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say:disabled{opacity:.35;cursor:not-allowed}
+.say.talking{outline:2px solid var(--p1,#5ad1ff)}
+
+.px{image-rendering:pixelated;image-rendering:crisp-edges;vertical-align:middle;flex:none}
+.rankchip{display:inline-flex;flex-direction:column;gap:3px;padding:4px 10px;border-radius:8px;border:1px solid var(--rc);background:rgba(0,0,0,.35);min-width:84px;white-space:nowrap}
+.rankchip b{font:700 13px/1 var(--disp,system-ui);letter-spacing:.06em;color:var(--rc);text-transform:uppercase}
+.rankchip i{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.rankchip u{display:block;height:100%;background:var(--rc)}
+#ktoast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);transition:transform .25s ease;background:#0b0c10;border:1px solid #333;color:#fff;padding:10px 18px;border-radius:10px;font:600 16px/1.3 var(--font,system-ui);z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#ktoast.show{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#ktoast{transition:none}}
+.hud,.bar{flex-wrap:nowrap!important;min-width:0}
+.hud .ib,.bar .ib{flex:none}
+@media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+@media (max-width:430px){.hud{gap:4px}.hud .chip{padding:3px 6px!important;font-size:13px!important;gap:2px!important}.hud .ib{width:38px;height:38px;font-size:17px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <span class="chip">❤️ <span id="hp">20</span></span>
+    <span class="chip">⭐ <span id="lv">1</span></span>
+    <span class="chip">🪙 <span id="gold">0</span></span>
+    <span class="chip">🧪 <span id="pot">1</span></span>
+    <span class="sp"></span><span data-rank></span>
+    <button class="ib" id="bagBtn" aria-label="Táska">🎒</button>
+    <button class="ib" id="setBtn" aria-label="Beállítások">⚙️</button>
+  </div>
+  <div class="quest"><span>📜</span><span class="q" id="quest"></span><span id="qsay"></span></div>
+  <div id="stage"><canvas id="cv"></canvas>
+    <div class="pad" id="pad"><button class="u" data-d="0,-1" aria-label="Fel">▲</button><button class="l" data-d="-1,0" aria-label="Balra">◀</button><button class="r" data-d="1,0" aria-label="Jobbra">▶</button><button class="d" data-d="0,1" aria-label="Le">▼</button></div>
+  </div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+/* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+const K=(()=>{
+  /* storage: a saved value must have the same shape as the default, or the default is used.
+     For objects, each default key with a wrong type is put back to its default. */
+  const kind=v=>Array.isArray(v)?'array':v===null?'null':typeof v==='number'?(Number.isFinite(v)?'number':'bad'):typeof v;
+  const store={
+    get(k,d){
+      let v;try{const raw=localStorage.getItem(k);if(raw==null)return d;v=JSON.parse(raw)}catch(e){return d}
+      if(d===undefined||d===null)return v;
+      if(kind(v)!==kind(d))return d;
+      if(kind(d)==='object'){for(const key of Object.keys(d))if(key in v?kind(v[key])!==kind(d[key])&&d[key]!==null:true)v[key]=d[key]}
+      return v;
+    },
+    set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  };
+  const clampInt=(v,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,Math.floor(v))):lo;
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plain=w=>String(w).replace(/\|/g,'');
+  /* speech */
+  let voice=null;
+  const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+  function pick(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/^hu/i.test(v.lang))||null}catch(e){}}
+  if(hasTTS){pick();try{speechSynthesis.addEventListener('voiceschanged',pick)}catch(e){}}
+  function say(t){
+    if(!hasTTS)return false;
+    try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(plain(t));u.lang='hu-HU';if(voice)u.voice=voice;u.rate=.85;speechSynthesis.speak(u);return true}catch(e){return false}
+  }
+  /* mastery: how many times a word was read right, shared by all reading games */
+  const MK='olvaso:mastery';
+  /* only word -> non-negative count pairs survive; nothing can reach the object prototype */
+  const mastery=Object.create(null);
+  {const raw=store.get(MK,{});for(const k of Object.keys(raw).slice(0,5000))if(k.length<=60&&Number.isFinite(raw[k])&&raw[k]>0)mastery[k]=clampInt(raw[k],0,1e6)}
+  const settings=store.get('olvaso:settings',{split:'auto'});
+  if(settings.split!=='auto'&&settings.split!=='mindig')settings.split='auto';
+  function seen(w){const k=plain(w).toLowerCase();mastery[k]=Math.min(1e6,(mastery[k]||0)+1);store.set(MK,mastery);if(api.addXP)api.addXP(2)}
+  function level(w){
+    if(settings.split==='mindig')return 2;
+    const n=mastery[plain(w).toLowerCase()]||0;
+    return n<4?2:n<8?1:0;
+  }
+  /* word: "fék|betét" -> coloured parts; level 2 also shows a dot between parts */
+  function word(w,lv){
+    const toks=String(w).split(/(\|| )/);
+    if(lv==null)lv=level(w);
+    if(toks.length<2||lv===0)return `<span class="w">${esc(plain(w))}</span>`;
+    let i=0,h='';
+    for(const t of toks){if(t==='|')h+=lv===2?'<i class="dot">·</i>':'';else if(t===' ')h+=' ';else h+=`<span class="p${(i++)%2}">${esc(t)}</span>`}
+    return `<span class="w">${h}</span>`;
+  }
+  function sentence(s,lv){return String(s).split(' ').map(t=>t.includes('|')?word(t,lv):esc(t)).join(' ')}
+  function setSplit(v){settings.split=v==='mindig'?'mindig':'auto';store.set('olvaso:settings',settings)}
+  /* speaker buttons: <button class="say" data-say="text">; a game may set K.onSay(text) -> false to refuse */
+  const api={store,esc,plain,say,hasTTS,word,sentence,seen,level,settings,setSplit,onSay:null,
+    sayBtn:(t,label)=>hasTTS?`<button type="button" class="say" data-say="${esc(t)}" aria-label="${esc(label||'Felolvasás')}">🔊</button>`:''};
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-say]');if(!b||b.disabled)return;
+    e.stopPropagation();
+    const t=b.dataset.say;
+    if(api.onSay&&api.onSay(t,b)===false)return;
+    if(say(t)){b.classList.add('talking');setTimeout(()=>b.classList.remove('talking'),1200)}
+  },true);
+  /* sounds */
+  let ac=null;api.sound=store.get('olvaso:sound',true)!==false;
+  api.toggleSound=()=>{api.sound=!api.sound;store.set('olvaso:sound',api.sound);return api.sound};
+  api.beep=(f=440,d=.08,type='square',vol=.06,slide=0)=>{
+    if(!api.sound)return;
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
+      o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}
+  };
+  api.good=()=>{api.beep(660,.08,'square');setTimeout(()=>api.beep(990,.12,'square'),80)};
+  api.bad=()=>api.beep(160,.18,'sawtooth',.05,-60);
+  api.coin=()=>{api.beep(1200,.05,'square',.04);setTimeout(()=>api.beep(1600,.08,'square',.04),50)};
+
+  /* pixel sprites: {r:[rows], p:{char:color}}; '.' is transparent */
+  const sprCache=new Map();
+  api.spr=def=>{
+    const key=JSON.stringify(def);let c=sprCache.get(key);if(c)return c;
+    const w=Math.max(...def.r.map(r=>r.length)),h=def.r.length;
+    c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    def.r.forEach((row,y)=>{for(let i=0;i<row.length;i++){const col=def.p[row[i]];if(col){x.fillStyle=col;x.fillRect(i,y,1,1)}}});
+    c._url=null;sprCache.set(key,c);return c;
+  };
+  api.img=(def,size,alt)=>{const c=api.spr(def);if(!c._url)c._url=c.toDataURL();return `<img class="px" src="${c._url}" alt="${esc(alt||'')}" style="width:${size}px;height:${Math.round(size*c.height/c.width)}px">`};
+  api.draw=(ctx,def,cx,cy,w)=>{const c=api.spr(def),h=w*c.height/c.width;ctx.imageSmoothingEnabled=false;ctx.drawImage(c,Math.round(cx-w/2),Math.round(cy-h/2),Math.round(w),Math.round(h))};
+  /* a small pixel person, used for riders, customers and villagers */
+  api.human=(o={})=>{
+    const r=["...hhhh...","..hhhhhh..","..hssssh..","..sesses..","..ssssss..",o.beard?"..sbbbbs..":"...smms...","..tttttt..",".tttttttt.",".sttttttss",".s.tttt.s.","...pppp...","...p..p...","...p..p...","..kk..kk.."];
+    if(o.hat){r[0]="..HHHHHH..";r[1]=".HHHHHHHH."}
+    if(o.cap){r[0]="..HHHHHH..";r[1]="..HHHHHHHH"}
+    if(o.apron){r[7]=".twwwwwwt.";r[8]=".swwwwwwss";r[9]=".s.wwww.s."}
+    return {r,p:{h:o.hair||'#3a2a1a',s:o.skin||'#e8b48a',e:'#141414',m:o.mouth||'#b0705a',b:o.hair||'#3a2a1a',t:o.shirt||'#3a6ee8',p:o.pants||'#2a3550',k:'#1f1a16',H:o.hatC||'#555',w:'#f2f2f2'}};
+  };
+  const HAIR=['#2a1d14','#4a3020','#8a5a2a','#d9b25a','#1a1a1a','#a83a2a'],SKIN=['#f0c7a0','#e0a878','#c98a5a','#8a5a3a'],SHIRT=['#e8494a','#ff7a1a','#2fa86a','#3a6ee8','#8a4ae8','#222831','#f2f2f2','#e8c13a'];
+  api.randomHuman=()=>api.human({hair:api.pick(HAIR),skin:api.pick(SKIN),shirt:api.pick(SHIRT),pants:api.pick(['#2a3550','#1f1f24','#4a4a52','#3a5a2a']),cap:Math.random()<.35,hatC:api.pick(SHIRT),beard:Math.random()<.2});
+  /* shared XP and rank across all the reading games */
+  const RANKS=[[0,'Bronz','#c98a5a'],[120,'Ezüst','#c9d1dc'],[350,'Arany','#ffd166'],[800,'Platina','#6fe3d4'],[1600,'Gyémánt','#7fb6ff'],[3000,'Mester','#c38bff'],[5000,'Legenda','#ff5e6c']];
+  api.xp=clampInt(store.get('olvaso:xp',0),0,1e7);
+  const rankOf=x=>{let i=0;while(i+1<RANKS.length&&x>=RANKS[i+1][0])i++;return i};
+  api.rank=()=>{const i=rankOf(api.xp),cur=RANKS[i],nx=RANKS[i+1];return {i,name:cur[1],color:cur[2],pct:nx?(api.xp-cur[0])/(nx[0]-cur[0]):1,next:nx?nx[1]:null}};
+  api.rankChip=()=>{const r=api.rank();return `<span class="rankchip" style="--rc:${r.color}" title="Rang: ${r.name}, ${api.xp} XP"><b>◆ ${r.name}</b><i><u style="width:${Math.round(r.pct*100)}%"></u></i></span>`};
+  const paint=()=>document.querySelectorAll('[data-rank]').forEach(el=>el.innerHTML=api.rankChip());
+  api.addXP=n=>{const before=rankOf(api.xp);api.xp=clampInt(api.xp+Math.max(0,Math.round(Number(n)||0)),0,1e7);store.set('olvaso:xp',api.xp);paint();
+    const after=rankOf(api.xp);if(after>before)api.toast(`Új rang: <b style="color:${RANKS[after][2]}">◆ ${RANKS[after][1]}</b>`)};
+  api.clampInt=clampInt;
+  api.toast=h=>{let t=document.getElementById('ktoast');if(!t){t=document.createElement('div');t.id='ktoast';document.body.appendChild(t)}
+    t.innerHTML=h;t.className='show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
+  api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+  api.pick=a=>a[Math.random()*a.length|0];
+  return api;
+})();
+</script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const SPR={
+ gomba:{r:["............","....rrrr....","..rrwrrrrr..",".rrrrrrwrrr.",".rwrrrrrrrr.","..rrrrrrrr..",".....ww.....","....wwww....","....wwww....","....wwww...."],p:{r:'#d9382e',w:'#f2e6d0'}},
+ alma:{r:["......b.....",".....bg.....","...rrrrrr...","..rrwrrrrr..",".rrwrrrrrrr.",".rrrrrrrrrr.",".rrrrrrrrrR.","..rrrrrrrR..","...rrrrrR...","....rr.r...."],p:{r:'#e53935',R:'#a82222',w:'#ff9a8a',b:'#5a3a1a',g:'#4fb13a'}},
+ ko:{r:["............","....ssss....","...sSSsss...","..sSssssds..",".ssssssdsss.",".sssdsssssd.",".dssssssssd.","..dddddddd.."],p:{s:'#8a8a92',S:'#b0b0b8',d:'#5a5a62'}},
+ kotel:{r:["....bbbb....","..bbBbbBbb..",".bB......Bb.",".b..bbbb..b.",".b.bB..Bb.b.",".b.b....b.b.",".b.bB..Bb.b.",".b..bbbb..b.",".bB......Bb.","..bbBbbBbb..","....bbbb...."],p:{b:'#c9a36a',B:'#8a6a3a'}},
+ nyalka:{r:["............","....gggg....","...gGGggg...","..gGgggggg..","..gwkggwkg..","..gggggggg..",".gggkkkkggg.",".gggggggggg.","gggggggggggg",".dddddddddd."],p:{g:'#4fd16a',G:'#a8ff9a',w:'#fff',k:'#0a2a10',d:'#2a8a3a'}},
+ csontvaz:{r:["....wwww....","...wwwwww...","...wkwwkw...","...wwwwww...","....wkkw....",".....ww.....","..wwwwwwww..",".w.w.ww.w.w.","...wwwwww...","....w..w....","....w..w....","...ww..ww..."],p:{w:'#e8e4d8',k:'#1a1414'}},
+ 'oriás':{r:["....ssssss....","...sSssssSs...","...ssrsssrs...","...ssssssss...",".ssssSssSssss.","sSsssssssssSss","sssSssssssSsss","ss.ssSssSss.ss","ss.ssssssss.ss","Ss.sSssssSs.sS","...ssss.ssss..","...sss...sss..","..ssss...ssss.","..SSSS...SSSS."],p:{s:'#7a7a85',S:'#55555f',r:'#ff6a1a'}},
+ ital:{r:["....kk....","....ww....","...wrrw...","..wrrrrw..",".wrrRrrrw.",".wrrrrrrw.",".wrRrrrrw.","..wrrrrw..","...wwww..."],p:{k:'#8a5a2a',w:'#cfe8ff',r:'#ff3a6a',R:'#ff9ab0'}},
+ kard:{r:[".........ww",".......wwW.","......wwW..",".....wwW...","....wwW....","...wwW.....","y.wwW......",".yyW.......","..yy.......",".b.yy......","b.........."],p:{w:'#dfe6ee',W:'#9aa6b4',y:'#c9a33a',b:'#6a4a2a'}},
+ pajzs:{r:[".bbbbbbbb.","bBBBbbbbbb","bBBBbYYbbb","bBBBbYYbbb","bbbbbbbbbb","bbbYYYYbbb",".bbbYYbbb.","..bbbbbb..","...bbbb...","....bb...."],p:{b:'#7a5a2a',B:'#b08a4a',Y:'#d9d2c0'}}
+};
+const ic=(e,sz)=>typeof e==='string'?e:K.img(e,sz);
+const HERO=K.human({hair:'#2a1d14',shirt:'#2f6bff',pants:'#2a2f3a',cap:true,hatC:'#8a8f9a'});
+/* ---------- world: a fixed seeded map ---------- */
+const MW=32,MH=30;
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=rng(1337);
+const M=[];for(let y=0;y<MH;y++){M.push([]);for(let x=0;x<MW;x++)M[y].push('.')}
+const set=(x,y,c)=>{if(x>=0&&y>=0&&x<MW&&y<MH)M[y][x]=c};
+for(let y=1;y<=8;y++)for(let x=1;x<MW-1;x++)if(R()<.38)set(x,y,'T');
+for(let y=1;y<=8;y++){set(16,y,'.');set(15,y,'.')}
+for(let x=4;x<28;x++)if(R()<.7)set(x,4,'.');
+for(let y=9;y<=17;y++)for(let x=1;x<MW-1;x++)if(R()<.06)set(x,y,'f');
+for(let x=1;x<MW-1;x++)set(x,13,'p');for(let y=9;y<=19;y++)set(16,y,'p');
+[[9,10],[19,10],[9,15],[20,15]].forEach(([hx,hy])=>{for(let y=hy;y<hy+2;y++)for(let x=hx;x<hx+3;x++)set(x,y,'H');set(hx+1,hy+1,'D')});
+for(let y=9;y<=17;y++)for(let x=23;x<MW-1;x++){const dx=(x-27)/4.2,dy=(y-13)/3.6;if(dx*dx+dy*dy<1)set(x,y,'w')}
+for(let y=18;y<=19;y++)for(let x=1;x<MW-1;x++)if(R()<.12)set(x,y,'r');
+set(16,18,'p');set(16,19,'p');
+for(let y=20;y<MH;y++)for(let x=0;x<MW;x++)set(x,y,'#');
+{let x=16,y=20;for(let i=0;i<520;i++){set(x,y,'c');if(x>2&&R()<.5)set(x-1,y,'c');const d=R();if(d<.27)x++;else if(d<.54)x--;else if(d<.8)y++;else y--;x=Math.max(2,Math.min(MW-3,x));y=Math.max(20,Math.min(MH-5,y))}}
+for(let y=24;y<=27;y++)for(let x=12;x<=20;x++)set(x,y,'c');
+for(let y=20;y<=24;y++)set(16,y,'c');
+for(let x=0;x<MW;x++){set(x,0,'T');if(M[MH-1][x]!=='#')set(x,MH-1,'#')}for(let y=0;y<20;y++){set(0,y,'T');set(MW-1,y,'T')}
+const SOLID=new Set(['T','w','H','#','D']);
+const walk=(x,y)=>x>=0&&y>=0&&x<MW&&y<MH&&!SOLID.has(M[y][x]);
+function freeIn(y0,y1,n,taken){const out=[];let g=0;while(out.length<n&&g++<5000){const x=1+Math.floor(R()*(MW-2)),y=y0+Math.floor(R()*(y1-y0+1));const k=x+','+y;if(walk(x,y)&&!taken.has(k)&&!(x===16&&y>=9&&y<=19)){taken.add(k);out.push({x,y})}}return out}
+const taken=new Set(['15,12','11,12','20,12','22,13','21,17','16,14']);
+const ITEMS=[];
+const addItems=(kind,e,w,y0,y1,n)=>freeIn(y0,y1,n,taken).forEach((p,i)=>ITEMS.push({id:kind+i,kind,e,w,...p}));
+addItems('gomba',SPR.gomba,'gomba',1,8,6);
+addItems('alma',SPR.alma,'alma',5,10,7);
+addItems('ko',SPR.ko,'kő',17,19,5);
+addItems('kotel',SPR.kotel,'kötél',9,17,4);
+const FOES={nyalka:{w:'nyálka',e:SPR.nyalka,hp:8,atk:2,xp:6,gold:3},csontvaz:{w:'csont|váz',e:SPR.csontvaz,hp:16,atk:4,xp:12,gold:6},oriás:{w:'kő|óriás',e:SPR['oriás'],hp:48,atk:7,xp:60,gold:40}};
+const MOBS0=[];
+freeIn(1,8,7,taken).forEach((p,i)=>MOBS0.push({id:'n'+i,k:'nyalka',...p}));
+freeIn(20,23,8,taken).forEach((p,i)=>MOBS0.push({id:'c'+i,k:'csontvaz',...p}));
+MOBS0.push({id:'boss',k:'oriás',x:16,y:26});
+const NPCS=[
+  {id:'polg',n:'Kapitány',e:K.human({hair:'#6a6a6a',shirt:'#5a5f6a',pants:'#2a2f3a',beard:true,hat:true,hatC:'#9aa3ad'}),x:15,y:12},
+  {id:'pek',n:'Szakács',e:K.human({hair:'#4a3020',shirt:'#f2f2f2',apron:true,pants:'#3a3a42',hat:true,hatC:'#f2f2f2'}),x:10,y:12},
+  {id:'kov',n:'Kovács',e:K.human({hair:'#1a1a1a',skin:'#c98a5a',shirt:'#3a2a20',apron:true,beard:true,pants:'#2a2a2a'}),x:20,y:12},
+  {id:'hal',n:'Révész',e:K.human({hair:'#8a5a2a',shirt:'#2f8a6a',pants:'#3a4a5a',cap:true,hatC:'#e8c13a'}),x:22,y:13},
+  {id:'lany',n:'Felderítő',e:K.human({hair:'#a83a2a',shirt:'#3a5a2a',pants:'#2a3520',cap:true,hatC:'#2a3520'}),x:21,y:17}
+];
+/* ---------- quests ---------- */
+const Q=[
+  {from:'polg',to:'polg',say:'Új vagy itt? Akkor bizonyíts. Hozz 3 gombát az erdőből.',kind:'item',what:'gomba',n:3,ask:['gomba','alma','ko'],line:'Hozz 3 gombát!',done:'Rendben. Talán lesz belőled valami.',xp:15,gold:10},
+  {from:'pek',to:'pek',say:'Az őrség éhes. Szedj 4 almát a fákról.',kind:'item',what:'alma',n:4,ask:['alma','gomba','ital'],line:'Szedj 4 almát!',done:'Kösz. Itt egy gyógyital, jól jön majd.',xp:15,gold:5,pot:1},
+  {from:'polg',to:'polg',say:'Nyálkák lepték el az erdei utat. Intézz el hármat.',kind:'foe',what:'nyalka',n:3,ask:['nyalka','csontvaz','oriás'],line:'Győzz le 3 nyálkát!',done:'Tiszta az út. Szép munka.',xp:20,gold:15},
+  {from:'kov',to:'kov',say:'Kardot kovácsolok neked. Kell hozzá 3 kő a barlang elől.',kind:'item',what:'ko',n:3,ask:['ko','kotel','gomba'],line:'Hozz 3 követ!',done:'Kész a kard. Most már fáj, ha ütsz.',xp:20,gold:0,sword:1},
+  {from:'hal',to:'hal',say:'Elszakadt a komp kötele. Keress 2 kötelet a faluban.',kind:'item',what:'kotel',n:2,ask:['kotel','ko','alma'],line:'Keress 2 kötelet!',done:'Mehet a komp. Fogd ezt a pajzsot.',xp:20,gold:10,shield:1},
+  {from:'polg',to:'polg',say:'A barlangból csont|vázak jönnek elő éjjel. Győzz le négyet.',kind:'foe',what:'csontvaz',n:4,ask:['csontvaz','nyalka','oriás'],line:'Győzz le 4 csontvázat!',done:'Ez az. Már csak a főnök maradt.',xp:30,gold:20},
+  {from:'polg',to:'polg',say:'A barlang mélyén él a kő|óriás. Ő küldi a szörnyeket. Végezz vele.',kind:'foe',what:'oriás',n:1,ask:['oriás','csontvaz','nyalka'],line:'Győzd le a kőóriást!',done:'Vége. A völgy szabad. Ezt nem felejtjük el.',xp:50,gold:50}
+];
+const IDLE={polg:'Nézz be a többiekhez is. Mindenkinek kell segítség.',pek:'Üres a kamra. Az őrség morog.',kov:'Nálam italt, kardot és pajzsot is vehetsz.',hal:'A tó túlpartján sem jobb.',lany:'A barlangban sötét van. Vigyázz.'};
+const SHOP=[{k:'pot',w:'gyógy|ital',e:SPR.ital,price:8},{k:'sword',w:'acél|kard',e:SPR.kard,price:60,max:2},{k:'shield',w:'vas|pajzs',e:SPR.pajzs,price:50,max:2}];
+/* ---------- state ---------- */
+const SK='kalandor:save';
+const FRESH=()=>({v:1,x:16,y:14,hp:20,lvl:1,xp:0,gold:0,pot:1,sword:0,shield:0,q:0,qs:'new',prog:0,compass:false,got:[],dead:[],intro:false});
+let S=K.store.get(SK,FRESH());
+if(S.v!==1)S=FRESH();
+{const ci=K.clampInt;S.lvl=ci(S.lvl,1,99);S.xp=ci(S.xp,0,1e6);S.gold=ci(S.gold,0,1e7);S.pot=ci(S.pot,0,99);S.sword=ci(S.sword,0,2);S.shield=ci(S.shield,0,2);S.q=ci(S.q,0,99);S.prog=ci(S.prog,0,99);S.x=ci(S.x,0,99);S.y=ci(S.y,0,99);
+ if(!['new','active','return'].includes(S.qs))S.qs='new';S.got=S.got.filter(x=>typeof x==='string');S.dead=S.dead.filter(x=>typeof x==='string');}
+const save=()=>K.store.set(SK,S);
+const maxHp=()=>15+S.lvl*5;
+const atk=()=>2+S.lvl+S.sword*3;
+const def=()=>S.shield*1.5;
+if(!walk(S.x,S.y)){S.x=16;S.y=14}S.hp=K.clampInt(S.hp,1,maxHp());
+let items=ITEMS.filter(i=>!S.got.includes(i.id));
+let mobs=MOBS0.filter(m=>!S.dead.includes(m.id)).map(m=>({...m}));
+function hud(){
+  $('#hp').textContent=S.hp+'/'+maxHp();$('#lv').textContent=S.lvl;$('#gold').textContent=S.gold;$('#pot').textContent=S.pot;
+  const q=Q[S.q];let t='',say='';
+  if(!q){t='Kész. A völgy szabad.'}
+  else if(S.qs==='new'){t=`Beszélj vele: ${K.word(npc(q.from).n)}`;say='Beszélj vele: '+K.plain(npc(q.from).n)}
+  else if(S.qs==='active'){t=`${K.sentence(q.line)} (${S.prog}/${q.n})`;say=q.line}
+  else{t=`Vidd vissza: ${K.word(npc(q.to).n)}`;say='Vidd vissza: '+K.plain(npc(q.to).n)}
+  $('#quest').innerHTML=t;$('#qsay').innerHTML=say?K.sayBtn(say):'';
+}
+const npc=id=>NPCS.find(n=>n.id===id);
+/* ---------- movement ---------- */
+let anim={x:S.x,y:S.y},busy=false,held=null,moveT=0;
+function tryMove(dx,dy){
+  if(busy)return;
+  const nx=S.x+dx,ny=S.y+dy;
+  const n=NPCS.find(n=>n.x===nx&&n.y===ny);if(n){talk(n);return}
+  const m=mobs.find(m=>m.x===nx&&m.y===ny);if(m){battle(m);return}
+  if(!walk(nx,ny))return;
+  S.x=nx;S.y=ny;
+  const it=items.find(i=>i.x===nx&&i.y===ny);if(it)pickup(it);
+  if(S.hp<maxHp()&&M[ny][nx]==='p'&&Math.random()<.15)S.hp++;
+  hud();
+}
+function pickup(it){
+  const q=Q[S.q];
+  if(q&&S.qs==='active'&&q.kind==='item'&&q.what===it.kind){
+    items=items.filter(i=>i!==it);S.got.push(it.id);S.prog++;K.coin();float(K.plain(it.w)+' +1');
+    if(S.prog>=q.n){S.qs='return';K.good()}save();
+  }
+}
+let floats=[];function float(t){floats.push({t,life:1.2})}
+/* ---------- dialog ---------- */
+function overlay(h,mid){$('#ov').classList.toggle('mid',!!mid);$('#ovc').innerHTML=h;$('#ov').hidden=false;busy=true;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function closeOv(){$('#ov').hidden=true;busy=false;hud()}
+function speech(n,line,extra){return `<div class="npc"><span class="face">${ic(n.e,40)}</span><div><div class="name">${K.word(n.n)}</div><div class="line">${K.sentence(line)}</div></div>${K.sayBtn(line)}</div>${extra||''}`}
+function talk(n){
+  const q=Q[S.q];
+  if(q&&S.qs==='new'&&q.from===n.id){
+    overlay(speech(n,q.say,`<p style="color:var(--muted)">Mit kér? Válaszd a képet.</p><div class="icons">${K.shuffle(q.ask).map(e=>`<button data-e="${e}" aria-label="kép">${ic(SPR[e],46)}</button>`).join('')}</div>`));
+    $('#ovc').querySelectorAll('.icons button').forEach(b=>b.onclick=()=>{
+      const ok=b.dataset.e===q.ask[0];
+      $('#ovc').querySelectorAll('.icons button').forEach(x=>{x.disabled=true;if(x.dataset.e===q.ask[0])x.classList.add('yes');else if(x===b)x.classList.add('no')});
+      S.qs='active';S.prog=0;S.compass=ok;
+      if(q.kind==='foe')ensureFoes(q);
+      if(ok){K.good();S.xp+=3;q.say.split(' ').forEach(t=>t.includes('|')&&K.seen(t))}else K.bad();
+      save();
+      $('#ovc').insertAdjacentHTML('beforeend',`<p>${ok?'🧭 Vetted. Iránytű a célhoz bekapcsolva.':'Nem ez. A feladat fent is látszik.'}</p><button class="btn hot" id="ok">Indulás</button>`);
+      $('#ok').onclick=closeOv;$('#ok').focus();
+    });
+    return;
+  }
+  if(q&&S.qs==='return'&&q.to===n.id){
+    S.xp+=q.xp;S.gold+=q.gold;if(q.pot)S.pot+=q.pot;if(q.sword)S.sword=Math.max(S.sword,q.sword);if(q.shield)S.shield=Math.max(S.shield,q.shield);
+    S.q++;S.qs='new';S.prog=0;S.compass=false;K.good();K.addXP(15);const lvUp=levelCheck();save();
+    overlay(speech(n,q.done,`<p>+${q.xp} ⭐ ${q.gold?'+'+q.gold+' 🪙':''}${lvUp?'<br><b>Szintlépés!</b>':''}</p><button class="btn hot" id="ok">Tovább</button>`));
+    $('#ok').onclick=()=>{closeOv();if(!Q[S.q])victory()};return;
+  }
+  if(n.id==='kov'){
+    overlay(speech(n,IDLE.kov,`<div class="row">${SHOP.map(s=>{const own=s.k==='pot'?0:S[s.k];const dis=S.gold<s.price||(s.max&&own>=s.max);return `<button class="btn" data-b="${s.k}" ${dis?'disabled':''}>${K.word(s.w)} <small>${s.price} 🪙${s.max?` · ${own}/${s.max}`:''}</small></button>`}).join('')}</div><button class="btn hot" id="ok">Kész</button>`));
+    $('#ovc').querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{const s=SHOP.find(x=>x.k===b.dataset.b);if(S.gold<s.price)return;S.gold-=s.price;S[s.k]++;K.coin();save();float('+ '+K.plain(s.w));closeOv();talk(n)});
+    $('#ok').onclick=closeOv;return;
+  }
+  overlay(speech(n,IDLE[n.id]||'…',`<button class="btn hot" id="ok">Oké</button>`));$('#ok').onclick=closeOv;
+}
+function ensureFoes(q){
+  /* respawn enough monsters if the quest needs more than are left */
+  const have=mobs.filter(m=>m.k===q.what).length;
+  if(have<q.n){const pool=MOBS0.filter(m=>m.k===q.what&&!mobs.find(x=>x.id===m.id));
+    for(const m of pool.slice(0,q.n-have)){S.dead=S.dead.filter(d=>d!==m.id);mobs.push({...m})}}
+}
+function levelCheck(){let up=false;while(S.xp>=S.lvl*25){S.xp-=S.lvl*25;S.lvl++;S.hp=maxHp();up=true}return up}
+/* ---------- battle ---------- */
+function battle(m){
+  const F=FOES[m.k];let fhp=F.hp,guard=false,log=`Egy ${K.word(F.w)} állja utad.`;
+  const draw=()=>{
+    overlay(`<div class="foe"><span class="big">${ic(F.e,72)}</span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><b style="font-size:22px">${K.word(F.w)}</b><div class="hpbar"><i style="width:${fhp/F.hp*100}%"></i></div></div></div>
+      <div class="row"><span>${ic(HERO,22)} Te</span><div class="hpbar me"><i style="width:${S.hp/maxHp()*100}%"></i></div><span>${S.hp}</span></div>
+      <div class="blog">${log}</div>
+      <div class="row"><button class="btn hot" data-a="atk">⚔️ Támad</button><button class="btn" data-a="def">🛡️ Véd</button><button class="btn" data-a="pot" ${S.pot<1?'disabled':''}>🧪 Ital (${S.pot})</button><button class="btn" data-a="run">🏃 Fut</button></div>`,true);
+    $('#ovc').querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>act(b.dataset.a));
+  };
+  const act=a=>{
+    $('#ovc').querySelectorAll('[data-a]').forEach(b=>b.disabled=true);
+    guard=false;
+    if(a==='atk'){const d=Math.max(1,Math.round(atk()*(.8+Math.random()*.5)));fhp-=d;log=`Te ütöttél: −${d}`;K.beep(300,.08,'square',.06,-100)}
+    else if(a==='def'){guard=true;log='Védekezel.'}
+    else if(a==='pot'){S.pot--;S.hp=Math.min(maxHp(),S.hp+15);log='Ittál: +15 ❤️';K.good()}
+    else if(a==='run'){if(m.k!=='oriás'&&Math.random()<.7){closeOv();float('Elfutottál!');return}log='Nem sikerült elfutni!'}
+    if(fhp<=0){win();return}
+    draw();$('#ovc').querySelectorAll('[data-a]').forEach(b=>b.disabled=true);
+    setTimeout(()=>{
+      let d=Math.max(0,Math.round(F.atk*(.7+Math.random()*.6)-def()));if(guard)d=Math.floor(d/2);
+      S.hp=Math.max(0,S.hp-d);log+=`<br>${K.plain(F.w)} visszaüt: −${d}`;K.beep(140,.1,'sawtooth',.05);
+      if(S.hp<=0){lose();return}save();draw();
+    },550);
+  };
+  const win=()=>{
+    mobs=mobs.filter(x=>x!==m);S.dead.push(m.id);S.xp+=F.xp;S.gold+=F.gold;K.addXP(Math.ceil(F.xp/2));
+    const q=Q[S.q];if(q&&S.qs==='active'&&q.kind==='foe'&&q.what===m.k){S.prog++;if(S.prog>=q.n)S.qs='return'}
+    K.seen(F.w);const up=levelCheck();save();K.good();
+    overlay(`<h2>Győzelem!</h2><p style="font-size:22px">${K.word(F.w)} legyőzve.</p><p>+${F.xp} ⭐ +${F.gold} 🪙</p>${up?'<p><b>Szintlépés!</b> Több életed és erőd van.</p>':''}<button class="btn hot" id="ok">Tovább</button>`,true);
+    $('#ok').onclick=closeOv;
+    if(m.k==='nyalka')setTimeout(()=>{const p=MOBS0.find(x=>x.id===m.id);if(p&&!(S.x===p.x&&S.y===p.y)){S.dead=S.dead.filter(d=>d!==m.id);mobs.push({...p});save()}},40000);
+  };
+  const lose=()=>{
+    S.hp=maxHp();S.x=16;S.y=14;anim={x:16,y:14};S.gold=Math.floor(S.gold/2);save();K.bad();
+    overlay(`<h2>K.O.</h2><p>A faluban térsz magadhoz. A pénzed fele odalett.</p><p style="color:var(--muted)">Tipp: italt a kovácsnál veszel, szintet a nyálkákon lépsz.</p><button class="btn hot" id="ok">Újra</button>`,true);
+    $('#ok').onclick=closeOv;
+  };
+  draw();
+}
+function victory(){K.addXP(60);overlay(`<h1>VÖLGY FELSZABADÍTVA</h1><p>Minden küldetés kész. A kőóriás nincs többé.</p><p>Szint: <b>${S.lvl}</b> · Pénz: <b>${S.gold} 🪙</b></p><div class="row"><button class="btn hot" id="ok">Tovább</button><button class="btn" id="nw">Új játék</button></div>`,true);$('#ok').onclick=closeOv;$('#nw').onclick=()=>{K.store.set(SK,null);location.reload()}}
+/* ---------- drawing ---------- */
+let W=360,H=400,dpr=1,TS=32;
+function fit(){const r=$('#stage').getBoundingClientRect();W=r.width;H=r.height;dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);TS=Math.max(28,Math.min(48,Math.floor(Math.min(W,H)/10)))}
+addEventListener('resize',fit);
+const COL={'.':'#4f8f3a','f':'#4f8f3a','p':'#b99a62','T':'#2c5e2a','w':'#2e6db5','H':'#8a5a3a','D':'#5a3620','r':'#55803f','c':'#3a3340','#':'#1f1a25'};
+function tile(x,y,px,py){
+  const c=M[y][x],s=TS;ctx.fillStyle=COL[c];ctx.fillRect(px,py,s,s);
+  if(c==='.'||c==='f'||c==='r'){ctx.fillStyle='#57993f';if((x*7+y*3)%5===0)ctx.fillRect(px+s*.2,py+s*.3,s*.12,s*.12);if((x*3+y*5)%7===0)ctx.fillRect(px+s*.6,py+s*.7,s*.12,s*.12)}
+  if(c==='f'){ctx.fillStyle=(x+y)%2?'#ff8fb1':'#ffe066';ctx.fillRect(px+s*.4,py+s*.4,s*.2,s*.2)}
+  if(c==='r'){ctx.fillStyle='#8a8a8a';ctx.fillRect(px+s*.3,py+s*.45,s*.4,s*.3)}
+  if(c==='T'){ctx.fillStyle='#5a3a1e';ctx.fillRect(px+s*.42,py+s*.6,s*.16,s*.4);ctx.fillStyle='#3d8a35';ctx.fillRect(px+s*.1,py+s*.05,s*.8,s*.6);ctx.fillStyle='#2f6e28';ctx.fillRect(px+s*.1,py+s*.45,s*.8,s*.2)}
+  if(c==='w'){ctx.fillStyle='#4a8fd8';if((x+y+Math.floor(performance.now()/600))%3===0)ctx.fillRect(px+s*.2,py+s*.4,s*.4,s*.08)}
+  if(c==='H'){ctx.fillStyle='#b03a2e';ctx.fillRect(px,py,s,s*.35);ctx.fillStyle='#d8c08a';ctx.fillRect(px,py+s*.35,s,s*.65);ctx.fillStyle='#6a4a2a';ctx.fillRect(px+s*.3,py+s*.5,s*.4,s*.3)}
+  if(c==='D'){ctx.fillStyle='#d8c08a';ctx.fillRect(px,py,s,s);ctx.fillStyle='#5a3620';ctx.fillRect(px+s*.25,py+s*.2,s*.5,s*.8)}
+  if(c==='#'){ctx.fillStyle='#2a2333';ctx.fillRect(px+2,py+2,s*.45,s*.45);ctx.fillRect(px+s*.5,py+s*.5,s*.45,s*.45)}
+  if(c==='c'&&(x*5+y)%6===0){ctx.fillStyle='#463e4f';ctx.fillRect(px+s*.3,py+s*.3,s*.15,s*.15)}
+}
+function emoji(e,px,py,sz){if(typeof e!=='string'){K.draw(ctx,e,px,py,sz);return}ctx.font=`${Math.floor(sz)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(e,px,py);ctx.textAlign='left'}
+function target(){
+  const q=Q[S.q];if(!q)return null;
+  if(S.qs==='new')return npc(q.from);
+  if(S.qs==='return')return npc(q.to);
+  if(!S.compass)return null;
+  const list=q.kind==='item'?items.filter(i=>i.kind===q.what):mobs.filter(m=>m.k===q.what);
+  let b=null,bd=1e9;for(const o of list){const d=Math.hypot(o.x-S.x,o.y-S.y);if(d<bd){bd=d;b=o}}return b;
+}
+let lastT=performance.now(),wanderT=0;
+function frame(now){
+  const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
+  const k=Math.min(1,dt*14);anim.x+=(S.x-anim.x)*k;anim.y+=(S.y-anim.y)*k;
+  if(held&&!busy){moveT-=dt;if(moveT<=0){tryMove(held[0],held[1]);moveT=.17}}
+  wanderT+=dt;if(wanderT>1.2&&!busy){wanderT=0;for(const m of mobs){if(m.k==='oriás'||Math.random()<.5)continue;const d=K.pick([[1,0],[-1,0],[0,1],[0,-1]]);const nx=m.x+d[0],ny=m.y+d[1];
+    const zone=m.k==='nyalka'?ny>=1&&ny<=8:ny>=20;
+    if(zone&&walk(nx,ny)&&!(nx===S.x&&ny===S.y)&&!mobs.some(o=>o.x===nx&&o.y===ny)&&!NPCS.some(n=>n.x===nx&&n.y===ny))Object.assign(m,{x:nx,y:ny})}}
+  ctx.fillStyle='#0d0a10';ctx.fillRect(0,0,W,H);
+  const ox=W/2-(anim.x+.5)*TS,oy=H/2-(anim.y+.5)*TS;
+  const x0=Math.max(0,Math.floor(-ox/TS)),x1=Math.min(MW-1,Math.ceil((W-ox)/TS)),y0=Math.max(0,Math.floor(-oy/TS)),y1=Math.min(MH-1,Math.ceil((H-oy)/TS));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)tile(x,y,Math.floor(ox+x*TS),Math.floor(oy+y*TS));
+  const bob=Math.sin(now/300)*2;
+  for(const i of items)emoji(i.e,ox+(i.x+.5)*TS,oy+(i.y+.5)*TS+bob,TS*.6);
+  for(const m of mobs)emoji(FOES[m.k].e,ox+(m.x+.5)*TS,oy+(m.y+.5)*TS,TS*(m.k==='oriás'?1.1:.75));
+  const q=Q[S.q];
+  for(const n of NPCS){emoji(n.e,ox+(n.x+.5)*TS,oy+(n.y+.5)*TS,TS*.8);
+    const mark=q&&((S.qs==='new'&&q.from===n.id)?'❗':(S.qs==='return'&&q.to===n.id)?'❓':'');
+    if(mark)emoji(mark,ox+(n.x+.5)*TS,oy+(n.y-.25)*TS+bob,TS*.5)}
+  /* player */
+  const px=ox+(anim.x+.5)*TS,py=oy+(anim.y+.5)*TS,s=TS*.7;
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(px-s*.4,py+s*.45,s*.8,s*.12);
+  K.draw(ctx,HERO,px,py,s*.75);
+  if(S.sword)K.draw(ctx,SPR.kard,px+s*.45,py+s*.05,s*.42);
+  if(S.shield)K.draw(ctx,SPR.pajzs,px-s*.42,py+s*.12,s*.36);
+  /* cave darkness */
+  if(S.y>=20){const g=ctx.createRadialGradient(px,py,TS*1.5,px,py,TS*5);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.85)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+  /* compass */
+  const t=target();
+  if(t){const dx=t.x-S.x,dy=t.y-S.y,d=Math.hypot(dx,dy);if(d>1.5){const a=Math.atan2(dy,dx),R=Math.min(W,H)/2-30;
+    ctx.save();ctx.translate(W/2+Math.cos(a)*Math.min(R,d*TS*.8),H/2+Math.sin(a)*Math.min(R,d*TS*.8));ctx.rotate(a);ctx.fillStyle='#ffcc4d';ctx.strokeStyle='#000';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,-11);ctx.lineTo(-4,0);ctx.lineTo(-10,11);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}}
+  floats=floats.filter(f=>(f.life-=dt)>0);
+  floats.forEach((f,i)=>{ctx.globalAlpha=Math.min(1,f.life);ctx.fillStyle='#fff';ctx.font='800 22px Lexend, Verdana, sans-serif';ctx.textAlign='center';ctx.fillText(f.t,W/2,H/2-TS-12-i*26-(1.2-f.life)*24);ctx.textAlign='left';ctx.globalAlpha=1});
+  requestAnimationFrame(frame);
+}
+/* ---------- input ---------- */
+const KD={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]};
+addEventListener('keydown',e=>{const d=KD[e.key.toLowerCase()];if(d){e.preventDefault();if(!held||held+''!==d+''){held=d;moveT=0}}});
+addEventListener('keyup',e=>{const d=KD[e.key.toLowerCase()];if(d&&held&&held+''===d+'')held=null});
+$('#pad').querySelectorAll('button').forEach(b=>{const d=b.dataset.d.split(',').map(Number);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();held=d;moveT=0;b.setPointerCapture(e.pointerId)});
+  const up=()=>{held=null};b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up)});
+/* tap on the map: one step toward the tapped side */
+cv.addEventListener('pointerdown',e=>{if(busy)return;const r=cv.getBoundingClientRect();const dx=e.clientX-r.left-W/2,dy=e.clientY-r.top-H/2;if(Math.abs(dx)<TS/2&&Math.abs(dy)<TS/2)return;tryMove(Math.abs(dx)>Math.abs(dy)?Math.sign(dx):0,Math.abs(dx)>Math.abs(dy)?0:Math.sign(dy))});
+$('#bagBtn').onclick=()=>{
+  overlay(`<h2>🎒 Táska</h2><div class="inv"><span class="chip">${ic(SPR.ital,20)} ${K.word('gyógy|ital')} ×${S.pot}</span>${S.sword?`<span class="chip">${ic(SPR.kard,20)} ${K.word(S.sword>1?'acél|kard':'kard')}</span>`:''}${S.shield?`<span class="chip">${ic(SPR.pajzs,20)} ${K.word(S.shield>1?'vas|pajzs':'pajzs')}</span>`:''}</div>
+   <p>Erő: <b>${atk()}</b> · Védelem: <b>${def()}</b> · ⭐ ${S.xp}/${S.lvl*25}</p>
+   <p style="color:var(--muted)">A kovácsnál italt, kardot és pajzsot vehetsz.</p><button class="btn hot" id="ok">Bezár</button>`,true);$('#ok').onclick=closeOv};
+$('#setBtn').onclick=function settings(){
+  overlay(`<h2>⚙️ Beállítások</h2><p>Hosszú szavak bontása:</p>
+   <div class="row toggle"><button class="btn" data-sp="auto" aria-pressed="${K.settings.split!=='mindig'}">Magától</button><button class="btn" data-sp="mindig" aria-pressed="${K.settings.split==='mindig'}">Mindig</button></div>
+   <p>Hang:</p><div class="row toggle"><button class="btn" id="snd" aria-pressed="${K.sound}">${K.sound?'🔈 Be':'🔇 Ki'}</button></div>
+   <button class="btn" id="rst">🗑 Új játék (mindent töröl)</button><button class="btn hot" id="ok">Kész</button>`,true);
+  $('#ovc').querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{K.setSplit(b.dataset.sp);settings()});
+  $('#snd').onclick=()=>{K.toggleSound();settings()};
+  $('#rst').onclick=()=>{if(confirm('Biztos? Minden törlődik.')){K.store.set(SK,null);location.reload()}};
+  $('#ok').onclick=closeOv;
+};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});
+fit();hud();requestAnimationFrame(frame);
+if(!S.intro){overlay(`<h1>DUNGEON</h1><p>A völgyet szörnyek lepték el. A kapitány embert keres, aki rendet tesz.</p>
+  <div class="how"><span>🕹️</span><span>Mozgás: nyilak, WASD, vagy a gombok.</span><span>❗</span><span>Felkiáltójel: menj neki, beszél.</span><span>🖼️</span><span>Mit kér? Válaszd a jó képet.</span><span>🧭</span><span>Ha jó, nyíl mutatja az utat.</span><span>⚔️</span><span>Szörnynek menni: harc.</span></div>
+  <button class="btn hot" id="go">Start</button>`,true);$('#go').onclick=()=>{S.intro=true;save();closeOv()}}
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

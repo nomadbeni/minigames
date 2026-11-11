@@ -1,0 +1,65 @@
+name: Test and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cornhole scoring rule tests
+        working-directory: cornholescore
+        run: node --test
+      - name: Policy check, script syntax and game list
+        run: python3 tools/build_site.py --check
+      - name: Install Playwright (test tool only, the games need nothing)
+        run: |
+          pip install playwright==1.63.0
+          python3 -m playwright install --with-deps chromium
+      - name: Phone smoke test
+        run: python3 tools/smoke_test.py
+      - name: Play test (every game, broken saves, scenarios, level generators)
+        run: python3 tools/play_test.py
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build site (game list + back links)
+        run: python3 tools/build_site.py --out _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

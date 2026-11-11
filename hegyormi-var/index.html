@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Hegyormi vár</title>
+<meta name="description" content="Havas hegyre épített vár bástyás terasszal, díszlépcsővel és romos csúcsvárral. Szintenkénti terv, 3D előnézet, anyaglista.">
+<meta name="games:category" content="minecraft">
+<meta name="games:title-en" content="Mountaintop Castle">
+<meta name="games:description-en" content="A castle on a snowy peak with a bastion terrace, grand stairway and ruined keep. Layer-by-layer plan, 3D preview, material list.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: sticky layer stepper on top; stage = layer notes + per-layer materials beside a top-down block grid, 3D preview full width below; totals at the end. */
+:root{
+  --bg:#e7eaed; --surface:#f6f7f8; --ink:#1d2126; --muted:#5a626c; --line:#ccd3d9;
+  --accent:#6b5a3e; --accent-ink:#ffffff; --gridbg:#dde2e6;
+  --gl1:rgba(30,40,55,.10); --gl2:rgba(30,40,55,.32); --sky1:#cfe0ee; --sky2:#eef3f6;
+  --f-display:"Pixelify Sans","Courier New",monospace;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13161a; --surface:#1c2025; --ink:#e3e6e9; --muted:#9ba4ae; --line:#2e353c;
+  --accent:#d8b88a; --accent-ink:#160606; --gridbg:#242a30;
+  --gl1:rgba(255,255,255,.07); --gl2:rgba(255,255,255,.24); --sky1:#1b2733; --sky2:#151a20; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13161a; --surface:#1c2025; --ink:#e3e6e9; --muted:#9ba4ae; --line:#2e353c;
+  --accent:#d8b88a; --accent-ink:#160606; --gridbg:#242a30;
+  --gl1:rgba(255,255,255,.07); --gl2:rgba(255,255,255,.24); --sky1:#1b2733; --sky2:#151a20; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 56px;display:flex;flex-direction:column;gap:22px}
+h1,h2,.ynum{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance}
+h1{font-size:clamp(30px,6vw,48px);line-height:1.05;margin:0}
+h2{font-size:20px;margin:0}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lede{max-width:64ch;color:var(--muted);margin:0}
+header{display:flex;flex-direction:column;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{font-family:var(--f-mono);font-size:12.5px;border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:4px 9px;font-variant-numeric:tabular-nums}
+
+.stepper{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ybox{display:flex;align-items:baseline;gap:8px;min-width:118px}
+.ynum{font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.ymax{font-family:var(--f-mono);color:var(--muted);font-size:13px}
+.btn{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:4px;padding:8px 14px;cursor:pointer;min-height:40px}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#layer{flex:1 1 180px;min-width:0;accent-color:var(--accent);height:28px}
+
+.stage{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"note" "top" "mats" "iso"}
+@media (min-width:900px){.stage{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);
+  grid-template-areas:"note top" "mats top" "iso iso";align-items:start}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.note{grid-area:note}.top{grid-area:top}.mats{grid-area:mats}.iso{grid-area:iso}
+.note p{margin:8px 0 0;max-width:62ch}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.small{font-size:12.5px;color:var(--muted)}
+canvas{display:block;width:100%;touch-action:manipulation}
+.compass{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:6px 0}
+#info{font-family:var(--f-mono);font-size:12.5px;min-height:20px;margin-top:8px;color:var(--muted)}
+.mlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
+.mlist li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.mlist li:last-child{border-bottom:0}
+.sw{width:18px;height:18px;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.mname small{display:block;color:var(--muted);font-size:11.5px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.isoctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.isoctl label{display:flex;gap:6px;align-items:center;font-size:13.5px;cursor:pointer}
+.isowrap{border-radius:4px;overflow:hidden;margin-top:12px;background:linear-gradient(var(--sky1),var(--sky2))}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:440px;font-size:14px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right}
+.tips{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.tips p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.tips h3{margin:0;font-size:15px}
+.sw.inl{display:inline-block;vertical-align:-4px;margin-right:8px}
+.note p.small{margin:10px 0 0}
+.topwrap{overflow:hidden}
+</style>
+
+<div class="wrap">
+<div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0 0 10px"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+<header>
+  <div class="eyebrow">Minecraft építési terv · szintről szintre</div>
+  <h1>Hegyormi vár</h1>
+  <p class="lede">Havas hegyre épített kővár. Lent bástyás terasz, közepén legyező alakú díszlépcső vezet a középső pihenőig, onnan a hegybe vágott lépcső visz fel a csúcsvárhoz: kapuház, sarokbástyák, magas torony és egy romos, oromfalas nagyterem. Kétoldalt íves falhidak indulnak a tornyokból.</p>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="stepper" role="group" aria-label="Szint választó">
+  <div class="ybox"><span class="small">Y</span><span class="ynum" id="ynum">0</span><span class="ymax" id="ymax"></span></div>
+  <button class="btn" id="prev" aria-label="Előző szint">◀ Le</button>
+  <input type="range" id="layer" min="0" max="10" value="0" aria-label="Szint">
+  <button class="btn primary" id="next" aria-label="Következő szint">Fel ▶</button>
+</div>
+
+<div class="stage">
+  <section class="panel note">
+    <div class="phead"><h2 id="ntitle"></h2><span class="small" id="nrange"></span></div>
+    <p id="ntext"></p>
+    <p class="small" id="ncount"></p>
+  </section>
+
+  <section class="panel top">
+    <div class="phead"><h2>Felülnézet</h2><span class="small">1 négyzet = 1 blokk · vastag vonal 5-önként</span></div>
+    <div class="compass"><span>Észak ↑</span><span>Kelet →</span></div>
+    <div class="topwrap"><canvas id="topcv" aria-label="A kiválasztott szint felülnézeti blokkrajza"></canvas></div>
+    <div class="compass"><span>← Nyugat</span><span>Dél ↓ (terasz)</span></div>
+    <div id="info">Koppints egy négyzetre a blokk nevéért.</div>
+  </section>
+
+  <section class="panel mats">
+    <h2>Ezen a szinten</h2>
+    <ul class="mlist" id="lmats"></ul>
+  </section>
+
+  <section class="panel iso">
+    <div class="phead">
+      <h2>3D előnézet</h2>
+      <div class="isoctl">
+        <button class="btn" id="rot">Forgatás ↻</button>
+        <label><input type="checkbox" id="ghost"> Kész vár halványan</label>
+      </div>
+    </div>
+    <div class="isowrap"><canvas id="isocv" aria-label="A vár 3D előnézete a kiválasztott szintig"></canvas></div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="phead"><h2>Teljes anyaglista</h2><span class="small">1 stack = 64 blokk</span></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Blokk</th><th>Angol név</th><th class="num">Darab</th><th class="num">Stack</th></tr></thead>
+      <tbody id="totals"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="tips"><div class="panel"><h3>Kezdés</h3><p>Ha van a világodban egy megfelelő hegy, a hegy blokkjait kihagyhatod, és csak a kőtégla részeket építsd rá. A koordináták a nyugati híd végétől és a hegy északi szélétől számítanak. Először a teraszt és a pihenőt rakd le, a lépcsők ezekhez igazodnak.</p></div><div class="panel"><h3>Héj, nem tömb</h3><p>A tervben a hegy, a terasz és a talapzatok belseje üres, így az anyaglista csak a látható blokkokat számolja. Belülre bármi mehet, akár kincseskamra vagy bánya is.</p></div><div class="panel"><h3>Díszítés</h3><p>Fenyők a hegyoldalba, fáklyák a lépcső mellvédjén, zászlók a tornyokon, borostyán és moha a romos falakon, porhó a havas részekre.</p></div></section>
+</div>
+
+<script>
+const V=new Map();
+const key=(x,y,z)=>x+','+y+','+z;
+function set(x,y,z,t){if(typeof t==='function')t=t(x,y,z);if(t)V.set(key(x,y,z),t);else V.delete(key(x,y,z));}
+const del=(x,y,z)=>V.delete(key(x,y,z));
+const get=(x,y,z)=>V.get(key(x,y,z));
+function fill(x0,y0,z0,x1,y1,z1,t){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)set(x,y,z,t);}
+function clear(x0,y0,z0,x1,y1,z1){for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)del(x,y,z);}
+function ring(x0,z0,x1,z1,y0,y1,t){for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++)if(x===x0||x===x1||z===z0||z===z1)for(let y=y0;y<=y1;y++)set(x,y,z,t);}
+function hash(x,y,z){let n=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul(z|0,1274126177))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)%100;}
+function disk(cx,cz,r){const o=[],R=Math.ceil(r);for(let dx=-R;dx<=R;dx++)for(let dz=-R;dz<=R;dz++)if(dx*dx+dz*dz<=r*r)o.push([cx+dx,cz+dz]);return o;}
+function ringc(cx,cz,r){const inner=new Set(disk(cx,cz,r-1).map(p=>p+''));return disk(cx,cz,r).filter(p=>!inner.has(p+''));}
+const inDisk=(x,z,cx,cz,r)=>(x-cx)*(x-cx)+(z-cz)*(z-cz)<=r*r;
+
+const TYPES={
+ kt:{n:'Kőtégla',e:'Stone Bricks',c:'#8a8a8a'},
+ mk:{n:'Mohás kőtégla',e:'Mossy Stone Bricks',c:'#717d5f'},
+ rk:{n:'Repedt kőtégla',e:'Cracked Stone Bricks',c:'#7c7c7c'},
+ kl:{n:'Kőtégla lépcső',e:'Stone Brick Stairs',c:'#9b9b9b'},
+ kf:{n:'Kőtégla féllap',e:'Stone Brick Slab',c:'#a3a3a3'},
+ ko:{n:'Kő',e:'Stone',c:'#7f7f7f'},
+ an:{n:'Andezit',e:'Andesite',c:'#888a8c'},
+ tk:{n:'Terrakotta',e:'Terracotta',c:'#985e43'},
+ fd:{n:'Durva föld',e:'Coarse Dirt',c:'#77553b'},
+ fu:{n:'Fűblokk',e:'Grass Block',c:'#5f9a3c'},
+ ho:{n:'Hóblokk',e:'Snow Block',c:'#eef3f6'},
+ dr:{n:'Sötét tölgy ajtó',e:'Dark Oak Door',c:'#5a3d26',door:1},
+ la:{n:'Létra',e:'Ladder',c:'#ad8850',thin:.3},
+ lm:{n:'Lámpás',e:'Lantern',c:'#e8b04a',thin:.4},
+};
+const wm=(x,y,z)=>{const h=hash(x,y,z);return h<8?'mk':h<16?'rk':'kt';};
+const per=(x,z,x0,z0,x1,z1)=>x===x0||x===x1||z===z0||z===z1;
+
+// ---- zones the mountain must stay out of ----
+const POD=[13,5,35,20];                       // summit podium
+const inR=(x,z,r)=>x>=r[0]&&x<=r[2]&&z>=r[1]&&z<=r[3];
+const TER=[4,26,44,52], LAND=[18,26,30,32], CORR=[20,21,28,26];
+
+// ---- mountain heightfield ----
+function mh(x,z){
+  const n=(hash(Math.floor(x/3),7,Math.floor(z/3))%3)-1;
+  const c=(cx,cz,p,s,k)=>p-s*Math.sqrt((x-cx)**2+((z-cz)*k)**2);
+  let h=Math.max(c(24,11,35,1.2,1.05),c(6,12,33,1.45,1.1),c(43,13,31,1.45,1.1));
+  return Math.round(h+n);
+}
+for(let x=-6;x<=54;x++)for(let z=-10;z<=33;z++){
+  if(inR(x,z,POD)||inR(x,z,TER)||inR(x,z,LAND))continue;
+  let h=mh(x,z);
+  if(inR(x,z,CORR))h=Math.min(h,Math.max(0,14-(z-26)-1+0));   // stair cut
+  if(h<1)continue;
+  const band=hash(x,0,z)%10;
+  for(let y=0;y<=h;y++){
+    let t;
+    if(y===h) t=h>=25||(h>=21&&hash(x,y,z)<45)?'ho':h<=11?'fu':(band<5?'ko':band<7?'an':band<9?'tk':'fd');
+    else if(h<=11&&y>=h-2) t='fd';
+    else if(y>=26&&hash(x,y,z)<55) t='ho';
+    else t=band<5?'ko':band<8?'an':'tk';
+    set(x,y,z,t);
+  }
+}
+
+// ---- lower terrace: walls x6-42 z30-46, floor y6 ----
+const cham=(x,z)=>(x-6)+(46-z)<4||(42-x)+(46-z)<4;
+for(let x=6;x<=42;x++)for(let z=30;z<=46;z++){
+  if(cham(x,z))continue;
+  const edge=x<=7||x>=41||z<=31||z>=45||cham(x-1,z)||cham(x+1,z)||cham(x,z+1)||cham(x,z+2)||cham(x-2,z)||cham(x+2,z);
+  for(let y=0;y<=(edge?8:6);y++)set(x,y,z,edge||y===6?wm:'kt');
+  const outer=x===6||x===42||z===46||cham(x-1,z)||cham(x+1,z)||cham(x,z+1);
+  if(edge&&outer&&(x+z)%2===0)set(x,9,z,'kt');
+}
+// outside entrance stair along south face
+for(let i=0;i<6;i++)for(let z=47;z<=49;z++){fill(31+i,0,z,31+i,i,z,'kt');set(31+i,i+1,z,'kl');}
+fill(37,0,47,39,6,49,'kt');
+for(let x=37;x<=39;x++)for(let z=45;z<=46;z++){del(x,7,z);del(x,8,z);del(x,9,z);}
+for(const x of [36,40])set(x,7,49,'lm');
+
+// terrace corner towers
+for(const tx of [4,38]){
+  const x1=tx+6;
+  fill(tx,0,26,x1,6,32,'kt');
+  ring(tx,26,x1,32,7,16,wm);
+  fill(tx,17,26,x1,17,32,'kt');
+  for(let x=tx;x<=x1;x++)for(let z=26;z<=32;z++)if(per(x,z,tx,26,x1,32)&&(x+z)%2===0)set(x,18,z,'kt');
+  const dx=tx===4?8:40; set(dx,7,32,'dr');set(dx,8,32,'dr');
+  const lx=tx===4?5:43; for(let y=7;y<=17;y++)set(lx,y,27,'la');
+  const ox=tx===4?4:44; set(ox,13,28,'dr');set(ox,14,28,'dr');
+  for(const y of [11,12]){del(tx+3,y,26);del(tx===4?4:44,y,30);}
+  set(tx+3,18,29,'lm');
+}
+
+// arched wall-bridges W (x-8..3) and E (x45..56)
+function bridge(xa,xb,pier){
+  const c=(xa+xb)/2, r=(xb-xa)/2-1.5;
+  for(let x=xa;x<=xb;x++){
+    const dx=Math.abs(x-c), open=x!==pier&&x!==pier+(pier<c?1:-1);
+    const top=open&&dx<r?Math.round(5+Math.sqrt(r*r-dx*dx)*0.75):-1;
+    for(let z=27;z<=29;z++){
+      for(let y=0;y<=12;y++)if(y>top)set(x,y,z,wm);
+      if(z!==28&&(x%2===0))set(x,13,z,'kt');
+    }
+  }
+}
+bridge(-8,3,-8);bridge(45,56,56);
+
+// grand fan stair on terrace z40->33, y7->14
+for(let z=33;z<=40;z++){
+  const y=14-(z-33), hw=Math.round(2+(z-33)*0.6);
+  for(let x=24-hw;x<=24+hw;x++){fill(x,6,z,x,y-1,z,'kt');set(x,y,z,'kl');}
+}
+// middle landing x18-30 z26-32, top y14
+fill(18,0,26,30,14,32,'kt');
+for(let x=18;x<=30;x++)for(let z=26;z<=32;z++){
+  if(!per(x,z,18,26,30,32))continue;
+  if(z===32&&x>=21&&x<=27)continue;
+  if(z===26&&x>=22&&x<=26)continue;
+  set(x,15,z,'kt');if((x+z)%2===0)set(x,16,z,'kt');
+}
+for(let x=18;x<=30;x++)for(let z=26;z<=32;z++)for(let y=0;y<=13;y++)if(per(x,z,18,26,30,32))set(x,y,z,wm);
+set(19,15,31,'lm');set(29,15,31,'lm');
+// upper stair corridor z25->21, y15->19, x22-26 with parapets
+for(let z=21;z<=25;z++){
+  const y=Math.min(19,15+(25-z));
+  for(let x=22;x<=26;x++){fill(x,0,z,x,y-1,z,'kt');set(x,y,z,z===21?'kt':'kl');}
+  for(const x of [21,27]){fill(x,0,z,x,y+1,z,wm);}
+}
+
+// ---- summit podium & castle ----
+fill(13,0,5,35,19,20,'kt');
+for(let x=13;x<=35;x++)for(let z=5;z<=20;z++)for(let y=8;y<=18;y++)if(per(x,z,13,5,35,20))set(x,y,z,wm);
+for(let x=15;x<=33;x++)for(let z=7;z<=18;z++)set(x,19,z,'fu');
+for(let z=7;z<=20;z++)for(let x=23;x<=25;x++)set(x,19,z,'kf'.replace('kf','kt'));
+// curtain wall 2 thick y20-27
+for(let x=13;x<=35;x++)for(let z=5;z<=20;z++){
+  if(!(x<=14||x>=34||z<=6||z>=19))continue;
+  for(let y=20;y<=27;y++)set(x,y,z,wm);
+  if((x===13||x===35||z===5||z===20)&&(x+z)%2===0)set(x,28,z,'kt');
+}
+// gatehouse x20-28 z17-21
+fill(20,20,17,28,30,21,wm);
+for(let x=20;x<=28;x++)for(let z=17;z<=21;z++)if(per(x,z,20,17,28,21)&&(x+z)%2===0)set(x,31,z,'kt');
+clear(23,20,17,25,23,21);del(24,24,17);del(24,24,21);
+for(const x of [21,27])for(const y of [26,27])del(x,y,21);
+set(22,24,21,'lm');set(26,24,21,'lm');
+// front corner towers 5x5 to y32
+for(const tx of [12,32]){
+  const x1=tx+4;
+  ring(tx,16,x1,20,20,32,wm);clear(tx+1,20,17,x1-1,32,19);
+  fill(tx,33,16,x1,33,20,'kt');
+  for(let x=tx;x<=x1;x++)for(let z=16;z<=20;z++)if(per(x,z,tx,16,x1,20)&&(x+z)%2===0)set(x,34,z,'kt');
+  const dx=tx===12?16:32; set(dx,20,18,'dr');set(dx,21,18,'dr');
+  for(let y=20;y<=33;y++)set(tx===12?13:35,y,17,'la');
+  for(const y of [25,26,29,30])del(tx+2,y,20);
+}
+// tall NW tower x12-17 z4-9 to y40
+ring(12,4,17,9,20,40,wm);clear(13,20,5,16,40,8);
+fill(12,41,4,17,41,9,'kt');
+for(let x=12;x<=17;x++)for(let z=4;z<=9;z++)if(per(x,z,12,4,17,9)&&(x+z)%2===0)set(x,42,z,'kt');
+set(17,20,7,'dr');set(17,21,7,'dr');
+for(let y=20;y<=41;y++)set(13,y,5,'la');
+for(const y of [25,26,31,32,36,37]){del(12,y,6);del(14,y,4);del(17,y,8);}
+set(15,42,7,'lm');
+// ruined great hall x19-33 z7-14, roofless, jagged gables
+for(let x=19;x<=33;x++)for(let z=7;z<=14;z++){
+  if(!per(x,z,19,7,33,14))continue;
+  let top;
+  if(x===19||x===33){const d=Math.abs(z-10.5);top=39-Math.round(d*1.4)-(x===33?3:0);}
+  else top=33+(hash(x,1,z)%4)-(x>28?3:0);
+  for(let y=20;y<=top;y++)set(x,y,z,wm);
+  for(let y=20;y<=top;y++){
+    const win=(y>=23&&y<=25||y>=29&&y<=31);
+    if(win&&((x!==19&&x!==33&&x%3===0)||((x===19||x===33)&&(z===9||z===12))))del(x,y,z);
+  }
+}
+for(let y=20;y<=22;y++)for(const x of [25,26,27])del(x,y,14);
+set(26,20,10,'lm');set(22,20,10,'lm');
+
+// ---- hollow: drop fully enclosed solid blocks ----
+{
+  const solid=(x,y,z)=>{if(y<0)return true;const t=get(x,y,z);return t&&!TYPES[t].thin&&!TYPES[t].door&&t!=='kl';};
+  const rm=[];
+  for(const [k,t] of V){
+    if(TYPES[t].thin||TYPES[t].door)continue;
+    const [x,y,z]=k.split(',').map(Number);
+    if(solid(x+1,y,z)&&solid(x-1,y,z)&&solid(x,y+1,z)&&solid(x,y-1,z)&&solid(x,y,z+1)&&solid(x,y,z-1))rm.push(k);
+  }
+  for(const k of rm)V.delete(k);
+}
+
+const NOTES=[
+[0,5,'Hegyláb és terasz','A hegy kőből, andezitből és terrakottából, alján fűvel és durva földdel. Elöl a 37×17-es terasz 2 vastag kőtégla fala levágott első sarkokkal, hátul a két 7×7-es saroktorony, kétoldalt az íves falhidak pillérei. Délen külső lépcső vezet fel a teraszra. A terv csak a látható héjat mutatja: a hegy, a terasz és a talapzatok belsejét töltsd ki tetszés szerint.'],
+[6,6,'Teraszpadló','A terasz járószintje kőtéglából, a fal mellvédje tovább emelkedik. A külső lépcső tetején kapu nyílik a falban.'],
+[7,9,'Díszlépcső indul','A legyező alakú díszlépcső a terasz közepéről indul észak felé, alul 13, felül 7 blokk széles. Ajtó a saroktornyokba, bennük létra. A terasz mellvédje és pártázata (8–9). A hidak ívei itt kezdenek záródni.'],
+[10,14,'Pihenő és hidak','A lépcső eléri a 13×7-es középső pihenőt (14). A tornyokban lőrések (11–12). A falhidak sétánya 12-n, pártázata 13-on, a tornyok külső oldalán ajtó nyílik rájuk.'],
+[15,19,'Felső lépcső','A pihenő mellvédje és a hegybe vágott, 5 széles lépcső mellvédfallal, amely 19-en éri el a vár kapuját. A tornyok teteje (17), pártázat és lámpás (18). A csúcsvár talapzata a hegyből nő ki, a tetején füves udvar kőtégla úttal.'],
+[20,27,'Várfal','A csúcsvár 2 vastag fala, elöl kapuház 3 széles kapuval, két sarokbástyával, hátul magas toronnyal. A romos nagyterem fala ablaksorokkal (23–25, 29–31). Fent a hegyvállakon havas szirtek.'],
+[28,34,'Pártázat és rom','A várfal pártázata (28), a kapuház teteje (30–31). A sarokbástyák teteje és pártázata (33–34). A nagyterem fala egyenetlenül, letört élekkel ér véget.'],
+[35,42,'Oromfalak és torony','A nagyterem csúcsos oromfalai (a keleti alacsonyabb, leomlott), a magas torony teteje (41), pártázata és lámpása (42). Kész!'],
+];
+
+const CHIPS=["hegyre épített vár","díszlépcső · falhidak"];
+const ORDER=Object.keys(TYPES);
+const VOX=[];let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9,YMAX=0;
+for(const [kk,t] of V){
+  const [x,y,z]=kk.split(',').map(Number);
+  if(!TYPES[t])throw new Error('Unknown type '+t);
+  VOX.push([x,y,z,t]);
+  minX=Math.min(minX,x);maxX=Math.max(maxX,x);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);YMAX=Math.max(YMAX,y);
+}
+const NX=maxX-minX+1,NZ=maxZ-minZ+1;
+const layerCounts=Array.from({length:YMAX+1},()=>({}));
+const total={};
+for(const [x,y,z,t] of VOX){layerCounts[y][t]=(layerCounts[y][t]||0)+1;total[t]=(total[t]||0)+1;}
+const noteFor=y=>NOTES.find(n=>y>=n[0]&&y<=n[1]);
+
+let cur=0,rot=0,hover=null;
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('hu-HU');
+const solidCount=VOX.filter(v=>!TYPES[v[3]].liquid).length;
+$('chips').innerHTML=[`${NX} × ${NZ} terület`,`${YMAX+1} szint (Y 0–${YMAX})`,`${fmt(solidCount)} blokk`,...CHIPS].map(s=>`<span class="chip">${s}</span>`).join('');
+$('ymax').textContent='/ '+YMAX;$('layer').max=YMAX;
+
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function rgb(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));}
+function shade(h,f,a=1){const [r,g,b]=rgb(h);return `rgba(${Math.min(255,r*f)|0},${Math.min(255,g*f)|0},${Math.min(255,b*f)|0},${a})`;}
+const sw=c=>`<span class="sw" style="background:${c}"></span>`;
+
+function renderMats(){
+  const c=layerCounts[cur];
+  $('lmats').innerHTML=ORDER.filter(t=>c[t]).map(t=>{
+    const T=TYPES[t],n=c[t];
+    const lab=T.door?`${fmt(n)} blokk (${fmt(n/2)} ajtó)`:T.liquid?'vödrökkel':fmt(n)+' db';
+    return `<li>${sw(T.c)}<span class="mname">${T.n}<small>${T.e}</small></span><span class="num">${lab}</span></li>`;
+  }).join('')||'<li><span></span><span class="mname">Ezen a szinten nincs blokk.</span><span></span></li>';
+  const nw=Object.entries(c).filter(([t])=>!TYPES[t].liquid).reduce((s,[,n])=>s+n,0);
+  $('ncount').textContent=fmt(nw)+' blokk ezen a szinten';
+}
+function renderTotals(){
+  $('totals').innerHTML=ORDER.filter(t=>total[t]).map(t=>{
+    const T=TYPES[t],n=total[t];
+    const nm=`<td><span class="sw inl" style="background:${T.c}"></span>${T.n}</td><td>${T.e}</td>`;
+    if(T.liquid)return `<tr>${nm}<td class="num">${fmt(n)} felület</td><td class="num">2 vödör (végtelen forrás)</td></tr>`;
+    if(T.door)return `<tr>${nm}<td class="num">${fmt(n/2)} ajtó</td><td class="num">–</td></tr>`;
+    const st=Math.floor(n/64),r=n%64;
+    return `<tr>${nm}<td class="num">${fmt(n)}</td><td class="num">${st?st+' + '+r:r}</td></tr>`;
+  }).join('');
+}
+
+const topcv=$('topcv');let cell=10;
+function drawTop(){
+  const w=topcv.clientWidth,dpr=window.devicePixelRatio||1;
+  cell=w/NX;const h=cell*NZ;
+  topcv.width=Math.round(w*dpr);topcv.height=Math.round(h*dpr);topcv.style.height=h+'px';
+  const g=topcv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle=css('--gridbg');g.fillRect(0,0,w,h);
+  for(let gx=0;gx<NX;gx++)for(let gz=0;gz<NZ;gz++){
+    const x=gx+minX,z=gz+minZ,t=get(x,cur,z),px=gx*cell,pz=gz*cell;
+    if(t){
+      const T=TYPES[t];
+      if(T.thin){g.fillStyle=shade(T.c,1);const s=cell*Math.max(.35,T.thin+.1);g.fillRect(px+(cell-s)/2,pz+(cell-s)/2,s,s);}
+      else{g.fillStyle=shade(T.c,1,T.alpha||1);g.fillRect(px,pz,cell,cell);}
+      if(T.door){g.strokeStyle='rgba(0,0,0,.5)';g.lineWidth=1;g.strokeRect(px+cell*.25,pz+cell*.15,cell*.5,cell*.7);}
+    }else if(cur>0){
+      const b=get(x,cur-1,z);
+      if(b){g.fillStyle=shade(TYPES[b].c,1,.2);g.fillRect(px,pz,cell,cell);}
+    }
+  }
+  const mod5=v=>((v%5)+5)%5===0;
+  for(let i=0;i<=NX;i++){const m=mod5(i+minX);g.strokeStyle=css(m?'--gl2':'--gl1');g.lineWidth=m?1.2:.6;g.beginPath();g.moveTo(i*cell,0);g.lineTo(i*cell,h);g.stroke();}
+  for(let i=0;i<=NZ;i++){const m=mod5(i+minZ);g.strokeStyle=css(m?'--gl2':'--gl1');g.lineWidth=m?1.2:.6;g.beginPath();g.moveTo(0,i*cell);g.lineTo(w,i*cell);g.stroke();}
+  if(hover){g.strokeStyle=css('--accent');g.lineWidth=2;g.strokeRect(hover[0]*cell+1,hover[1]*cell+1,cell-2,cell-2);}
+}
+function pick(e){
+  const r=topcv.getBoundingClientRect();
+  const gx=Math.floor((e.clientX-r.left)/cell),gz=Math.floor((e.clientY-r.top)/cell);
+  if(gx<0||gz<0||gx>=NX||gz>=NZ)return;
+  hover=[gx,gz];
+  const x=gx+minX,z=gz+minZ,t=get(x,cur,z);
+  $('info').textContent=`x ${x}, z ${z}, y ${cur} · `+(t?TYPES[t].n+' ('+TYPES[t].e+')':'üres');
+  drawTop();
+}
+topcv.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')pick(e);});
+topcv.addEventListener('pointerdown',pick);
+topcv.addEventListener('pointerleave',()=>{hover=null;drawTop();});
+
+const isocv=$('isocv');
+const CX=(minX+maxX)/2,CZ=(minZ+maxZ)/2;
+function rotXZ(x,z,r){for(let i=0;i<r;i++){const nx=CX-(z-CZ),nz=CZ+(x-CX);x=nx;z=nz;}return [x,z];}
+function drawIso(){
+  const w=isocv.clientWidth,dpr=window.devicePixelRatio||1,ghost=$('ghost').checked;
+  const list=[];let dmin=1e9,dmax=-1e9,smin=1e9,smax=-1e9;
+  for(const v of VOX){
+    const [rx,rz]=rotXZ(v[0],v[2],rot);
+    const d=rx-rz,s=rx+rz;dmin=Math.min(dmin,d);dmax=Math.max(dmax,d);smin=Math.min(smin,s);smax=Math.max(smax,s);
+    if(v[1]>cur&&!ghost)continue;
+    list.push([rx,v[1],rz,v[3]]);
+  }
+  const du=dmax-dmin+4, su=(smax-smin+4)/2, yu=(YMAX+1)*1.2;
+  const maxH=Math.max(340,window.innerHeight*.78);
+  const a=Math.min(w/du,maxH/(su+yu)), hh=a*1.2, H=Math.round(a*(su+yu));
+  isocv.width=Math.round(w*dpr);isocv.height=Math.round(H*dpr);isocv.style.height=H+'px';
+  const g=isocv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,H);
+  const ox=w/2-((dmin+dmax)/2)*a, oy=a+(YMAX+1)*hh-smin*a/2;
+  const P=(x,z,y)=>[ox+(x-z)*a,oy+(x+z)*a/2-y*hh];
+  list.sort((p,q)=>(p[0]+p[2]+p[1])-(q[0]+q[2]+q[1])||p[1]-q[1]);
+  const poly=(pts,fill)=>{g.beginPath();g.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<4;i++)g.lineTo(pts[i][0],pts[i][1]);g.closePath();g.fillStyle=fill;g.fill();g.stroke();};
+  g.lineWidth=.5;g.lineJoin='round';
+  for(const [x,y,z,t] of list){
+    const T=TYPES[t];let al=T.alpha||1;
+    const above=y>cur;if(above)al*=.13;
+    const cl=y===cur?1.12:1;
+    let x0=x,x1=x+1,z0=z,z1=z+1;
+    if(T.thin){const m=(1-T.thin)/2;x0+=m;x1-=m;z0+=m;z1-=m;}
+    const top=T.liquid?y+.85:y+1;
+    g.strokeStyle=above?'rgba(0,0,0,0)':'rgba(0,0,0,.22)';
+    poly([P(x1,z0,top),P(x1,z1,top),P(x1,z1,y),P(x1,z0,y)],shade(T.c,.72*cl,al));
+    poly([P(x0,z1,top),P(x1,z1,top),P(x1,z1,y),P(x0,z1,y)],shade(T.c,.86*cl,al));
+    poly([P(x0,z0,top),P(x1,z0,top),P(x1,z1,top),P(x0,z1,top)],shade(T.c,1.08*cl,al));
+  }
+}
+
+function render(){
+  $('ynum').textContent=cur;$('layer').value=cur;
+  const n=noteFor(cur);
+  $('ntitle').textContent=n[2];$('ntext').textContent=n[3];
+  $('nrange').textContent=n[0]===n[1]?'':`Y ${n[0]}–${n[1]}`;
+  $('prev').disabled=cur===0;$('next').disabled=cur===YMAX;
+  renderMats();drawTop();drawIso();
+}
+function go(n){cur=Math.max(0,Math.min(YMAX,n));render();}
+$('prev').onclick=()=>go(cur-1);
+$('next').onclick=()=>go(cur+1);
+$('layer').oninput=e=>go(+e.target.value);
+$('rot').onclick=()=>{rot=(rot+1)%4;drawIso();};
+$('ghost').onchange=drawIso;
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type==='range')return;
+  if(e.key==='ArrowRight'||e.key==='ArrowUp'){go(cur+1);e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown'){go(cur-1);e.preventDefault();}
+});
+new ResizeObserver(()=>{drawTop();drawIso();}).observe(document.querySelector('.stage'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawTop();drawIso();});
+new MutationObserver(()=>{drawTop();drawIso();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+renderTotals();render();
+
+</script>
+
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body></html></html>

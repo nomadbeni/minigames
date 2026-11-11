@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Csapda</title>
+<meta name="description" content="Gonosz platformjáték: csak el kell jutni az ajtóig, de leszakad a padló, kibújik a tüske, leesik a plafon, és az ajtó is elszalad. Minden pályán van egy tábla, aki elolvassa, tudja, mi vár rá. 12 pálya, halálszámláló.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Trap">
+<meta name="games:description-en" content="A devious platformer: just reach the door, except the floor drops, spikes pop up, the ceiling falls and the door runs away. Every level has a sign, and whoever reads it knows what is coming. 12 levels and a death counter. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: one screen — back link and counters, sign bar with the level hint, the level canvas, touch buttons */
+:root{
+  --bg:#141414; --panel:#1e1e1e; --panel2:#2a2a2a; --line:#3a3a3a; --fg:#f5f2ea; --muted:#b2ada2;
+  --accent:#f2a541; --ok:#3ddc84; --bad:#ff4d5a; --p0:#ffd166; --p1:#7fdcff;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;max-width:980px;margin:0 auto;padding-block:8px;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font:700 15px/1 var(--disp);letter-spacing:.03em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.ib{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:18px;cursor:pointer;flex:none}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sign{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:#2a2116;border:2px solid #6a4a22;min-height:52px}
+.sign .lbl{font:700 12px/1 var(--disp);letter-spacing:.15em;color:var(--accent)}
+.sign .txt{flex:1;font-size:21px;font-weight:600;line-height:1.3}
+.sign.taunt .txt{color:#ff8a7a}
+#stage{flex:1;min-height:0;display:grid;place-items:center;touch-action:none}
+canvas{display:block;border-radius:6px;touch-action:none}
+.pad{display:flex;justify-content:space-between;gap:10px;touch-action:none}
+.pad .g{display:flex;gap:8px}
+.pad button{width:76px;height:60px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:700 16px/1 var(--disp);letter-spacing:.05em;cursor:pointer;touch-action:none}
+.pad button.on{background:var(--panel2);border-color:var(--accent)}
+.pad #bJ{width:120px}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.82);display:grid;place-items:center;padding:16px;z-index:9}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px;width:min(480px,100%);max-height:calc(100% - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px}
+.card h1,.card h2{margin:0;font-family:var(--disp);color:var(--accent);line-height:1.05;letter-spacing:.03em}
+.card h1{font-size:50px}.card h2{font-size:28px}
+.card p{margin:0;line-height:1.45}
+.btn{font:700 18px/1.2 var(--font);padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.btn.hot{background:var(--accent);border-color:var(--accent);color:#1a1000}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.lv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lv button{padding:12px 0;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:700 20px/1 var(--disp);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.lv button small{font:600 12px/1 var(--font);color:var(--muted)}
+.lv button.done{border-color:var(--accent)}
+.lv button:disabled{opacity:.3;cursor:not-allowed}
+.keys{font-size:14px;color:var(--muted)}
+.keys kbd{display:inline-block;padding:1px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--fg);font:600 13px/1.4 var(--font)}
+.toggle .btn[aria-pressed="true"]{background:var(--accent);color:#1a1000}
+/* Reading kit: readable type, split-word colouring, speaker button */
+.w{white-space:nowrap;font-weight:600;letter-spacing:.03em}
+.w .p0{color:var(--p0,#ffb347)}
+.w .p1{color:var(--p1,#5ad1ff)}
+.w .dot{opacity:.55;margin:0 .1em;font-style:normal}
+.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say:disabled{opacity:.35;cursor:not-allowed}
+.say.talking{outline:2px solid var(--p1,#5ad1ff)}
+
+.px{image-rendering:pixelated;image-rendering:crisp-edges;vertical-align:middle;flex:none}
+.rankchip{display:inline-flex;flex-direction:column;gap:3px;padding:4px 10px;border-radius:8px;border:1px solid var(--rc);background:rgba(0,0,0,.35);min-width:84px;white-space:nowrap}
+.rankchip b{font:700 13px/1 var(--disp,system-ui);letter-spacing:.06em;color:var(--rc);text-transform:uppercase}
+.rankchip i{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.rankchip u{display:block;height:100%;background:var(--rc)}
+#ktoast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);transition:transform .25s ease;background:#0b0c10;border:1px solid #333;color:#fff;padding:10px 18px;border-radius:10px;font:600 16px/1.3 var(--font,system-ui);z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#ktoast.show{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#ktoast{transition:none}}
+.hud,.bar{flex-wrap:nowrap!important;min-width:0}
+.hud .ib,.bar .ib{flex:none}
+@media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <span class="chip">PÁLYA <span><span id="lvl">1</span>/12</span></span>
+    <span class="chip" title="Halál">💀 <span id="deaths">0</span></span>
+    <span class="sp"></span><span data-rank></span>
+    <button class="ib" id="restart" aria-label="Újrakezdés">↻</button>
+    <button class="ib" id="menuBtn" aria-label="Pályák">☰</button>
+  </div>
+  <div class="sign" id="sign"><span class="lbl">TÁBLA</span><span class="txt" id="hint"></span><span id="hsay"></span></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="pad" id="pad">
+    <div class="g"><button data-k="left" aria-label="Balra">◀</button><button data-k="right" aria-label="Jobbra">▶</button></div>
+    <div class="g"><button data-k="jump" id="bJ">UGRÁS</button></div>
+  </div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+/* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+const K=(()=>{
+  /* storage: a saved value must have the same shape as the default, or the default is used.
+     For objects, each default key with a wrong type is put back to its default. */
+  const kind=v=>Array.isArray(v)?'array':v===null?'null':typeof v==='number'?(Number.isFinite(v)?'number':'bad'):typeof v;
+  const store={
+    get(k,d){
+      let v;try{const raw=localStorage.getItem(k);if(raw==null)return d;v=JSON.parse(raw)}catch(e){return d}
+      if(d===undefined||d===null)return v;
+      if(kind(v)!==kind(d))return d;
+      if(kind(d)==='object'){for(const key of Object.keys(d))if(key in v?kind(v[key])!==kind(d[key])&&d[key]!==null:true)v[key]=d[key]}
+      return v;
+    },
+    set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  };
+  const clampInt=(v,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,Math.floor(v))):lo;
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plain=w=>String(w).replace(/\|/g,'');
+  /* speech */
+  let voice=null;
+  const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+  function pick(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/^hu/i.test(v.lang))||null}catch(e){}}
+  if(hasTTS){pick();try{speechSynthesis.addEventListener('voiceschanged',pick)}catch(e){}}
+  function say(t){
+    if(!hasTTS)return false;
+    try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(plain(t));u.lang='hu-HU';if(voice)u.voice=voice;u.rate=.85;speechSynthesis.speak(u);return true}catch(e){return false}
+  }
+  /* mastery: how many times a word was read right, shared by all reading games */
+  const MK='olvaso:mastery';
+  /* only word -> non-negative count pairs survive; nothing can reach the object prototype */
+  const mastery=Object.create(null);
+  {const raw=store.get(MK,{});for(const k of Object.keys(raw).slice(0,5000))if(k.length<=60&&Number.isFinite(raw[k])&&raw[k]>0)mastery[k]=clampInt(raw[k],0,1e6)}
+  const settings=store.get('olvaso:settings',{split:'auto'});
+  if(settings.split!=='auto'&&settings.split!=='mindig')settings.split='auto';
+  function seen(w){const k=plain(w).toLowerCase();mastery[k]=Math.min(1e6,(mastery[k]||0)+1);store.set(MK,mastery);if(api.addXP)api.addXP(2)}
+  function level(w){
+    if(settings.split==='mindig')return 2;
+    const n=mastery[plain(w).toLowerCase()]||0;
+    return n<4?2:n<8?1:0;
+  }
+  /* word: "fék|betét" -> coloured parts; level 2 also shows a dot between parts */
+  function word(w,lv){
+    const toks=String(w).split(/(\|| )/);
+    if(lv==null)lv=level(w);
+    if(toks.length<2||lv===0)return `<span class="w">${esc(plain(w))}</span>`;
+    let i=0,h='';
+    for(const t of toks){if(t==='|')h+=lv===2?'<i class="dot">·</i>':'';else if(t===' ')h+=' ';else h+=`<span class="p${(i++)%2}">${esc(t)}</span>`}
+    return `<span class="w">${h}</span>`;
+  }
+  function sentence(s,lv){return String(s).split(' ').map(t=>t.includes('|')?word(t,lv):esc(t)).join(' ')}
+  function setSplit(v){settings.split=v==='mindig'?'mindig':'auto';store.set('olvaso:settings',settings)}
+  /* speaker buttons: <button class="say" data-say="text">; a game may set K.onSay(text) -> false to refuse */
+  const api={store,esc,plain,say,hasTTS,word,sentence,seen,level,settings,setSplit,onSay:null,
+    sayBtn:(t,label)=>hasTTS?`<button type="button" class="say" data-say="${esc(t)}" aria-label="${esc(label||'Felolvasás')}">🔊</button>`:''};
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-say]');if(!b||b.disabled)return;
+    e.stopPropagation();
+    const t=b.dataset.say;
+    if(api.onSay&&api.onSay(t,b)===false)return;
+    if(say(t)){b.classList.add('talking');setTimeout(()=>b.classList.remove('talking'),1200)}
+  },true);
+  /* sounds */
+  let ac=null;api.sound=store.get('olvaso:sound',true)!==false;
+  api.toggleSound=()=>{api.sound=!api.sound;store.set('olvaso:sound',api.sound);return api.sound};
+  api.beep=(f=440,d=.08,type='square',vol=.06,slide=0)=>{
+    if(!api.sound)return;
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
+      o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}
+  };
+  api.good=()=>{api.beep(660,.08,'square');setTimeout(()=>api.beep(990,.12,'square'),80)};
+  api.bad=()=>api.beep(160,.18,'sawtooth',.05,-60);
+  api.coin=()=>{api.beep(1200,.05,'square',.04);setTimeout(()=>api.beep(1600,.08,'square',.04),50)};
+
+  /* pixel sprites: {r:[rows], p:{char:color}}; '.' is transparent */
+  const sprCache=new Map();
+  api.spr=def=>{
+    const key=JSON.stringify(def);let c=sprCache.get(key);if(c)return c;
+    const w=Math.max(...def.r.map(r=>r.length)),h=def.r.length;
+    c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    def.r.forEach((row,y)=>{for(let i=0;i<row.length;i++){const col=def.p[row[i]];if(col){x.fillStyle=col;x.fillRect(i,y,1,1)}}});
+    c._url=null;sprCache.set(key,c);return c;
+  };
+  api.img=(def,size,alt)=>{const c=api.spr(def);if(!c._url)c._url=c.toDataURL();return `<img class="px" src="${c._url}" alt="${esc(alt||'')}" style="width:${size}px;height:${Math.round(size*c.height/c.width)}px">`};
+  api.draw=(ctx,def,cx,cy,w)=>{const c=api.spr(def),h=w*c.height/c.width;ctx.imageSmoothingEnabled=false;ctx.drawImage(c,Math.round(cx-w/2),Math.round(cy-h/2),Math.round(w),Math.round(h))};
+  /* a small pixel person, used for riders, customers and villagers */
+  api.human=(o={})=>{
+    const r=["...hhhh...","..hhhhhh..","..hssssh..","..sesses..","..ssssss..",o.beard?"..sbbbbs..":"...smms...","..tttttt..",".tttttttt.",".sttttttss",".s.tttt.s.","...pppp...","...p..p...","...p..p...","..kk..kk.."];
+    if(o.hat){r[0]="..HHHHHH..";r[1]=".HHHHHHHH."}
+    if(o.cap){r[0]="..HHHHHH..";r[1]="..HHHHHHHH"}
+    if(o.apron){r[7]=".twwwwwwt.";r[8]=".swwwwwwss";r[9]=".s.wwww.s."}
+    return {r,p:{h:o.hair||'#3a2a1a',s:o.skin||'#e8b48a',e:'#141414',m:o.mouth||'#b0705a',b:o.hair||'#3a2a1a',t:o.shirt||'#3a6ee8',p:o.pants||'#2a3550',k:'#1f1a16',H:o.hatC||'#555',w:'#f2f2f2'}};
+  };
+  const HAIR=['#2a1d14','#4a3020','#8a5a2a','#d9b25a','#1a1a1a','#a83a2a'],SKIN=['#f0c7a0','#e0a878','#c98a5a','#8a5a3a'],SHIRT=['#e8494a','#ff7a1a','#2fa86a','#3a6ee8','#8a4ae8','#222831','#f2f2f2','#e8c13a'];
+  api.randomHuman=()=>api.human({hair:api.pick(HAIR),skin:api.pick(SKIN),shirt:api.pick(SHIRT),pants:api.pick(['#2a3550','#1f1f24','#4a4a52','#3a5a2a']),cap:Math.random()<.35,hatC:api.pick(SHIRT),beard:Math.random()<.2});
+  /* shared XP and rank across all the reading games */
+  const RANKS=[[0,'Bronz','#c98a5a'],[120,'Ezüst','#c9d1dc'],[350,'Arany','#ffd166'],[800,'Platina','#6fe3d4'],[1600,'Gyémánt','#7fb6ff'],[3000,'Mester','#c38bff'],[5000,'Legenda','#ff5e6c']];
+  api.xp=clampInt(store.get('olvaso:xp',0),0,1e7);
+  const rankOf=x=>{let i=0;while(i+1<RANKS.length&&x>=RANKS[i+1][0])i++;return i};
+  api.rank=()=>{const i=rankOf(api.xp),cur=RANKS[i],nx=RANKS[i+1];return {i,name:cur[1],color:cur[2],pct:nx?(api.xp-cur[0])/(nx[0]-cur[0]):1,next:nx?nx[1]:null}};
+  api.rankChip=()=>{const r=api.rank();return `<span class="rankchip" style="--rc:${r.color}" title="Rang: ${r.name}, ${api.xp} XP"><b>◆ ${r.name}</b><i><u style="width:${Math.round(r.pct*100)}%"></u></i></span>`};
+  const paint=()=>document.querySelectorAll('[data-rank]').forEach(el=>el.innerHTML=api.rankChip());
+  api.addXP=n=>{const before=rankOf(api.xp);api.xp=clampInt(api.xp+Math.max(0,Math.round(Number(n)||0)),0,1e7);store.set('olvaso:xp',api.xp);paint();
+    const after=rankOf(api.xp);if(after>before)api.toast(`Új rang: <b style="color:${RANKS[after][2]}">◆ ${RANKS[after][1]}</b>`)};
+  api.clampInt=clampInt;
+  api.toast=h=>{let t=document.getElementById('ktoast');if(!t){t=document.createElement('div');t.id='ktoast';document.body.appendChild(t)}
+    t.innerHTML=h;t.className='show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
+  api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+  api.pick=a=>a[Math.random()*a.length|0];
+  return api;
+})();
+</script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+/* Legend: # solid, S start, D door, d where the door runs to, ^ spike, v hidden spike, x floor that drops,
+   c floor that crumbles, F ceiling block that falls, g fake wall, l fake light floor, i invisible bridge, j spring */
+const E='....................',FL='####################';
+const LV=[
+ {h:'Menj az ajtóhoz. Ennyi. Tényleg.',m:[E,E,E,E,E,E,E,E,E,'.S................D.',FL,FL]},
+ {h:'A padló gyenge. Ugorj át rajta!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','########xxx#########','########...#########']},
+ {h:'Két tüske van. Az egyik bújik.',m:[E,E,E,E,E,E,E,E,E,'.S....^......v....D.',FL,FL]},
+ {h:'Az ajtó félénk. Ha közel érsz, elszalad.',m:[E,E,E,E,E,E,E,'...d................','..###...............','.S................D.',FL,FL]},
+ {h:'A plafon nem bírja sokáig. Fuss!',m:[E,E,E,E,E,E,E,'........##FFF##.....',E,'.S................D.',FL,FL]},
+ {h:'Ez a fal nem igazi. Menj neki!',m:[E,E,E,E,'..........g.........','..........g.........','..........g.........','..........g.........','..........g.........','.S........g.......D.',FL,FL]},
+ {h:'Lépj a rugóra, és repülsz.',m:[E,E,E,'..............D.....','.............####...',E,E,E,E,'.S..................','#########j##########',FL]},
+ {h:'A híd láthatatlan. Bízz benne.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','######iiiiiiii######','######........######']},
+ {h:'A kő omlik. Ne állj meg!',m:[E,E,E,E,E,E,E,E,E,'.S................D.','#####cccccccccc#####','#####..........#####']},
+ {h:'Ne lépj a világos kockára.',m:[E,E,E,E,E,E,E,E,E,'.S................D.','####l###ll###l######','####.###..###.######']},
+ {h:'Gödör, tüske, és az ajtó megint szalad.',m:[E,E,E,E,E,E,E,E,E,'.S...v......D..v..d.','#########xx#########','#########..#########']},
+ {h:'Utolsó pálya. Semmi sem az, aminek látszik.',m:[E,E,E,E,'............g.......','............g.......','............g.......','......##FF##g.......','............g.......','.Sd.........g.....D.','####xx########iii###','####..########...###']}
+];
+const TAUNT=['Hoppá.','Ezt nem láttad jönni.','Olvasd el a táblát.','Még egyszer.','Majdnem.','A padló nevet rajtad.','Ez fájt.','Próbáld újra.','Ott volt a tábla.','Na még egyet.'];
+const COLS=20,ROWS=12;
+const SK='csapda:save';
+const numMap=(o,hi)=>{const r={};for(const k of Object.keys(o))if(Number.isFinite(o[k])&&o[k]>=0)r[k]=Math.min(hi,o[k]);return r};
+let save=K.store.get(SK,{done:{},deaths:{},total:0,intro:false});
+save.done=numMap(save.done,1e6);save.deaths=numMap(save.deaths,1e6);save.total=K.clampInt(save.total,0,1e7);
+for(const k of Object.keys(save.done))if(!(+k>=0&&+k<12&&Number.isInteger(+k)))delete save.done[k];
+const persist=()=>K.store.set(SK,save);
+let L=null,lvIdx=0,paused=true,last=0,raf=0;
+function load(i){
+  lvIdx=i;const def=LV[i];
+  const t=def.m.map(r=>r.split(''));
+  L={t,door:null,alt:null,start:null,traps:[],falling:[],parts:[],fx:[],moved:false,dead:0,win:0,deaths:0,seenI:new Set(),time:0};
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const c=t[y][x];
+    if(c==='S'){L.start={x,y};t[y][x]='.'}
+    if(c==='D'){L.door={x,y};t[y][x]='.'}
+    if(c==='d'){L.alt={x,y};t[y][x]='.'}
+    if(c==='v')L.traps.push({k:'v',x,y,up:0,on:false})}
+  P={x:L.start.x+.15,y:L.start.y+.1,vx:0,vy:0,w:.7,h:.9,ground:false,coyote:0,buf:0,face:1};
+  $('#lvl').textContent=i+1;$('#hint').innerHTML=K.sentence(LV[i].h);$('#hsay').innerHTML=K.sayBtn(LV[i].h);$('#sign').classList.remove('taunt');
+  $('#deaths').textContent=save.total;
+}
+let P=null;
+const tile=(x,y)=>(x<0||x>=COLS)?'#':(y<0||y>=ROWS)?'.':L.t[y][x];
+const solid=(x,y)=>{const c=tile(x,y);return c==='#'||c==='x'||c==='c'||c==='F'||c==='i'||c==='j'};
+/* ---------- input ---------- */
+const keys={};
+const KM={arrowleft:'left',a:'left',arrowright:'right',d:'right',arrowup:'jump',w:'jump',' ':'jump'};
+addEventListener('keydown',e=>{const k=KM[e.key.toLowerCase()];if(k){e.preventDefault();if(k==='jump'&&!keys.jump&&P)P.buf=.12;keys[k]=true}if(e.key.toLowerCase()==='r')restart();if(e.key==='Escape')menu()});
+addEventListener('keyup',e=>{const k=KM[e.key.toLowerCase()];if(k)keys[k]=false});
+$('#pad').querySelectorAll('button').forEach(b=>{const k=b.dataset.k;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);b.classList.add('on');if(k==='jump'&&!keys.jump&&P)P.buf=.12;keys[k]=true});
+  const up=()=>{b.classList.remove('on');keys[k]=false};b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up)});
+/* ---------- physics ---------- */
+const G=40,RUN=6.8,JUMP=13.2,SPRING=24;
+function collideX(){
+  const y0=Math.floor(P.y+.02),y1=Math.floor(P.y+P.h-.02);
+  if(P.vx>0){const x=Math.floor(P.x+P.w);for(let y=y0;y<=y1;y++)if(solid(x,y)){P.x=x-P.w-.001;P.vx=0}}
+  if(P.vx<0){const x=Math.floor(P.x);for(let y=y0;y<=y1;y++)if(solid(x,y)){P.x=x+1.001;P.vx=0}}
+}
+function collideY(){
+  const x0=Math.floor(P.x+.02),x1=Math.floor(P.x+P.w-.02);P.ground=false;
+  if(P.vy>0){const y=Math.floor(P.y+P.h);for(let x=x0;x<=x1;x++)if(solid(x,y)){P.y=y-P.h;
+      if(tile(x,y)==='j'){P.vy=-SPRING;P.spring=true;K.beep(500,.15,'square',.05,700);return}
+      P.vy=0;P.ground=true;if(tile(x,y)==='i')L.seenI.add(x+','+y);
+      if(tile(x,y)==='c'&&!L.traps.some(t=>t.k==='c'&&t.x===x&&t.y===y))L.traps.push({k:'c',x,y,t:.28})}}
+  if(P.vy<0){const y=Math.floor(P.y);for(let x=x0;x<=x1;x++)if(solid(x,y)){P.y=y+1;P.vy=0}}
+}
+function die(){
+  if(L.dead||L.win)return;L.dead=.8;L.deaths++;save.total++;save.deaths[lvIdx]=(save.deaths[lvIdx]||0)+1;persist();
+  for(let i=0;i<18;i++)L.parts.push({x:P.x+P.w/2,y:P.y+P.h/2,vx:(Math.random()-.5)*14,vy:-Math.random()*12,life:.8});
+  K.bad();$('#deaths').textContent=save.total;
+  const t=K.pick(TAUNT);$('#hint').innerHTML=K.esc(t);$('#hsay').innerHTML=K.sayBtn(t);$('#sign').classList.add('taunt');
+}
+function restart(){if(!L)return;const d=L.deaths;load(lvIdx);L.deaths=d;closeOv();paused=false}
+function update(dt){
+  L.time+=dt;
+  for(const p of L.parts){p.vy+=G*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}L.parts=L.parts.filter(p=>p.life>0);
+  L.fx=L.fx.filter(f=>(f.t-=dt)>0);
+  if(L.dead){L.dead-=dt;if(L.dead<=0){const d=L.deaths,tt=$('#hint').innerHTML,ts=$('#hsay').innerHTML,me=lvIdx;load(lvIdx);L.deaths=d;$('#hint').innerHTML=tt;$('#hsay').innerHTML=ts;$('#sign').classList.add('taunt');const ref=L;setTimeout(()=>{if(L===ref&&lvIdx===me&&!L.dead){$('#hint').innerHTML=K.sentence(LV[me].h);$('#hsay').innerHTML=K.sayBtn(LV[me].h);$('#sign').classList.remove('taunt')}},1300)}return}
+  if(L.win){L.win-=dt;if(L.win<=0)levelDone();return}
+  /* movement */
+  const dir=(keys.right?1:0)-(keys.left?1:0);
+  const acc=P.ground?60:38;P.vx+=(dir*RUN-P.vx)*Math.min(1,acc*dt/RUN);if(dir)P.face=dir;
+  P.coyote=P.ground?.09:P.coyote-dt;P.buf-=dt;
+  if(P.buf>0&&P.coyote>0){P.vy=-JUMP;P.buf=0;P.coyote=0;K.beep(420,.06,'square',.03,200)}
+  if(P.vy>=0)P.spring=false;if(!keys.jump&&!P.spring&&P.vy<-5)P.vy+=G*1.2*dt;
+  P.vy=Math.min(P.vy+G*dt,24);
+  P.x+=P.vx*dt;collideX();P.y+=P.vy*dt;collideY();
+  const cx=P.x+P.w/2;
+  /* traps */
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const c=L.t[y][x];
+    if(c==='x'&&cx>x-.35&&cx<x+1.35&&P.y+P.h<=y+.1&&y-P.y<3){L.t[y][x]='.';L.falling.push({x,y,vy:0,k:'x',delay:0})}
+    if(c==='F'&&cx>x-.6&&cx<x+1.6&&P.y>y){L.t[y][x]='.';L.falling.push({x,y,vy:0,k:'F',delay:.15,kill:true})}
+  }
+  for(const t of L.traps){
+    if(t.k==='v'){if(!t.on&&Math.abs(cx-(t.x+.5))<1.3){t.on=true;K.beep(900,.05,'square',.04)}if(t.on)t.up=Math.min(1,t.up+dt*12)}
+    if(t.k==='c'&&t.t>0){t.t-=dt;if(t.t<=0&&L.t[t.y][t.x]==='c'){L.t[t.y][t.x]='.';L.falling.push({x:t.x,y:t.y,vy:0,k:'c',delay:0})}}
+  }
+  for(const f of L.falling){if(f.delay>0){f.delay-=dt;continue}f.vy+=G*.9*dt;f.y+=f.vy*dt;
+    if(f.kill&&!f.gone&&P.x<f.x+1&&P.x+P.w>f.x&&P.y<f.y+1&&P.y+P.h>f.y)die();
+    if(f.kill&&!f.gone&&f.vy>0&&solid(f.x,Math.floor(f.y+1))){f.gone=true;for(let i=0;i<8;i++)L.parts.push({x:f.x+.5,y:f.y+1,vx:(Math.random()-.5)*10,vy:-Math.random()*8,life:.5,c:'#1d1d1d'})}}
+  L.falling=L.falling.filter(f=>f.y<ROWS+2&&!f.gone);
+  /* hazards */
+  const hitSpike=(x,y,h)=>P.x<x+.8&&P.x+P.w>x+.2&&P.y+P.h>y+1-h*.6&&P.y<y+1;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(L.t[y][x]==='^'&&hitSpike(x,y,1))die();
+  for(const t of L.traps)if(t.k==='v'&&t.up>.5&&hitSpike(t.x,t.y,t.up))die();
+  if(P.y>ROWS+.5)die();
+  /* door: runs away once if this level has somewhere to run */
+  const D=L.door;
+  if(L.alt&&!L.moved&&Math.abs(cx-(D.x+.5))<3&&Math.abs(P.y-D.y)<2){L.moved=true;L.fx.push({x:D.x+.5,y:D.y+.5,t:.4});L.door={...L.alt};K.beep(1200,.1,'square',.04,-600)}
+  if(P.x<L.door.x+.9&&P.x+P.w>L.door.x+.1&&P.y<L.door.y+1&&P.y+P.h>L.door.y){L.win=.6;K.good()}
+}
+function levelDone(){
+  paused=true;const first=!save.done[lvIdx];save.done[lvIdx]=Math.min(save.done[lvIdx]||99,L.deaths);persist();
+  if(first)K.addXP(6+(L.deaths<=2?6:0));
+  const next=lvIdx+1;
+  if(next>=LV.length){overlay(`<h1>KIJUTOTTÁL</h1><p>Mind a 12 pálya kész. Összesen <b>${save.total}</b> halál.</p><p style="color:var(--muted)">Próbáld meg kevesebb halállal!</p><div class="row"><button class="btn hot" id="mn">Pályák</button></div>`);$('#mn').onclick=menu;return}
+  overlay(`<h2>PÁLYA ${lvIdx+1} · KÉSZ</h2><p>Halál ezen a pályán: <b>${L.deaths}</b>${L.deaths===0?' · elsőre!':''}</p><div class="row"><button class="btn hot" id="nx">Tovább →</button><button class="btn" id="mn">Pályák</button></div>`);
+  $('#nx').onclick=()=>{closeOv();load(next);paused=false};$('#mn').onclick=menu;
+}
+/* ---------- drawing ---------- */
+let TS=32,W=640,H=384,dpr=1;
+function fit(){const r=$('#stage').getBoundingClientRect();TS=Math.max(10,Math.floor(Math.min(r.width/COLS,r.height/ROWS)));W=TS*COLS;H=TS*ROWS;dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',fit);
+const BG='#f2a541',INK='#1d1d1d';
+function block(x,y,c){ctx.fillStyle=c||INK;ctx.fillRect(x*TS,y*TS,TS+.5,TS+.5)}
+function spike(x,y,h){ctx.fillStyle=INK;const n=3,w=TS/n;for(let i=0;i<n;i++){ctx.beginPath();ctx.moveTo(x*TS+i*w,(y+1)*TS);ctx.lineTo(x*TS+i*w+w/2,(y+1)*TS-TS*.7*h);ctx.lineTo(x*TS+(i+1)*w,(y+1)*TS);ctx.fill()}}
+function draw(){
+  ctx.fillStyle=BG;ctx.fillRect(0,0,W,H);if(!L)return;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const c=L.t[y][x];
+    if(c==='#'||c==='x'||c==='c'||c==='F'||c==='g')block(x,y);
+    if(c==='l')block(x,y,'#3a3a3a');
+    if(c==='i'&&L.seenI.has(x+','+y)){ctx.strokeStyle='rgba(29,29,29,.45)';ctx.lineWidth=2;ctx.strokeRect(x*TS+2,y*TS+2,TS-4,TS-4)}
+    if(c==='c'){const tr=L.traps.find(t=>t.k==='c'&&t.x===x&&t.y===y);if(tr){ctx.fillStyle=BG;ctx.fillRect(x*TS+TS*.3,y*TS,2,TS*.6);ctx.fillRect(x*TS+TS*.65,y*TS+TS*.2,2,TS*.7)}}
+    if(c==='j'){block(x,y);ctx.fillStyle=INK;ctx.fillRect(x*TS+TS*.1,(y-.3)*TS,TS*.8,TS*.12);ctx.fillRect(x*TS+TS*.25,(y-.2)*TS,TS*.1,TS*.2);ctx.fillRect(x*TS+TS*.65,(y-.2)*TS,TS*.1,TS*.2)}
+    if(c==='^')spike(x,y,1);
+  }
+  for(const t of L.traps){if(t.k==='v'&&t.up>0)spike(t.x,t.y,t.up);else if(t.k==='v'){ctx.fillStyle='rgba(29,29,29,.35)';ctx.fillRect(t.x*TS+TS*.3,(t.y+1)*TS-2,TS*.4,2)}}
+  for(const f of L.falling){let sx=0;if(f.delay>0)sx=(Math.random()-.5)*3;ctx.fillStyle=INK;ctx.fillRect(f.x*TS+sx,f.y*TS,TS,TS)}
+  /* door */
+  const D=L.door;ctx.fillStyle=INK;ctx.fillRect(D.x*TS+TS*.12,D.y*TS-TS*.3,TS*.76,TS*1.3);ctx.fillStyle=BG;ctx.fillRect(D.x*TS+TS*.24,D.y*TS-TS*.18,TS*.52,TS*1.18);ctx.fillStyle=INK;ctx.fillRect(D.x*TS+TS*.6,D.y*TS+TS*.4,TS*.08,TS*.08);
+  for(const f of L.fx){ctx.strokeStyle=INK;ctx.lineWidth=3;ctx.beginPath();ctx.arc(f.x*TS,f.y*TS,TS*(1.2-f.t*2),0,7);ctx.stroke()}
+  /* player */
+  if(!L.dead){const px=P.x*TS,py=P.y*TS,pw=P.w*TS,ph=P.h*TS;const sq=P.ground?0:Math.min(.12,Math.abs(P.vy)*.006);
+    ctx.fillStyle=INK;ctx.fillRect(px-pw*sq/2,py,pw*(1+sq),ph*(1-sq*0)) ;
+    ctx.fillStyle=BG;const ex=P.face>0?pw*.55:pw*.15;ctx.fillRect(px+ex,py+ph*.25,pw*.14,ph*.18);ctx.fillRect(px+ex+pw*.2,py+ph*.25,pw*.14,ph*.18)}
+  for(const p of L.parts){ctx.fillStyle=p.c||INK;ctx.fillRect(p.x*TS-3,p.y*TS-3,6,6)}
+  if(L.win){ctx.fillStyle=`rgba(255,255,255,${.6-L.win})`;ctx.fillRect(0,0,W,H)}
+}
+function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;if(!paused&&L)update(dt);draw();raf=requestAnimationFrame(loop)}
+/* ---------- menus ---------- */
+function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function closeOv(){$('#ov').hidden=true}
+function menu(){
+  paused=true;const unlocked=Object.keys(save.done).length;
+  overlay(`<h1>CSAPDA</h1><p>Csak el kell jutni az ajtóig. Könnyű, nem? Olvasd el a táblát, mielőtt elindulsz.</p>
+    <div class="lv">${LV.map((l,i)=>{const d=save.done[i];return `<button data-l="${i}" class="${d!=null?'done':''}" ${i>unlocked?'disabled':''}>${i+1}<small>${d!=null?'💀 '+d:i>unlocked?'🔒':'új'}</small></button>`}).join('')}</div>
+    <p class="keys">Gép: <kbd>←</kbd><kbd>→</kbd> vagy <kbd>A</kbd><kbd>D</kbd>, ugrás: <kbd>↑</kbd> <kbd>W</kbd> <kbd>Szóköz</kbd>, újra: <kbd>R</kbd>. Telefon: gombok lent.</p>
+    <p style="color:var(--muted)">Összes halál: <b>${save.total}</b></p>
+    <div class="row"><button class="btn hot" id="go">${unlocked?'Folytatás':'Start'}</button><button class="btn" id="setB">⚙️</button></div>`);
+  $('#ovc').querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{closeOv();load(+b.dataset.l);paused=false});
+  $('#go').onclick=()=>{closeOv();load(Math.min(unlocked,LV.length-1));paused=false};
+  $('#setB').onclick=settings;
+}
+function settings(){
+  overlay(`<h2>Beállítások</h2><p>Hosszú szavak bontása:</p>
+   <div class="row toggle"><button class="btn" data-sp="auto" aria-pressed="${K.settings.split!=='mindig'}">Magától</button><button class="btn" data-sp="mindig" aria-pressed="${K.settings.split==='mindig'}">Mindig</button></div>
+   <p>Hang:</p><div class="row toggle"><button class="btn" id="snd" aria-pressed="${K.sound}">${K.sound?'🔈 Be':'🔇 Ki'}</button></div>
+   <button class="btn hot" id="bk">Vissza</button>`);
+  $('#ovc').querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{K.setSplit(b.dataset.sp);settings()});
+  $('#snd').onclick=()=>{K.toggleSound();settings()};$('#bk').onclick=menu;
+}
+$('#restart').onclick=restart;$('#menuBtn').onclick=menu;
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&L&&!paused)menu()});
+fit();load(0);last=performance.now();raf=requestAnimationFrame(loop);menu();
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>

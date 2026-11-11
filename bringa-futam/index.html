@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Downhill</title>
+<meta name="description" content="Lejtmenet-verseny három riderrel: válts sávot, kerüld a köveket, a kapuknál a jó táblát válaszd, mert az turbót ad, a rossz sarat. A Bike Shopban épített bringáddal mész, a nyeremény a műhelybe kerül.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Downhill">
+<meta name="games:description-en" content="Downhill race against three riders: switch lanes, dodge rocks and pick the right sign at each gate for a boost instead of mud. You ride the bike built in Bike Shop, and the prize money goes back to the shop. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Layout: one-screen portrait racer — back link, HUD strip, canvas track, overlay cards */
+:root{
+  --bg:#0a0d0a; --panel:#141a14; --panel2:#1c241c; --line:#2a352a; --fg:#eef5ec; --muted:#9db09a;
+  --accent:#b6ff3b; --ok:#3ddc84; --bad:#ff4d5a; --p0:#ffd166; --p1:#7fdcff;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;max-width:520px;margin:0 auto;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-variant-numeric:tabular-nums;font-size:16px}
+.sp{flex:1}
+.ib{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:19px;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#stage{flex:1;min-height:0;display:grid;place-items:center;touch-action:none}
+canvas{display:block;border-radius:12px;touch-action:none}
+.prog{height:10px;border-radius:5px;background:var(--panel);position:relative;border:1px solid var(--line)}
+.prog i{position:absolute;top:-4px;width:16px;height:16px;margin-left:-8px;border-radius:50%;border:2px solid #000}
+#ov{position:fixed;inset:0;background:rgba(5,10,5,.82);display:grid;place-items:center;padding:16px;z-index:9}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 20px;width:min(440px,100%);max-height:calc(100% - 32px);overflow:auto;display:flex;flex-direction:column;gap:12px}
+.card h1,.card h2{margin:0;color:var(--accent);line-height:1.15}
+.card h1{font-size:32px}.card h2{font-size:26px}
+.card p{margin:0;line-height:1.45}
+.how{display:grid;grid-template-columns:36px 1fr;gap:8px 10px;align-items:center;font-size:17px}
+.how span:nth-child(odd){font-size:24px;text-align:center}
+.btn{font:700 18px/1.2 var(--font);padding:13px 16px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer;text-align:left}
+.btn.hot{background:var(--accent);border-color:var(--accent);color:#2a1a00;text-align:center}
+.btn small{display:block;font-weight:400;font-size:14px;color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.toggle .btn[aria-pressed="true"]{background:var(--accent);color:#2a1a00}
+.res{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;font-size:17px}
+.res .me{color:var(--accent);font-weight:800}
+
+.card h1,.card h2,.step h2,.panel h2,h1,h2{font-family:var(--disp);letter-spacing:.02em}
+/* Reading kit: readable type, split-word colouring, speaker button */
+.w{white-space:nowrap;font-weight:600;letter-spacing:.03em}
+.w .p0{color:var(--p0,#ffb347)}
+.w .p1{color:var(--p1,#5ad1ff)}
+.w .dot{opacity:.55;margin:0 .1em;font-style:normal}
+.say{display:inline-grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;border:1px solid var(--line,#345);background:var(--panel,#1a2633);color:var(--fg,#fff);font-size:20px;cursor:pointer;padding:0;vertical-align:middle}
+.say:disabled{opacity:.35;cursor:not-allowed}
+.say.talking{outline:2px solid var(--p1,#5ad1ff)}
+
+.px{image-rendering:pixelated;image-rendering:crisp-edges;vertical-align:middle;flex:none}
+.rankchip{display:inline-flex;flex-direction:column;gap:3px;padding:4px 10px;border-radius:8px;border:1px solid var(--rc);background:rgba(0,0,0,.35);min-width:84px;white-space:nowrap}
+.rankchip b{font:700 13px/1 var(--disp,system-ui);letter-spacing:.06em;color:var(--rc);text-transform:uppercase}
+.rankchip i{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.rankchip u{display:block;height:100%;background:var(--rc)}
+#ktoast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);transition:transform .25s ease;background:#0b0c10;border:1px solid #333;color:#fff;padding:10px 18px;border-radius:10px;font:600 16px/1.3 var(--font,system-ui);z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#ktoast.show{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#ktoast{transition:none}}
+.hud,.bar{flex-wrap:nowrap!important;min-width:0}
+.hud .ib,.bar .ib{flex:none}
+@media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <span class="chip">🏁 <span id="place">1.</span></span>
+    <span class="chip">⏱ <span id="time">0.0</span></span>
+    <span class="chip">🪙 <span id="coins">0</span></span>
+    <span class="sp"></span><span data-rank></span>
+    <button class="ib" id="pauseBtn" aria-label="Szünet">⏸</button>
+  </div>
+  <div class="prog" id="prog"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+</div>
+<div id="ov" hidden><div class="card" id="ovc"></div></div>
+<script>
+/* Reading kit (same in every reading game): storage, speech, split words, word mastery, sounds */
+const K=(()=>{
+  /* storage: a saved value must have the same shape as the default, or the default is used.
+     For objects, each default key with a wrong type is put back to its default. */
+  const kind=v=>Array.isArray(v)?'array':v===null?'null':typeof v==='number'?(Number.isFinite(v)?'number':'bad'):typeof v;
+  const store={
+    get(k,d){
+      let v;try{const raw=localStorage.getItem(k);if(raw==null)return d;v=JSON.parse(raw)}catch(e){return d}
+      if(d===undefined||d===null)return v;
+      if(kind(v)!==kind(d))return d;
+      if(kind(d)==='object'){for(const key of Object.keys(d))if(key in v?kind(v[key])!==kind(d[key])&&d[key]!==null:true)v[key]=d[key]}
+      return v;
+    },
+    set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  };
+  const clampInt=(v,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,Math.floor(v))):lo;
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const plain=w=>String(w).replace(/\|/g,'');
+  /* speech */
+  let voice=null;
+  const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+  function pick(){try{const vs=speechSynthesis.getVoices();voice=vs.find(v=>/^hu/i.test(v.lang))||null}catch(e){}}
+  if(hasTTS){pick();try{speechSynthesis.addEventListener('voiceschanged',pick)}catch(e){}}
+  function say(t){
+    if(!hasTTS)return false;
+    try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(plain(t));u.lang='hu-HU';if(voice)u.voice=voice;u.rate=.85;speechSynthesis.speak(u);return true}catch(e){return false}
+  }
+  /* mastery: how many times a word was read right, shared by all reading games */
+  const MK='olvaso:mastery';
+  /* only word -> non-negative count pairs survive; nothing can reach the object prototype */
+  const mastery=Object.create(null);
+  {const raw=store.get(MK,{});for(const k of Object.keys(raw).slice(0,5000))if(k.length<=60&&Number.isFinite(raw[k])&&raw[k]>0)mastery[k]=clampInt(raw[k],0,1e6)}
+  const settings=store.get('olvaso:settings',{split:'auto'});
+  if(settings.split!=='auto'&&settings.split!=='mindig')settings.split='auto';
+  function seen(w){const k=plain(w).toLowerCase();mastery[k]=Math.min(1e6,(mastery[k]||0)+1);store.set(MK,mastery);if(api.addXP)api.addXP(2)}
+  function level(w){
+    if(settings.split==='mindig')return 2;
+    const n=mastery[plain(w).toLowerCase()]||0;
+    return n<4?2:n<8?1:0;
+  }
+  /* word: "fék|betét" -> coloured parts; level 2 also shows a dot between parts */
+  function word(w,lv){
+    const toks=String(w).split(/(\|| )/);
+    if(lv==null)lv=level(w);
+    if(toks.length<2||lv===0)return `<span class="w">${esc(plain(w))}</span>`;
+    let i=0,h='';
+    for(const t of toks){if(t==='|')h+=lv===2?'<i class="dot">·</i>':'';else if(t===' ')h+=' ';else h+=`<span class="p${(i++)%2}">${esc(t)}</span>`}
+    return `<span class="w">${h}</span>`;
+  }
+  function sentence(s,lv){return String(s).split(' ').map(t=>t.includes('|')?word(t,lv):esc(t)).join(' ')}
+  function setSplit(v){settings.split=v==='mindig'?'mindig':'auto';store.set('olvaso:settings',settings)}
+  /* speaker buttons: <button class="say" data-say="text">; a game may set K.onSay(text) -> false to refuse */
+  const api={store,esc,plain,say,hasTTS,word,sentence,seen,level,settings,setSplit,onSay:null,
+    sayBtn:(t,label)=>hasTTS?`<button type="button" class="say" data-say="${esc(t)}" aria-label="${esc(label||'Felolvasás')}">🔊</button>`:''};
+  document.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-say]');if(!b||b.disabled)return;
+    e.stopPropagation();
+    const t=b.dataset.say;
+    if(api.onSay&&api.onSay(t,b)===false)return;
+    if(say(t)){b.classList.add('talking');setTimeout(()=>b.classList.remove('talking'),1200)}
+  },true);
+  /* sounds */
+  let ac=null;api.sound=store.get('olvaso:sound',true)!==false;
+  api.toggleSound=()=>{api.sound=!api.sound;store.set('olvaso:sound',api.sound);return api.sound};
+  api.beep=(f=440,d=.08,type='square',vol=.06,slide=0)=>{
+    if(!api.sound)return;
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
+      o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}
+  };
+  api.good=()=>{api.beep(660,.08,'square');setTimeout(()=>api.beep(990,.12,'square'),80)};
+  api.bad=()=>api.beep(160,.18,'sawtooth',.05,-60);
+  api.coin=()=>{api.beep(1200,.05,'square',.04);setTimeout(()=>api.beep(1600,.08,'square',.04),50)};
+
+  /* pixel sprites: {r:[rows], p:{char:color}}; '.' is transparent */
+  const sprCache=new Map();
+  api.spr=def=>{
+    const key=JSON.stringify(def);let c=sprCache.get(key);if(c)return c;
+    const w=Math.max(...def.r.map(r=>r.length)),h=def.r.length;
+    c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    def.r.forEach((row,y)=>{for(let i=0;i<row.length;i++){const col=def.p[row[i]];if(col){x.fillStyle=col;x.fillRect(i,y,1,1)}}});
+    c._url=null;sprCache.set(key,c);return c;
+  };
+  api.img=(def,size,alt)=>{const c=api.spr(def);if(!c._url)c._url=c.toDataURL();return `<img class="px" src="${c._url}" alt="${esc(alt||'')}" style="width:${size}px;height:${Math.round(size*c.height/c.width)}px">`};
+  api.draw=(ctx,def,cx,cy,w)=>{const c=api.spr(def),h=w*c.height/c.width;ctx.imageSmoothingEnabled=false;ctx.drawImage(c,Math.round(cx-w/2),Math.round(cy-h/2),Math.round(w),Math.round(h))};
+  /* a small pixel person, used for riders, customers and villagers */
+  api.human=(o={})=>{
+    const r=["...hhhh...","..hhhhhh..","..hssssh..","..sesses..","..ssssss..",o.beard?"..sbbbbs..":"...smms...","..tttttt..",".tttttttt.",".sttttttss",".s.tttt.s.","...pppp...","...p..p...","...p..p...","..kk..kk.."];
+    if(o.hat){r[0]="..HHHHHH..";r[1]=".HHHHHHHH."}
+    if(o.cap){r[0]="..HHHHHH..";r[1]="..HHHHHHHH"}
+    if(o.apron){r[7]=".twwwwwwt.";r[8]=".swwwwwwss";r[9]=".s.wwww.s."}
+    return {r,p:{h:o.hair||'#3a2a1a',s:o.skin||'#e8b48a',e:'#141414',m:o.mouth||'#b0705a',b:o.hair||'#3a2a1a',t:o.shirt||'#3a6ee8',p:o.pants||'#2a3550',k:'#1f1a16',H:o.hatC||'#555',w:'#f2f2f2'}};
+  };
+  const HAIR=['#2a1d14','#4a3020','#8a5a2a','#d9b25a','#1a1a1a','#a83a2a'],SKIN=['#f0c7a0','#e0a878','#c98a5a','#8a5a3a'],SHIRT=['#e8494a','#ff7a1a','#2fa86a','#3a6ee8','#8a4ae8','#222831','#f2f2f2','#e8c13a'];
+  api.randomHuman=()=>api.human({hair:api.pick(HAIR),skin:api.pick(SKIN),shirt:api.pick(SHIRT),pants:api.pick(['#2a3550','#1f1f24','#4a4a52','#3a5a2a']),cap:Math.random()<.35,hatC:api.pick(SHIRT),beard:Math.random()<.2});
+  /* shared XP and rank across all the reading games */
+  const RANKS=[[0,'Bronz','#c98a5a'],[120,'Ezüst','#c9d1dc'],[350,'Arany','#ffd166'],[800,'Platina','#6fe3d4'],[1600,'Gyémánt','#7fb6ff'],[3000,'Mester','#c38bff'],[5000,'Legenda','#ff5e6c']];
+  api.xp=clampInt(store.get('olvaso:xp',0),0,1e7);
+  const rankOf=x=>{let i=0;while(i+1<RANKS.length&&x>=RANKS[i+1][0])i++;return i};
+  api.rank=()=>{const i=rankOf(api.xp),cur=RANKS[i],nx=RANKS[i+1];return {i,name:cur[1],color:cur[2],pct:nx?(api.xp-cur[0])/(nx[0]-cur[0]):1,next:nx?nx[1]:null}};
+  api.rankChip=()=>{const r=api.rank();return `<span class="rankchip" style="--rc:${r.color}" title="Rang: ${r.name}, ${api.xp} XP"><b>◆ ${r.name}</b><i><u style="width:${Math.round(r.pct*100)}%"></u></i></span>`};
+  const paint=()=>document.querySelectorAll('[data-rank]').forEach(el=>el.innerHTML=api.rankChip());
+  api.addXP=n=>{const before=rankOf(api.xp);api.xp=clampInt(api.xp+Math.max(0,Math.round(Number(n)||0)),0,1e7);store.set('olvaso:xp',api.xp);paint();
+    const after=rankOf(api.xp);if(after>before)api.toast(`Új rang: <b style="color:${RANKS[after][2]}">◆ ${RANKS[after][1]}</b>`)};
+  api.clampInt=clampInt;
+  api.toast=h=>{let t=document.getElementById('ktoast');if(!t){t=document.createElement('div');t.id='ktoast';document.body.appendChild(t)}
+    t.innerHTML=h;t.className='show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200)};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else setTimeout(paint);
+  api.shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+  api.pick=a=>a[Math.random()*a.length|0];
+  return api;
+})();
+</script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const GOOD=[
+  {w:'turbó',fx:'boost'},{w:'lejtő',fx:'boost'},{w:'pénz',fx:'coin'},{w:'arany|érme',fx:'coin'},
+  {w:'ugrató',fx:'jump'},{w:'rövid|út',fx:'skip'},{w:'sima út',fx:'boost'}
+];
+const BAD=[
+  {w:'sár',fx:'mud'},{w:'tócsa',fx:'mud'},{w:'kő',fx:'crash'},{w:'gödör',fx:'crash'},{w:'tüske',fx:'crash'},
+  {w:'fa|törzs',fx:'crash'},{w:'zsák|utca',fx:'back'},{w:'kerülő|út',fx:'back'}
+];
+const TRACKS=[
+  {n:'Erdei trail',d:'Könnyű. Lassabb tempó, kevés kapu.',len:1000,gate:150,v:13,rv:[11.5,12.3,13.0],col:'#7a5a3a'},
+  {n:'Sziklás DH',d:'Közepes. Több kő és kapu.',len:1300,gate:120,v:15,rv:[13.6,14.4,15.2],col:'#6e6a60'},
+  {n:'Villám-pálya',d:'Pro. Gyors, sok kapu.',len:1600,gate:100,v:17,rv:[15.6,16.5,17.4],col:'#4f4866'}
+];
+const RIVALS=[{n:'NightRider',c:'#4aa3e8'},{n:'Kriszti_DH',c:'#e84a5f'},{n:'RobiSend',c:'#f5f5f5'}];
+const isHex=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c);const ownFix=o=>{o.vaz=K.clampInt(o.vaz,0,3);o.gumi=K.clampInt(o.gumi,0,3);o.kormany=K.clampInt(o.kormany,0,3);if(!isHex(o.szin))o.szin='#ff9f1c';if('szinek' in o)o.szinek=Array.isArray(o.szinek)?o.szinek.filter(isHex).slice(0,20):['#ff9f1c'];return o};const numMap=(o,hi)=>{const r={};for(const k of Object.keys(o))if(Number.isFinite(o[k])&&o[k]>=0)r[k]=Math.min(hi,o[k]);return r};
+const own=ownFix(K.store.get('bringa:own',{szin:'#ff9f1c',vaz:0,gumi:0,kormany:0}));
+let best=numMap(K.store.get('bringa-futam:best',{}),1e5);
+let W=360,H=600,dpr=1,PPM=9;
+function fit(){
+  const st=$('#stage');const r=st.getBoundingClientRect();
+  W=Math.min(r.width,480);H=Math.max(300,r.height);dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',fit);
+
+let G=null,raf=0,last=0,paused=true;
+function start(ti){
+  const T=TRACKS[ti];
+  G={ti,T,d:0,t:0,lane:1,x:1,v:T.v,boost:0,mud:0,crash:0,jump:0,coins:0,objs:[],fx:[],done:false,
+     rivals:RIVALS.map((r,i)=>({...r,d:-4-i*6,v:T.rv[i],lane:i===1?0:2,x:i===1?0:2,stun:0})),gatesOK:0,gatesN:0};
+  /* build the course: gates with three signs, rocks and coins between them */
+  for(let g=T.gate;g<T.len-40;g+=T.gate){
+    const good=K.pick(GOOD),bad=K.pick(BAD),third=Math.random()<.5?K.pick(GOOD.filter(x=>x!==good)):K.pick(BAD.filter(x=>x!==bad));
+    const signs=K.shuffle([{...good,ok:true},{...bad,ok:false},{...third,ok:GOOD.includes(third)}]);
+    G.objs.push({type:'gate',d:g,signs,hit:false});
+  }
+  for(let d=60;d<T.len-30;d+=18+Math.random()*22){
+    if(G.objs.some(o=>o.type==='gate'&&Math.abs(o.d-d)<35))continue;
+    if(Math.random()<.45+ti*.12)G.objs.push({type:'rock',d,lane:Math.random()*3|0,hit:false});
+    else G.objs.push({type:'coin',d,lane:Math.random()*3|0,hit:false});
+  }
+  $('#prog').innerHTML=RIVALS.map((r,i)=>`<i id="pr${i}" style="background:${r.c}"></i>`).join('')+`<i id="prme" style="background:${own.szin}"></i>`;
+  closeOv();fit();paused=false;last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  countdown=3;K.beep(440,.15);
+}
+let countdown=0;
+function laneX(l){const roadW=Math.min(W-90,330),left=(W-roadW)/2;return left+roadW*(l+.5)/3}
+function roadBounds(){const roadW=Math.min(W-90,330);return [(W-roadW)/2,roadW]}
+function steer(dir){if(!G||paused||G.done)return;G.lane=Math.max(0,Math.min(2,G.lane+dir));K.beep(300,.03,'square',.03)}
+
+function apply(fx,sign){
+  const s=sign?K.plain(sign.w):'';
+  if(fx==='boost'){G.boost=2.2;pop('⚡ '+s,'#ffd166');K.good()}
+  else if(fx==='coin'){G.coins+=5;pop('+5 🪙','#ffd166');K.coin()}
+  else if(fx==='jump'){G.jump=1.4;G.coins+=3;pop('⤴ ugrás','#7fdcff');K.good()}
+  else if(fx==='skip'){G.d+=35;pop('✂️ '+s,'#7fdcff');K.good()}
+  else if(fx==='mud'){G.mud=1.6-own.gumi*.35;pop('🟫 '+s,'#c08a5a');K.bad()}
+  else if(fx==='crash'){if(G.jump>0){pop('átugrottad','#7fdcff');return}G.crash=1;pop('💥 '+s,'#ff5d5d');K.bad()}
+  else if(fx==='back'){G.d=Math.max(0,G.d-28);pop('↩️ '+s,'#ff5d5d');K.bad()}
+}
+function pop(t,c){G.fx.push({t,c,life:1.2})}
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(!paused)update(dt);
+  draw();
+  if(G&&!G.done)raf=requestAnimationFrame(loop);
+}
+function update(dt){
+  if(countdown>0){const c0=Math.ceil(countdown);countdown-=dt;if(Math.ceil(countdown)!==c0&&countdown>0)K.beep(440,.15);if(countdown<=0)K.beep(880,.25);return}
+  const T=G.T;G.t+=dt;
+  const lc=6+own.kormany*2.2;G.x+=(G.lane-G.x)*Math.min(1,lc*dt);
+  let v=T.v+own.vaz*.7;
+  if(G.boost>0){v*=1.45;G.boost-=dt}
+  if(G.mud>0){v*=.55;G.mud-=dt}
+  if(G.crash>0){v*=.25;G.crash-=dt}
+  if(G.jump>0)G.jump-=dt;
+  G.v+=(v-G.v)*Math.min(1,3*dt);G.d+=G.v*dt;
+  for(const o of G.objs){
+    if(o.hit||o.d>G.d+1||o.d<G.d-3)continue;
+    const myLane=Math.round(G.x);
+    if(o.type==='gate'){o.hit=true;G.gatesN++;const s=o.signs[myLane];if(s.ok){G.gatesOK++;K.seen(s.w)}apply(s.fx,s)}
+    else if(o.lane===myLane&&Math.abs(G.x-o.lane)<.45){o.hit=true;if(o.type==='coin'){G.coins++;K.coin()}else if(G.jump<=0){G.crash=.7;K.bad();pop('💥','#ff5d5d')}}
+  }
+  for(const r of G.rivals){
+    if(r.stun>0){r.stun-=dt;r.d+=r.v*.4*dt}else r.d+=r.v*dt*(1+.04*Math.sin(G.t*.7+r.v));
+    if(Math.random()<dt*.4)r.lane=Math.random()*3|0;r.x+=(r.lane-r.x)*Math.min(1,3*dt);
+    if(Math.random()<dt*.05)r.stun=.8;
+  }
+  G.fx=G.fx.filter(f=>(f.life-=dt)>0);
+  const all=[G.d,...G.rivals.map(r=>r.d)];
+  G.place=1+G.rivals.filter(r=>r.d>G.d).length;
+  $('#place').textContent=G.place+'.';$('#time').textContent=G.t.toFixed(1);$('#coins').textContent=G.coins;
+  const pct=d=>Math.max(0,Math.min(100,d/T.len*100))+'%';
+  G.rivals.forEach((r,i)=>$('#pr'+i).style.left=pct(r.d));$('#prme').style.left=pct(G.d);
+  if(G.d>=T.len)finish();
+  void all;
+}
+/* ---------- drawing ---------- */
+function wordParts(w){
+  const lv=K.level(w);const toks=String(w).split(/(\|| )/);const out=[];let i=0;
+  for(const t of toks){if(t==='|'){if(lv===2)out.push({t:'·',c:'rgba(255,255,255,.6)'})}else if(t===' ')out.push({t:' ',c:'#fff'});else out.push({t,c:lv===0||toks.length<2?'#fff':(i++%2?'#7fdcff':'#ffd166')})}
+  return out;
+}
+function drawWord(w,x,y,size,maxW){
+  let parts=wordParts(w);ctx.font=`600 ${size}px Lexend, Verdana, sans-serif`;
+  let tw=parts.reduce((a,p)=>a+ctx.measureText(p.t).width,0);
+  if(tw>maxW){size=Math.max(10,size*maxW/tw);ctx.font=`600 ${size}px Lexend, Verdana, sans-serif`;tw=parts.reduce((a,p)=>a+ctx.measureText(p.t).width,0)}
+  let cx=x-tw/2;ctx.textBaseline='middle';
+  for(const p of parts){ctx.fillStyle=p.c;ctx.fillText(p.t,cx,y);cx+=ctx.measureText(p.t).width}
+}
+function bike(x,y,c,s=1,air=0){
+  ctx.save();ctx.translate(x,y);ctx.scale(s*(1+air*.25),s*(1+air*.25));
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(air*8,6+air*14,12,24,0,0,7);ctx.fill();
+  ctx.fillStyle='#111';ctx.fillRect(-3,-26,6,14);ctx.fillRect(-3,12,6,14);
+  ctx.fillStyle=c;ctx.fillRect(-4,-14,8,28);
+  ctx.fillStyle='#ccc';ctx.fillRect(-13,-14,26,4);
+  ctx.fillStyle='#f0c39a';ctx.beginPath();ctx.arc(0,2,7,0,7);ctx.fill();
+  ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,0,8,Math.PI,0);ctx.fill();
+  ctx.restore();
+}
+function draw(){
+  ctx.fillStyle='#1d3a1a';ctx.fillRect(0,0,W,H);
+  if(!G)return;
+  const [left,rw]=roadBounds();const py=H-110;
+  const sy=d=>py-(d-G.d)*PPM;
+  // grass stripes & trees
+  for(let i=-2;i<H/40+2;i++){const d=Math.floor(G.d/4.5)*4.5+i*4.5;const y=sy(d);ctx.fillStyle=(Math.floor(d/4.5)%2)?'#234a1f':'#1f421c';ctx.fillRect(0,y-40,W,40)}
+  ctx.fillStyle=G.T.col;ctx.fillRect(left,0,rw,H);
+  ctx.fillStyle='rgba(0,0,0,.12)';ctx.fillRect(left,0,6,H);ctx.fillRect(left+rw-6,0,6,H);
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.setLineDash([18,22]);ctx.lineDashOffset=-(G.d*PPM)%40;
+  for(let l=1;l<3;l++){const x=left+rw*l/3;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  ctx.setLineDash([]);
+  for(let i=-1;i<H/60+2;i++){const d=Math.floor(G.d/7)*7+i*7;const y=sy(d);const side=(Math.floor(d/7)%3);
+    const tx=side?left-22-(d*13%9):left+rw+22+(d*7%9);ctx.fillStyle='#163614';ctx.beginPath();ctx.arc(tx,y,16,0,7);ctx.fill();ctx.fillStyle='#2e6e28';ctx.beginPath();ctx.arc(tx-3,y-3,12,0,7);ctx.fill()}
+  // finish line
+  const fy=sy(G.T.len);if(fy>-20&&fy<H+20){for(let i=0;i<12;i++){ctx.fillStyle=i%2?'#fff':'#111';ctx.fillRect(left+i*rw/12,fy-8,rw/12,8);ctx.fillStyle=i%2?'#111':'#fff';ctx.fillRect(left+i*rw/12,fy,rw/12,8)}}
+  // objects
+  for(const o of G.objs){
+    const y=sy(o.d);if(y<-120||y>H+40)continue;
+    if(o.type==='rock'&&!o.hit){const x=laneX(o.lane);ctx.fillStyle='#4b4b4b';ctx.beginPath();ctx.ellipse(x,y,15,11,0,0,7);ctx.fill();ctx.fillStyle='#777';ctx.beginPath();ctx.ellipse(x-4,y-4,8,5,0,0,7);ctx.fill()}
+    if(o.type==='coin'&&!o.hit){const x=laneX(o.lane);ctx.fillStyle='#ffd166';ctx.beginPath();ctx.arc(x,y,8,0,7);ctx.fill();ctx.fillStyle='#c9931e';ctx.fillRect(x-1.5,y-5,3,10)}
+    if(o.type==='gate'){
+      ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(left,y-3,rw,6);
+      for(let l=0;l<3;l++){const x=laneX(l),bw=rw/3-8,s=o.signs[l];
+        let bg='#f4f1e6';if(o.hit){bg=s.ok?'#6ee36b':'#ff8080'}
+        ctx.fillStyle='#5a3b1e';ctx.fillRect(x-2,y-34,4,34);
+        ctx.fillStyle=bg;roundRect(x-bw/2,y-74,bw,42,8);ctx.fill();
+        ctx.save();ctx.fillStyle='#1b1b1b';roundRect(x-bw/2+3,y-71,bw-6,36,6);ctx.fill();ctx.restore();
+        drawWord(s.w,x,y-53,20,bw-12)}
+    }
+  }
+  // rivals then player
+  for(const r of G.rivals){const y=sy(r.d);if(y>-40&&y<H+40)bike(laneX(r.x),y,r.c,.9)}
+  const air=G.jump>0?Math.sin((1-G.jump/1.4)*Math.PI):0;
+  const shake=G.crash>0?(Math.random()-.5)*6:0;
+  bike(laneX(G.x)+shake,py,own.szin,1,air);
+  if(G.boost>0){ctx.fillStyle='rgba(255,209,102,.6)';for(let i=0;i<4;i++)ctx.fillRect(laneX(G.x)-6+Math.random()*12,py+28+i*8,3,10)}
+  if(G.mud>0){ctx.fillStyle='rgba(120,80,40,.7)';for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(laneX(G.x)-14+Math.random()*28,py+26+Math.random()*16,3,0,7);ctx.fill()}}
+  G.fx.forEach((f,i)=>{ctx.globalAlpha=Math.min(1,f.life);ctx.fillStyle=f.c;ctx.font='800 24px Lexend, Verdana, sans-serif';ctx.textAlign='center';ctx.fillText(f.t,W/2,py-150-i*30-(1.2-f.life)*30);ctx.textAlign='left';ctx.globalAlpha=1});
+  if(countdown>0){ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffb627';ctx.font='800 90px Lexend, Verdana, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(Math.ceil(countdown),W/2,H/2-40);ctx.textAlign='left'}
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+
+function finish(){
+  G.done=true;paused=true;
+  const prize=[50,30,20,10][G.place-1];const total=prize+G.coins;
+  K.store.set('bringa:penz',K.clampInt(K.store.get('bringa:penz',0),0,1e9)+total);
+  const key=G.T.n;const rec=best[key];const newRec=!rec||G.t<rec;if(newRec){best[key]=+G.t.toFixed(1);K.store.set('bringa-futam:best',best)}
+  if(G.place===1)K.good();K.addXP((5-G.place)*8+G.gatesOK*2);
+  const list=[{n:'Te',d:G.d,me:true},...G.rivals.map(r=>({n:r.n,d:r.d}))].sort((a,b)=>b.d-a.d);
+  overlay(`<h2>${G.place===1?'#1 · GG':'#'+G.place+' hely'}</h2>
+   <div class="res">${list.map((r,i)=>`<span class="${r.me?'me':''}">${i+1}.</span><span class="${r.me?'me':''}">${r.n}</span><span></span>`).join('')}</div>
+   <p>Idő: <b>${G.t.toFixed(1)} mp</b>${newRec?' · új rekord!':''}</p>
+   <p>Jó táblák: <b>${G.gatesOK}/${G.gatesN}</b></p>
+   <p>Nyeremény: <b>${prize} + ${G.coins} = ${total} 🪙</b><br><small style="color:var(--muted)">A pénz a Bike Shopba megy.</small></p>
+   <div class="row"><button class="btn hot" id="again">Újra</button><button class="btn" id="menu">Pályák</button></div>`);
+  $('#again').onclick=()=>start(G.ti);$('#menu').onclick=menu;
+}
+/* ---------- menus ---------- */
+function overlay(h){$('#ovc').innerHTML=h;$('#ov').hidden=false;const b=$('#ovc').querySelector('.btn.hot');if(b)b.focus()}
+function closeOv(){$('#ov').hidden=true}
+function menu(){
+  paused=true;
+  const lv=own.vaz+own.gumi+own.kormany;
+  overlay(`<h1>DOWNHILL</h1>
+   <div class="how"><span>⬅️➡️</span><span>Sávváltás: koppints balra vagy jobbra, vagy nyilak.</span><span>🪧</span><span>Kapu: a jó tábla felé menj.</span><span>⚡</span><span>Jó: turbó, pénz, ugrató.</span><span>🟫</span><span>Rossz: sár, kő, gödör.</span></div>
+   <p style="color:var(--muted);font-size:15px">A bringád a Bike Shopból jön. Tuning: ${lv}/9.</p>
+   ${TRACKS.map((t,i)=>`<button class="btn" data-t="${i}">${t.n}<small>${t.d}${best[t.n]?' Rekord: '+best[t.n]+' mp':''}</small></button>`).join('')}
+   <div class="row"><button class="btn" id="setB">⚙️ Beállítások</button>${K.sayBtn('Kapu: a jó tábla felé menj.')}</div>`);
+  $('#ovc').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>start(+b.dataset.t));
+  $('#setB').onclick=settings;
+}
+function settings(){
+  overlay(`<h2>⚙️ Beállítások</h2><p>Hosszú szavak bontása:</p>
+   <div class="row toggle"><button class="btn" data-sp="auto" aria-pressed="${K.settings.split!=='mindig'}">Magától</button><button class="btn" data-sp="mindig" aria-pressed="${K.settings.split==='mindig'}">Mindig</button></div>
+   <p>Hang:</p><div class="row toggle"><button class="btn" id="snd" aria-pressed="${K.sound}">${K.sound?'🔈 Be':'🔇 Ki'}</button></div>
+   <button class="btn hot" id="bk">Vissza</button>`);
+  $('#ovc').querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{K.setSplit(b.dataset.sp);settings()});
+  $('#snd').onclick=()=>{K.toggleSound();settings()};$('#bk').onclick=menu;
+}
+function pause(){
+  if(!G||G.done)return;paused=true;
+  overlay(`<h2>⏸ Szünet</h2><div class="row"><button class="btn hot" id="res">Tovább</button><button class="btn" id="quit">Pályák</button></div>`);
+  $('#res').onclick=()=>{closeOv();paused=false;last=performance.now()};$('#quit').onclick=()=>{G.done=true;menu()};
+}
+$('#pauseBtn').onclick=pause;
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){e.preventDefault();steer(-1)}
+  else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){e.preventDefault();steer(1)}
+  else if(e.key==='Escape'||e.key==='p'){pause()}
+});
+let sx=null;
+cv.addEventListener('pointerdown',e=>{sx=e.clientX});
+cv.addEventListener('pointerup',e=>{
+  if(sx==null)return;const dx=e.clientX-sx;sx=null;
+  if(Math.abs(dx)>25)steer(dx>0?1:-1);
+  else{const r=cv.getBoundingClientRect();steer(e.clientX-r.left<r.width/2?-1:1)}
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.done&&!paused)pause()});
+fit();draw();menu();
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>
