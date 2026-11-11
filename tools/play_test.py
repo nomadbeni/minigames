@@ -391,6 +391,35 @@ async def sc_tank(page):
     check(int(shots or 0) >= 1, f"the tank fires: {shots}")
 
 
+PAD = """window.__pad = {id: 'test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+  buttons: Array.from({length: 17}, () => ({pressed: false, value: 0}))};
+Object.defineProperty(navigator, 'getGamepads', {value: () => [window.__pad], configurable: true});"""
+
+
+async def pad(page, button, ms=120):
+    await page.evaluate(f"__pad.buttons[{button}].pressed = true; __pad.buttons[{button}].value = 1")
+    await page.wait_for_timeout(ms)
+    await page.evaluate(f"__pad.buttons[{button}].pressed = false; __pad.buttons[{button}].value = 0")
+    await page.wait_for_timeout(120)
+
+
+async def sc_tank_gamepad(page):
+    await page.add_init_script(PAD)
+    await page.reload()
+    await page.evaluate("dispatchEvent(new Event('gamepadconnected'))")
+    await page.wait_for_timeout(200)
+    check(await page.locator("text=Kontroller csatlakoztatva").count() == 1, "the connected note shows")
+    await pad(page, 0)                                   # A in the menu presses the highlighted button
+    check(await page.locator("#ov").is_hidden(), "the A button starts the battle from the menu")
+    await page.wait_for_timeout(1500)
+    x0 = await page.evaluate("__tank.S.player.x")
+    await pad(page, 15, 700)                             # d-pad right drives the tank
+    check(await page.evaluate("__tank.S.player.x") != x0, "the d-pad moves the tank")
+    await pad(page, 0, 500)                              # A fires
+    shots = await page.locator("#score").get_attribute("data-shots")
+    check(int(shots or 0) >= 1, f"the A button fires: {shots}")
+
+
 async def sc_tank_over(page):
     await page.locator("#go").click()
     await page.evaluate("__tank.S.lives = 1; __tank.S.player.shield = 0")
@@ -689,14 +718,19 @@ async def sc_maze_over(page):
 
 async def sc_maze_walk(page):
     await page.click("#bStart")
-    # a busy test machine drops frames, so keep walking (longer each time) until the player has moved
+    # stop at the first step that moved the player (a walk could lead back to the start in some mazes);
+    # a busy test machine drops frames, so the keys are held longer on each round
+    moved = "(()=>{const s=JSON.parse(localStorage.getItem('e-utveszto-save')||'{}');return s.px!==1||s.py!==1})()"
     for ms in (260, 400, 600):
-        for key in ["ArrowRight", "ArrowDown", "ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 3:
+        for key in ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"] * 2:
             await hold(page, key, ms)
-        await page.wait_for_timeout(1300)
-        before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
-        if (before["px"], before["py"]) != (1, 1):
+            await page.wait_for_timeout(250)
+            if await page.evaluate(moved):
+                break
+        if await page.evaluate(moved):
             break
+    await page.wait_for_timeout(1300)
+    before = json.loads(await page.evaluate("localStorage.getItem('e-utveszto-save')"))
     check((before["px"], before["py"]) != (1, 1), "the keys do not move the player")
     await page.reload()
     await page.wait_for_timeout(400)
@@ -730,6 +764,7 @@ SCENARIOS = [
     ("dobozmester", "Sokoban: push the crate onto the target and save the level", sc_sokoban, None),
     ("tankorseg", "Tank Guard: start a battle and fire a shot", sc_tank, None),
     ("tankorseg", "Tank Guard: losing the last tank ends the game, New game closes the window", sc_tank_over, None),
+    ("tankorseg", "Tank Guard: a game controller starts the battle, drives and fires", sc_tank_gamepad, None),
     ("kokori-kaland", "Stone Age Quest: the caveman walks and the run is saved", sc_caveman, None),
     ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
     ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),
