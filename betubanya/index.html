@@ -186,6 +186,8 @@ td.st{color:#b8901a;letter-spacing:1px}
 @keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>

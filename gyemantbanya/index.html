@@ -140,6 +140,8 @@ h1{
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important}
 }
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>

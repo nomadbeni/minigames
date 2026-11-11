@@ -133,6 +133,8 @@ nav h1{font-size:17px;font-weight:600;letter-spacing:-0.3px;white-space:nowrap;}
 .archive-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;}
 .player-stat-row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>

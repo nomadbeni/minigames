@@ -66,6 +66,8 @@ canvas{display:block;border-radius:10px;touch-action:none;image-rendering:pixela
 .hud,.bar{flex-wrap:nowrap!important;min-width:0}
 .hud .ib,.bar .ib{flex:none}
 @media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>
@@ -302,7 +304,7 @@ function update(dt){
   const near=(x,y,rc)=>{const out=[],cx=Math.floor(x/40)+64,cy=Math.floor(y/40)+64;for(let i=-rc;i<=rc;i++)for(let j=-rc;j<=rc;j++){const a=grid.get(cell(cx+i,cy+j));if(a)for(const z of a)out.push(z)}return out};
   for(const b of G.bul){b.x+=b.vx*dt;b.y+=b.vy*dt;
     for(const z of [...near(b.x,b.y,1),...big]){if(b.dead||b.hit.has(z))continue;const r=z===G.boss?40:z.crate?16:z.tough?14:10;
-      if(Math.abs(z.x-b.x)<r&&Math.abs(z.y-b.y)<r+6){z.hp-=b.d;b.hit.add(z);if(!b.pierce)b.dead=true;
+      if(Math.abs(z.x-b.x)<r&&Math.abs(z.y-b.y)<r+6){z.hp-=b.d;z.fl=performance.now()+90;if(Math.random()<.35||b.d>=3)floatText(z.x,z.y-14,'-'+Math.round(b.d),'#ffd166');b.hit.add(z);if(!b.pierce)b.dead=true;
         if(b.blast){for(const o of near(b.x,b.y,2))if(Math.hypot(o.x-b.x,o.y-b.y)<50)o.hp-=b.d*.6;G.fx.push({x:b.x,y:b.y,r:50,t:.3,c:'#ff7a1a'})}}}
     if(b.y<-30||b.x<-20||b.x>LW+20)b.dead=true}
   G.bul=G.bul.filter(b=>!b.dead);
@@ -366,6 +368,15 @@ function buildRoad(){
   const bin=(x,y)=>{g.fillStyle='#2e4a34';g.fillRect(x,y,10,14);g.fillStyle='#24392a';g.fillRect(x,y,10,3);g.fillStyle='#4a4436';g.fillRect(x+10,y+4,6,4);g.fillRect(x+12,y+10,5,3)};
   car(19,90,0);car(LW-41,330,1);car(19,470,1);bin(20,250);bin(LW-32,560);bin(LW-30,140);
 }
+/* Visszajelzés: fehér felvillanás a találatot kapó alakon, felfelé úszó szám. Csökkentett mozgásnál nincs felvillanás. */
+const CALM=()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}};
+const FLOATS=[];
+function floatText(x,y,txt,c){FLOATS.push({x,y,txt,c:c||'#fff',t0:performance.now()});if(FLOATS.length>40)FLOATS.shift()}
+function drawFloats(ctx,size){const now=performance.now();ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`800 ${size}px Lexend, Verdana, sans-serif`;
+  for(let i=FLOATS.length-1;i>=0;i--){const f=FLOATS[i],a=(now-f.t0)/700;if(a>=1){FLOATS.splice(i,1);continue}
+    ctx.globalAlpha=1-a;ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.6)';ctx.strokeText(f.txt,f.x,f.y-a*24);ctx.fillStyle=f.c;ctx.fillText(f.txt,f.x,f.y-a*24)}
+  ctx.restore()}
+const flashOn=o=>o.fl&&!CALM()&&performance.now()<o.fl;
 function draw(){
   ctx.setTransform(dpr*SC,0,0,dpr*SC,0,0);ctx.imageSmoothingEnabled=false;
   /* romos városi út: két, képernyőn kívül egyszer megrajzolt csík görög lefelé (az út és a roncsok gyorsabban, a háztetők lassabban) */
@@ -386,12 +397,13 @@ function draw(){
   /* crates */
   for(const c of G.crates){K.draw(ctx,CRATE,c.x,c.y,30);ctx.fillStyle='#000';ctx.fillRect(c.x-16,c.y-22,32,4);ctx.fillStyle='#ffcf3f';ctx.fillRect(c.x-16,c.y-22,32*Math.max(0,c.hp/c.max),4)}
   /* zombies */
-  for(const z of G.zs){const bob=Math.sin(z.wob*6)*1.5;K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);
+  for(const z of G.zs){const bob=Math.sin(z.wob*6)*1.5;K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);if(flashOn(z)){ctx.save();ctx.filter='brightness(4)';K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);ctx.restore()}
     if(z.hp<z.max){ctx.fillStyle='#000';ctx.fillRect(z.x-11,z.y-17,22,3);ctx.fillStyle='#ff4d5a';ctx.fillRect(z.x-11,z.y-17,22*Math.max(0,z.hp/z.max),3)}}
   if(G.boss){const b=G.boss;K.draw(ctx,Z2,b.x,b.y+Math.sin(b.t*3)*2,90);ctx.fillStyle='#000';ctx.fillRect(40,14,LW-80,10);ctx.fillStyle='#ff4d5a';ctx.fillRect(40,14,(LW-80)*Math.max(0,b.hp/b.max),10);
     ctx.font='700 12px "Chakra Petch", sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText('ÓRIÁSZOMBI',LW/2,34);ctx.textAlign='left'}
   /* bullets */
   for(const b of G.bul){ctx.fillStyle=b.col;ctx.fillRect(b.x-1.5,b.y-5,3,b.pierce?14:8)}
+  drawFloats(ctx,13);
   /* squad */
   const f=formation(G.men);
   for(const s of f){K.draw(ctx,SOLDIER,G.x+s.dx,SQY+s.dy,16);K.draw(ctx,GUN,G.x+s.dx+4,SQY+s.dy-11,6)}

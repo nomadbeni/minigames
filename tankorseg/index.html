@@ -66,6 +66,8 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .bon b{color:var(--fg)}
 .stat{font:400 24px/1 var(--title);color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>

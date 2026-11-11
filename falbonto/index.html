@@ -55,6 +55,8 @@ button.b.hot{background:var(--accent);border-color:var(--accent);color:#1d0e02}
 .bricks{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--muted)}
 .bricks span{display:inline-flex;align-items:center;gap:5px}
 .bricks i{width:18px;height:9px;border-radius:2px;display:inline-block}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>
@@ -245,7 +247,7 @@ function damage(r,c,force){
     G.bricks[r][c]=null;
     const cx=c+0.5,cy=Y0+(r+0.5)*BH;
     const pts=b.k==='c'?PTS[b.ci]:b.k==='s'?50*G.level:b.k==='b'?150:200;
-    G.score+=pts;
+    G.score+=pts;G.fx.push({x:cx,y:cy,l:1,txt:'+'+pts});
     burst(cx,cy,b.k==='c'?COLORS[b.ci]:b.k==='s'?'#c9d6e2':b.k==='g'?'#f5c84c':'#ff7a45');
     beep(300+(b.k==='c'?b.ci*60:400),0.05);
     if(b.k!=='g'&&Math.random()<0.14)drop(cx,cy);
@@ -459,7 +461,8 @@ function draw(now){
     if(b.flash>0)b.flash=Math.max(0,b.flash-0.15);
   }));
   // explosions
-  G.fx.forEach(f=>{ctx.globalAlpha=Math.max(0,f.l)*0.5;ctx.fillStyle='#ffb36b';ctx.beginPath();ctx.arc(f.x*P,f.y*P,(1.7-f.l)*P,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
+  G.fx.forEach(f=>{if(f.txt){ctx.globalAlpha=Math.max(0,f.l);ctx.font=`800 ${Math.round(P*.42)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle='#fff';ctx.fillText(f.txt,f.x*P,(f.y-(1-f.l)*0.9)*P);ctx.textAlign='left';return}
+    ctx.globalAlpha=Math.max(0,f.l)*0.5;ctx.fillStyle='#ffb36b';ctx.beginPath();ctx.arc(f.x*P,f.y*P,(1.7-f.l)*P,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // capsules
   ctx.font=`700 ${P*0.32}px "Chakra Petch",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
   G.caps.forEach(c=>{rr((c.x-0.4)*P,(c.y-0.2)*P,0.8*P,0.4*P,0.2*P);ctx.fillStyle=CAPS[c.k].color;ctx.fill();ctx.fillStyle='#0b1622';ctx.fillText(c.k,c.x*P,c.y*P+1)});

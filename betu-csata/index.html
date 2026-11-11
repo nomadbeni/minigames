@@ -79,6 +79,8 @@ canvas{display:block;width:100%;height:100%;border-radius:12px;touch-action:none
 .hud,.bar{flex-wrap:nowrap!important;min-width:0}
 .hud .ib,.bar .ib{flex:none}
 @media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>
@@ -331,7 +333,7 @@ function update(dt){
     const rk=b.rocket>0;G.bul.push({x:p.x,y:p.y,vx:Math.cos(a)*(rk?420:620),vy:Math.sin(a)*(rk?420:620),dmg:rk?40:12,r:rk?7:4,rk,life:.8});
     p.cd=b.rapid>0?.1:rk?.45:.28;K.beep(rk?160:700,.03,'square',.025)}
   for(const s of G.bul){s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;if(inWall(s.x,s.y,1))s.life=0;
-    for(const e of G.bots)if(s.life>0&&Math.hypot(e.x-s.x,e.y-s.y)<e.r+s.r){e.hp-=s.dmg;s.life=0;if(s.rk)for(const o of G.bots)if(o!==e&&Math.hypot(o.x-s.x,o.y-s.y)<70)o.hp-=20;
+    for(const e of G.bots)if(s.life>0&&Math.hypot(e.x-s.x,e.y-s.y)<e.r+s.r){e.hp-=s.dmg;e.fl=performance.now()+100;floatText(e.x,e.y-22,'-'+s.dmg,s.rk?'#ffb347':'#fff');s.life=0;if(s.rk)for(const o of G.bots)if(o!==e&&Math.hypot(o.x-s.x,o.y-s.y)<70)o.hp-=20;
       G.fx.push({x:s.x,y:s.y,r:0,max:s.rk?70:14,life:.2,c:s.rk?'#ffb347':'#fff'})}}
   G.bul=G.bul.filter(s=>s.life>0);
   for(const e of G.bots){
@@ -384,6 +386,15 @@ function buildFloor(){
     else{g.fillStyle='#3b4a6b';g.fillRect(w.x,w.y,w.w,w.h);g.fillStyle='#33415f';for(let y=w.y+12;y<w.y+w.h;y+=14)g.fillRect(w.x,y,w.w,2);
       for(let x=w.x+18;x<w.x+w.w;x+=22)g.fillRect(x,w.y,2,w.h);g.fillStyle='rgba(255,255,255,.1)';g.fillRect(w.x,w.y,w.w,6);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(w.x,w.y+w.h-8,w.w,8)}}
 }
+/* Visszajelzés: fehér felvillanás a találatot kapó alakon, felfelé úszó szám. Csökkentett mozgásnál nincs felvillanás. */
+const CALM=()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}};
+const FLOATS=[];
+function floatText(x,y,txt,c){FLOATS.push({x,y,txt,c:c||'#fff',t0:performance.now()});if(FLOATS.length>40)FLOATS.shift()}
+function drawFloats(ctx,size){const now=performance.now();ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`800 ${size}px Lexend, Verdana, sans-serif`;
+  for(let i=FLOATS.length-1;i>=0;i--){const f=FLOATS[i],a=(now-f.t0)/700;if(a>=1){FLOATS.splice(i,1);continue}
+    ctx.globalAlpha=1-a;ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.6)';ctx.strokeText(f.txt,f.x,f.y-a*24);ctx.fillStyle=f.c;ctx.fillText(f.txt,f.x,f.y-a*24)}
+  ctx.restore()}
+const flashOn=o=>o.fl&&!CALM()&&performance.now()<o.fl;
 function draw(){
   ctx.fillStyle='#16203a';ctx.fillRect(0,0,W,H);if(!G)return;
   const p=G.p;const cx=Math.round(p.x-W/2),cy=Math.round(p.y-H/2);
@@ -394,7 +405,7 @@ function draw(){
   for(const c of G.chests)if(!c.open){block(c.x,c.y,26,'#c9873a','#7a4f1e');ctx.fillStyle='#ffd166';ctx.fillRect(c.x-3,c.y-4,6,8);
     const t=performance.now()/300;ctx.strokeStyle=`rgba(255,209,102,${.3+.3*Math.sin(t)})`;ctx.lineWidth=2;ctx.strokeRect(c.x-17,c.y-17,34,34)}
   for(const c of G.coins){ctx.fillStyle='#ffd166';ctx.fillRect(c.x-5,c.y-5,10,10)}
-  for(const e of G.bots){block(e.x,e.y,30,'#d94a5c','#8a2633');ctx.fillStyle='#fff';ctx.fillRect(e.x-9,e.y-6,6,6);ctx.fillRect(e.x+3,e.y-6,6,6);
+  for(const e of G.bots){block(e.x,e.y,30,flashOn(e)?'#ffffff':'#d94a5c',flashOn(e)?'#dddddd':'#8a2633');ctx.fillStyle='#fff';ctx.fillRect(e.x-9,e.y-6,6,6);ctx.fillRect(e.x+3,e.y-6,6,6);
     ctx.fillStyle='#000';ctx.fillRect(e.x-17,e.y-24,34,4);ctx.fillStyle='#5fe08a';ctx.fillRect(e.x-17,e.y-24,34*e.hp/e.max,4)}
   for(const s of G.eb){ctx.fillStyle='#ff8a8a';ctx.fillRect(s.x-4,s.y-4,8,8)}
   for(const s of G.bul){ctx.fillStyle=s.rk?'#ffb347':'#e9e3ff';ctx.fillRect(s.x-s.r,s.y-s.r,s.r*2,s.r*2)}
@@ -409,6 +420,7 @@ function draw(){
    ctx.strokeStyle='#c99bff';ctx.lineWidth=3;ctx.setLineDash([18,10]);ctx.lineDashOffset=calm?0:-tt*40;ctx.beginPath();ctx.arc(G.storm.x,G.storm.y,G.storm.r,0,7);ctx.stroke();ctx.setLineDash([]);
    if(!calm){ctx.strokeStyle='#f0e0ff';ctx.lineWidth=2;for(let i=0;i<3;i++){const a=((Math.floor(tt*3)*2.39+i*2.1)%6.283),x0=G.storm.x+Math.cos(a)*G.storm.r,y0=G.storm.y+Math.sin(a)*G.storm.r;
      ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0+Math.cos(a)*10+6,y0+Math.sin(a)*10-6);ctx.lineTo(x0+Math.cos(a)*22,y0+Math.sin(a)*22);ctx.stroke()}}}
+  drawFloats(ctx,16);
   ctx.restore();
   /* nearest chest arrow */
   let nc=null,nd=1e9;for(const c of G.chests)if(!c.open){const d=Math.hypot(c.x-p.x,c.y-p.y);if(d<nd){nd=d;nc=c}}

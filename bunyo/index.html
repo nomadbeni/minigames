@@ -106,6 +106,8 @@ canvas{display:block;max-width:100%;border-radius:8px;image-rendering:pixelated;
 .hud,.bar{flex-wrap:nowrap!important;min-width:0}
 .hud .ib,.bar .ib{flex:none}
 @media (max-width:430px){.hud .chip,.bar .chip{padding:4px 7px!important;font-size:14px!important;gap:3px!important}.rankchip{min-width:0;padding:4px 6px}.rankchip i{display:none}.rankchip b{font-size:12px}}
+/* gomb lenyomva 1 px-t mozdul (a translate nem ütközik a meglévő transform-okkal) */
+button:not(:disabled):active{translate:0 1px}
 </style>
 </head>
 <body>
