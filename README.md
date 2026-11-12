@@ -79,6 +79,8 @@ Mellette fut a telefonos füstteszt (`tools/smoke_test.py`, 400×860 és 360×64
 
 Helyben: `pip install playwright && python3 -m playwright install chromium`, majd `python3 tools/play_test.py` (gyorsabban: `--quick`, egy játék: `python3 tools/play_test.py horda`).
 
+**Minecraft:** a „Minecraft építési terv” oldalak csak blokkok és építési lépések leírását adják, saját rajzzal (logó, textúra és figura nincs bennük). Nem hivatalos Minecraft-termék. Nem a Mojang vagy a Microsoft jóváhagyásával készült, és nem áll kapcsolatban velük. A Minecraft a Mojang AB védjegye.
+
 A helyi betűtípusok licence SIL Open Font License (`assets/fonts/LICENSE-*.txt`). Az a három betűtípus, amelynek licencében személyes e-mail-cím áll, nem kerül a tárolóba, ezért marad a Google Fonts-on.
 
 A tárolóban minden kódot, játékot és leírást teljes egészében mesterséges intelligencia (Claude, Anthropic) készített, az ellenőrzést egy másik MI végezte.
@@ -100,6 +102,8 @@ The games themselves are in Hungarian. See the table above for the list. Bike Sh
 **Adding a game:** create a folder with an `index.html`, add the `<head>` tags shown above, make a cover picture with `python3 tools/make_covers.py <folder>`, and push to `main`. The GitHub Actions workflow rebuilds the start page and deploys the site. Pages without a back button get one added on deploy.
 
 **Tests:** every push and pull request runs browser tests (Playwright) on every game, desktop and touch, including broken saved data and checks that nothing is requested from other sites; scenario tests that play part of each reading game and check the result; and a regression test that generates hundreds of Gyémántbánya and Kincsvadász levels and checks each has exactly one solution. The site is deployed only when all tests pass. Run locally with `pip install playwright && python3 -m playwright install chromium`, then `python3 tools/play_test.py`.
+
+**Minecraft:** the build plan pages only describe blocks and building steps, drawn by the page itself (no logo, textures or characters). Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft. Minecraft is a trademark of Mojang AB.
 
 Self-hosted fonts are under the SIL Open Font License (`assets/fonts/LICENSE-*.txt`).
 
