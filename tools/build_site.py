@@ -179,6 +179,9 @@ POLICY_ALLOW = {
     ("sw.js", "service worker"): "the site-wide offline cache: only this site's own, listed files",
 }
 
+# Every Minecraft build plan page, the start page and the README say the project is not an official Minecraft product.
+MC_NOTE = "Nem hivatalos Minecraft-termék"
+
 # Every page carries this Content-Security-Policy, so the browser itself blocks requests to other sites.
 # 'unsafe-inline' is needed because every game is a single HTML file with inline script and style.
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
@@ -244,6 +247,8 @@ def check_policy():
         uses_hidden = re.search(r"\.hidden\s*=|\shidden[\s>]", text)
         if uses_hidden and not re.search(r"\[hidden\]\s*\{\s*display\s*:\s*none", text):
             errors.append(f"{rel}: uses the hidden attribute but has no [hidden]{{display:none!important}} rule")
+        if r.meta.get("games:category") == "minecraft" and MC_NOTE not in text:
+            errors.append(f"{rel}: a Minecraft page must say it is not official: {MC_NOTE}…")
         if 'lang="hu"' not in text[:300]:
             errors.append(f"{rel}: <html lang=\"hu\"> missing")
     for page in [ROOT / "index.html", ROOT / "404.html"] + game_pages():
@@ -275,6 +280,9 @@ def check_policy():
     sw = (ROOT / "sw.js").read_text(encoding="utf-8")
     if not re.search(SW_FILES, sw) or not re.search(SW_CACHE, sw):
         errors.append("sw.js: the FILES or CACHE line is missing (build_site.py fills them in when publishing)")
+    for rel in ("index.html", "README.md"):
+        if MC_NOTE not in (ROOT / rel).read_text(encoding="utf-8"):
+            errors.append(f"{rel}: the note '{MC_NOTE}…' is missing")
     # The README table lists exactly the game folders.
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     listed = set(re.findall(r"^\|\s*\[[^\]]+\]\(([a-z0-9-]+)/\)\s*\|", readme, re.M))

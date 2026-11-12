@@ -38,7 +38,7 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 
 ### Tartalom
 - Gyerekbarát: nincs vér, nincs valós fegyvermárka, nincs szerencsejáték valódi pénzzel, nincs vásárlás az alkalmazáson belül, nincs reklám.
-- Nincs védett karakter, márka vagy logó (pl. Mario, Minecraft-figurák, Sonic). A szereplők saját kitalálásúak. A „Minecraft építési terv” csak blokkok és építési lépések leírása.
+- Nincs védett karakter, márka vagy logó (pl. Mario, Minecraft-figurák, Sonic). A szereplők saját kitalálásúak. A „Minecraft építési terv” csak blokkok és építési lépések leírása, saját rajzzal (nincs Minecraft-logó, -textúra, -betűtípus vagy -figura). Minden tervoldal végén, a startlap láblécében és a README-ben ott a nyilatkozat: „Nem hivatalos Minecraft-termék. Nem a Mojang vagy a Microsoft jóváhagyásával készült, és nem áll kapcsolatban velük.” A `--check` ellenőrzi.
 - Nincs `eval` és `new Function`. Felhasználói szöveg HTML-be csak escape-elve kerülhet.
 
 ## Új játék vagy módosítás: kötelező elemek
