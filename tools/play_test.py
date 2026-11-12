@@ -139,7 +139,8 @@ async def poke(page, mobile=False):
 # The reading games' saves are named here so they are always tested; other keys are found at run time.
 KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", "bringa-muhely:save", "bringa:own",
               "bringa:penz", "bringa-futam:best", "betu-csata:best", "bunyo:save", "csapda:save", "horda:save",
-              "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save"]
+              "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
+              "pasziansz:save"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -747,6 +748,88 @@ async def sc_maze_walk(page):
 
 MAZE = {"v": 1, "lvl": 1, "lives": 3, "score": 0, "seed": 12345, "px": 1, "py": 1, "time": 0.5, "got": [], "map": 0}
 
+
+def solitaire_save(game, **kv):
+    return save(**{"pasziansz:save": {"v": 1, "sound": False, "variant": "k1", **kv, "game": game}})
+
+
+def ksave(path):
+    return json.loads(path or "null")
+
+
+async def sc_solitaire_draw(page):
+    await page.locator('[data-v="k1"]').click()
+    await page.locator("#ov").wait_for(state="hidden", timeout=15000)
+    await page.wait_for_timeout(700)
+    g = (await page.evaluate("JSON.parse(localStorage.getItem('pasziansz:save'))"))["game"]
+    check(g and g["vid"] == "k1" and len(g["st"]["t"]) == 7 and g["ver"], f"a checked Klondike deal starts: {g and g['vid']}")
+    stock = len(g["st"]["s"])
+    await page.locator(".slot.stock").click(force=True)
+    await page.wait_for_timeout(400)
+    g2 = (await page.evaluate("JSON.parse(localStorage.getItem('pasziansz:save'))"))["game"]
+    check(len(g2["st"]["s"]) == stock - 1 and g2["mv"] == 1, f"a tap on the stock draws one card: {stock} -> {len(g2['st']['s'])}")
+    await page.locator("#undo").click()
+    await page.wait_for_timeout(300)
+    g3 = (await page.evaluate("JSON.parse(localStorage.getItem('pasziansz:save'))"))["game"]
+    check(len(g3["st"]["s"]) == stock and g3["mv"] == 0, "undo puts the card back")
+    await page.locator(".slot.stock").click(force=True)
+    await page.wait_for_timeout(300)
+    await page.reload()
+    await page.wait_for_timeout(500)
+    g4 = (await page.evaluate("JSON.parse(localStorage.getItem('pasziansz:save'))"))["game"]
+    check(await page.locator("#ov").is_hidden() and g4["seed"] == g["seed"] and len(g4["st"]["s"]) == stock - 1,
+          "the game comes back after a reload")
+    await page.keyboard.press("t")
+    await page.locator(".cd.hl, .slot.hl").first.wait_for(timeout=5000)
+
+
+# Klondike, one move from the end: the ♥ queen has to be dragged onto the ♣ king (automatic moves are off)
+NEAR_WIN = {"vid": "k1", "seed": 7, "ver": True, "mv": 40, "time": 95, "started": True, "hist": [],
+            "st": {"t": [[51], [24], [25], [], [], [], []], "d": [0] * 7,
+                   "f": [list(range(13)), list(range(13, 24)), list(range(26, 39)), list(range(39, 51))],
+                   "s": [], "w": [], "c": []}}
+
+
+async def sc_solitaire_win(page):
+    q = page.locator('.cd[data-id="24"]')
+    k = page.locator('.cd[data-id="51"]')
+    a, b = await q.bounding_box(), await k.bounding_box()
+    await page.mouse.move(a["x"] + a["width"] / 2, a["y"] + 10)
+    await page.mouse.down()
+    for i in range(1, 9):
+        await page.mouse.move(a["x"] + a["width"] / 2 + (b["x"] - a["x"]) * i / 8, a["y"] + 10 + (b["y"] + 25 - a["y"]) * i / 8)
+        await page.wait_for_timeout(20)
+    await page.mouse.up()
+    await page.locator("#ovc", has_text="Nyertél").wait_for(timeout=6000)
+    s = json.loads(await page.evaluate("localStorage.getItem('pasziansz:save')"))
+    check(s["stats"]["k1"]["w"] == 1 and s["game"] is None, f"the win is counted: {s['stats']}")
+    await page.locator('#ovc [data-a="again"]').click()
+    await page.locator("#ov").wait_for(state="hidden", timeout=15000)
+    s = json.loads(await page.evaluate("localStorage.getItem('pasziansz:save')"))
+    check(s["game"] and s["game"]["mv"] == 0, "New game deals a fresh game")
+
+
+async def sc_solitaire_stuck(page):
+    await page.locator('.cd[data-id="16"]').click()
+    await page.locator("#ovc", has_text="Elakadtál").wait_for(timeout=4000)
+    await page.locator('#ovc [data-a="undo"]').click()
+    await page.locator("#ov").wait_for(state="hidden", timeout=3000)
+    g = json.loads(await page.evaluate("localStorage.getItem('pasziansz:save')"))["game"]
+    check(g["st"]["t"][6][-1] == 16 and g["st"]["t"][0][-1] == 4, "undo in the stuck window takes the move back")
+
+
+def _stuck_deal():
+    """Klondike, stock empty: after the ♥4 goes onto the ♠5 only black cards are on top and nothing can move."""
+    tops = [4, 43, 8, 47, 10, 49]  # ♠5 ♣5 ♠9 ♣9 ♠J ♣J
+    rest = [c for c in range(52) if c not in tops + [16, 45]]
+    cols = [rest[k::7] for k in range(7)]
+    for k in range(6):
+        cols[k].append(tops[k])
+    cols[6] += [45, 16]  # ♣7 face down under the ♥4
+    return {"vid": "k1", "seed": 3, "ver": True, "mv": 5, "time": 20, "started": True, "hist": [],
+            "st": {"t": cols, "d": [len(c) - 1 for c in cols], "f": [[], [], [], []], "s": [], "w": [], "c": []}}
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -791,6 +874,11 @@ SCENARIOS = [
     ("e-utveszto", "E-Maze: the last life ends the game, New game restarts", sc_maze_over,
      save(**{"e-utveszto-save": {**MAZE, "lives": 1}})),
     ("e-utveszto", "E-Maze: the player moves and the save survives a reload", sc_maze_walk, None),
+    ("pasziansz", "Solitaire: a checked deal, drawing, undo, the game survives a reload, a hint", sc_solitaire_draw, None),
+    ("pasziansz", "Solitaire: dragging the last card wins, the win is counted, New game deals again", sc_solitaire_win,
+     solitaire_save(NEAR_WIN, auto=False)),
+    ("pasziansz", "Solitaire: when no move is left the stuck window comes, its undo takes the move back", sc_solitaire_stuck,
+     solitaire_save(_stuck_deal())),
 ]
 
 
@@ -915,6 +1003,72 @@ async def test_maze_generator(browser, quick):
             problems.append(f"e-utveszto level {lvl}: average {res['avg']:.0f} ms is too close to the {budget} ms budget")
         else:
             print(f"     e-utveszto level {lvl}: {k} mazes OK, average {res['avg']:.1f} ms, slowest {res['slowest']:.0f} ms")
+    await page.close()
+    return problems
+
+
+# ---------------------------------------------------------------- solitaire deals
+
+DEAL_CHECK = r"""
+({vid, runs}) => {
+  const E = engine(vid), S = E.S, R = E.R, red = c => S[c] === 1 || S[c] === 2;
+  const count = st => [...st.t.flat(), ...st.f.flat(), ...st.s, ...st.w, ...st.c.filter(c => c >= 0)];
+  let total = 0, slowest = 0, tries = 0;
+  for (let i = 0; i < runs; i++) {
+    const seed = (i * 2654435761 + 12345) >>> 0, t0 = performance.now(), g = generate(vid, seed), ms = performance.now() - t0;
+    total += ms; slowest = Math.max(slowest, ms);
+    if (!g) return {error: `run ${i+1}: no checked deal within the time budget`};
+    tries += g.tries;
+    let st = E.deal(g.seed), steps = 0;
+    const deal = count(st).sort((a, b) => a - b);
+    if (deal.length !== E.N || deal.some((c, k) => c !== k)) return {error: `run ${i+1}: the deal is not a full deck`};
+    // every step is checked here with the plain rules, not only by the game's own legal()
+    const step = m => {
+      steps++;
+      if (m.k === 'draw') { if (!E.canDraw(st)) throw 'a draw that is not allowed'; st = E.apply(st, m); return; }
+      if (!E.legal(st, m)) throw 'an illegal move';
+      const cards = E.cardsAt(st, m.src), base = cards[0];
+      if (m.src.p === 't' && m.src.j < st.d[m.src.i]) throw 'moved a face-down card';
+      if (m.to.p === 't') { const col = st.t[m.to.i], top = col[col.length - 1];
+        if (col.length ? R[top] !== R[base] + 1 || (E.type !== 'p' && red(top) === red(base)) : E.type === 'k' && R[base] !== 13) throw 'a wrong card on a column'; }
+      if (m.to.p === 'f' && (cards.length !== 1 || S[base] !== m.to.i || st.f[m.to.i].length !== R[base] - 1)) throw 'a wrong card on a foundation';
+      st = E.apply(st, m);
+      if (count(st).length !== E.N) throw 'a card was lost or doubled';
+    };
+    const safe = () => { let m; while ((m = E.safeMove(st))) step(m); };
+    try {
+      safe();
+      for (const mm of g.macro) { for (const m of E.expand(mm)) step(m); safe(); }
+      for (const m of E.finishMoves(st)) step(m);
+    } catch (e) { return {error: `run ${i+1} (seed ${g.seed}), step ${steps}: ${e}`}; }
+    if (!E.won(st)) return {error: `run ${i+1} (seed ${g.seed}): the solution does not win`};
+  }
+  return {avg: total/runs, slowest, tries: tries/runs};
+}
+"""
+
+
+async def test_card_deals(browser, quick):
+    problems = []
+    page = await browser.new_page()
+    html = (ROOT / "pasziansz" / "index.html").read_text(encoding="utf-8")
+    start = html.find("// ---------- Leosztás-generátor ----------")
+    if start < 0:
+        return ["pasziansz: generator section not found"]
+    src = html[start:html.find("// ----------", start + 10)]
+    budget = int(re.search(r"GEN_BUDGET_MS=(\d+)", src).group(1))
+    await page.set_content("<!doctype html><title>gen</title>")
+    await page.add_script_tag(content=src)
+    for vid in ["k1", "k3", "p1", "p2", "fc"]:
+        k = 6 if quick else 30
+        res = await page.evaluate(DEAL_CHECK, {"vid": vid, "runs": k})
+        if "error" in res:
+            problems.append(f"pasziansz {vid}: {res['error']}")
+        elif res["avg"] > budget / 4:
+            problems.append(f"pasziansz {vid}: average {res['avg']:.0f} ms is too close to the {budget} ms budget")
+        else:
+            print(f"     pasziansz {vid}: {k} deals won by the solver, average {res['avg']:.0f} ms, slowest {res['slowest']:.0f} ms, "
+                  f"{res['tries']:.1f} deals tried each")
     await page.close()
     return problems
 
@@ -1069,6 +1223,9 @@ async def main():
         if only in (None, "generators") and (not args or "e-utveszto" in args):
             print("== maze generator")
             report("maze generator", await test_maze_generator(browser, quick))
+        if only in (None, "generators") and (not args or "pasziansz" in args):
+            print("== solitaire deals (solver)")
+            report("solitaire deals", await test_card_deals(browser, quick))
         if only in (None, "generators") and (not args or "dobozmester" in args):
             print("== Sokoban levels (solver)")
             report("sokoban levels", test_sokoban_levels(quick))
