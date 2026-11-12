@@ -195,6 +195,11 @@ async def test_start_page(browser, base, games):
         for g in games:
             if not any(h.lstrip("./").startswith(f"{g}/") for h in hrefs):
                 problems.append(f"no link to {g}")
+        # every card shows its cover picture, and the pictures really load
+        covers = await r.page.locator("section:not(.fav):not(.recent) img.cover").evaluate_all(
+            "is => Promise.all(is.map(i => (i.loading = 'eager', i.decode().then(() => i.naturalWidth, () => 0))))")
+        if len(covers) != len(games) or 0 in covers:
+            problems.append(f"cover pictures: {len(covers)} cards with a picture of {len(games)}, {covers.count(0)} do not load")
         problems += r.errors + [f"request to another site: {u}" for u in r.external]
     # search: accent- and case-insensitive, Hungarian and English
     async with Run(browser, base) as r:
