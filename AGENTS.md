@@ -14,6 +14,7 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 
 ### Adatvédelem, nincs adatgyűjtés
 - **Nincs hálózati kérés a játékból:** nincs `fetch`, XHR, `sendBeacon`, WebSocket, külső API, analitika, hirdetés, követőpixel, süti.
+- **Offline tár (service worker), szűk kivétel:** csak két van, a közös `sw.js` a gyökérben (a startlap regisztrálja) és a Cornhole pontozó saját `sw.js`-e. Mindkettő csak a saját oldal előre felsorolt fájljait tárolja és szolgálja ki, más helyre nem kér és nem küld semmit, új változatra csak a felhasználó jóváhagyásával vált. A közös `sw.js` fájllistáját és verzióját a `tools/build_site.py` írja közzétételkor; a tárolóban a `FILES` és `CACHE` sor üres marad. Játékba ne tegyél service workert és ne regisztrálj; új kivételt csak a tulajdonos engedhet (`POLICY_ALLOW`, `CSP_EXTRA`).
 - **Nincs eszközhozzáférés:** kamera, mikrofon, helyzet és vágólap-olvasás nincs.
 - **Csak helyi mentés:** állás, rekord és beállítás csak a `localStorage`-ba kerülhet, a játék saját előtagjával (pl. `falbonto-save`). Minden olvasást és írást `try/catch` vesz körül, és a betöltött mentést mezőnként ellenőrizni kell. Sérült mentésnél új játék indul, nem omlik össze.
 - **Nincs személyes adat bekérése:** név, e-mail, kor, iskola nem kérhető. Ha a játék nevet kér (pl. ranglistához), az csak helyben tárolódhat.
@@ -56,9 +57,10 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 5. Ha bármit a `hidden` attribútummal rejtesz, kell a `[hidden]{display:none!important}` szabály. Enélkül a `display:grid/flex` felülírja, és a rejtett ablak mindig látszik.
 6. Álló telefonra készüljön (kb. 400×860), érintéssel játszható legyen. Oldalirányú görgetés nincs, minden gomb a képernyőn belül marad. Gépen egér vagy billentyű is működjön.
 7. A README táblázatába új sor kell a játékkal (magyar leírás).
-8. Ha a játék a közös olvasásfejlesztő rendszert használja (rang, XP, felolvasó súgó), a meglévő játékokból vedd át, ne írj újat.
-9. A több játékba bemásolt közös kód (`/* @shared név */ … /* @end név */` közötti blokk, pl. `olvaso-kit`, `terv-nezegeto`) mintapéldánya a `tools/shared/<név>.js`. Ezt javítsd, utána futtasd a `python3 tools/sync_shared.py` parancsot, amely minden játékba bemásolja. A `--check` leáll, ha egy játék blokkja eltér a mintától.
-10. Új akciójátékba tedd be a `gamepad` közös blokkot (kontroller: a kar és a gombok billentyűkké fordulnak, menüben a gombok között lép). A játék billentyűzetkezelése maradjon a megszokott: nyilak, szóköz, J/K/L, Escape szünet.
+8. Borítókép a startlap kártyájához: `python3 tools/make_covers.py <mappa>` → `assets/covers/<mappa>.webp` (400×240, 40 KB alatt). Nézd meg a képet; ha üres vagy rossz pillanatot mutat (menü, játék vége), állítsd be a szkript `SHOTS` táblázatában. A `--check` leáll, ha hiányzik. Oldalikont és megosztási metát (`og:*`) ne írj a játékba, ezeket a `build_site.py` teszi be közzétételkor.
+9. Ha a játék a közös olvasásfejlesztő rendszert használja (rang, XP, felolvasó súgó), a meglévő játékokból vedd át, ne írj újat.
+10. A több játékba bemásolt közös kód (`/* @shared név */ … /* @end név */` közötti blokk, pl. `olvaso-kit`, `terv-nezegeto`) mintapéldánya a `tools/shared/<név>.js`. Ezt javítsd, utána futtasd a `python3 tools/sync_shared.py` parancsot, amely minden játékba bemásolja. A `--check` leáll, ha egy játék blokkja eltér a mintától.
+11. Új akciójátékba tedd be a `gamepad` közös blokkot (kontroller: a kar és a gombok billentyűkké fordulnak, menüben a gombok között lép). A játék billentyűzetkezelése maradjon a megszokott: nyilak, szóköz, J/K/L, Escape szünet.
 
 ## Kötelező ellenőrzés commit és push előtt
 

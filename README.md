@@ -45,6 +45,10 @@ Az akciójátékok kontrollerrel (gamepad) is játszhatók gépen és Androidon:
 
 Minden oldal Content-Security-Policy szabályt hordoz, így a böngésző maga tiltja le, ha egy oldal mégis más helyre próbálna kérést küldeni.
 
+**Internet nélkül:** a startlap első megnyitásakor a böngésző eltárolja az oldal saját fájljait (startlap, játékok, betűtípusok, borítóképek; a `sw.js` service worker). Utána a startlap és minden játék internet nélkül is indul, telefonon a kezdőképernyőre is tehető. Más helyről semmit nem tárol és nem kér le. Ha új változat jelenik meg, a startlap alján egy **Frissítés** gomb kínálja fel; addig a régi marad. A Cornhole pontozónak ehhez saját service workere van.
+
+A startlap kártyáin a játékból készült kis borítókép látszik (`assets/covers/`).
+
 Futtatás helyben: nyisd meg a gyökérben lévő `index.html`-t, vagy egy játék mappájában lévő `index.html`-t a böngészőben.
 
 ### Új játék hozzáadása
@@ -58,7 +62,8 @@ Futtatás helyben: nyisd meg a gyökérben lévő `index.html`-t, vagy egy ját�
    <meta name="games:title-en" content="English name">
    <meta name="games:description-en" content="Short English description">
    ```
-3. Push a `main` ágra. A GitHub Actions újraépíti a startlapot és közzéteszi az oldalt. Ha a játékban nincs „← Összes játék” gomb, a közzétételkor automatikusan kap egyet.
+3. Készíts borítóképet: `python3 tools/make_covers.py uj-jatek` (az `assets/covers/uj-jatek.webp` lesz, nézd meg, és ha rossz pillanatot fotózott, állítsd be a szkript `SHOTS` táblázatában).
+4. Push a `main` ágra. A GitHub Actions újraépíti a startlapot és közzéteszi az oldalt. Ha a játékban nincs „← Összes játék” gomb, a közzétételkor automatikusan kap egyet. Közzétételkor minden oldal oldalikont és megosztási adatokat (`og:title`, `og:image`) kap, az offline tár (`sw.js`) pedig megkapja a fájllistát.
 
 Helyben a listát a `python3 tools/build_site.py` frissíti a startlapon. Commit előtt kötelező a `python3 tools/build_site.py --check` és a `python3 tools/smoke_test.py`. A szabályokat az [AGENTS.md](AGENTS.md) írja le, a fejlesztő MI-ügynökök ezt követik.
 
@@ -90,7 +95,9 @@ The games themselves are in Hungarian. See the table above for the list. Bike Sh
 
 **Search, Favourites, Continue:** the start page has a search box (names and descriptions, accents optional, Hungarian and English), then a Favourites shelf: tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them. A Continue shelf shows the last 3 games you opened. Both lists stay only in your browser (`localStorage`). The action games also work with a game controller on desktop and Android (stick or d-pad moves, A fires or jumps, Start pauses, menus are navigated with the stick). Every page carries a Content-Security-Policy, so the browser itself blocks any request to another site.
 
-**Adding a game:** create a folder with an `index.html`, add the `<head>` tags shown above, and push to `main`. The GitHub Actions workflow rebuilds the start page and deploys the site. Pages without a back button get one added on deploy.
+**Offline:** the first visit to the start page stores the site's own files (start page, games, fonts, cover pictures) with a service worker (`sw.js`); after that the start page and every game also open without internet, and the site can be added to a phone's home screen. Nothing from other sites is stored or requested. A new version is offered with an **Update** button at the bottom of the start page. The cards show a small cover picture of each game (`assets/covers/`).
+
+**Adding a game:** create a folder with an `index.html`, add the `<head>` tags shown above, make a cover picture with `python3 tools/make_covers.py <folder>`, and push to `main`. The GitHub Actions workflow rebuilds the start page and deploys the site. Pages without a back button get one added on deploy.
 
 **Tests:** every push and pull request runs browser tests (Playwright) on every game, desktop and touch, including broken saved data and checks that nothing is requested from other sites; scenario tests that play part of each reading game and check the result; and a regression test that generates hundreds of Gyémántbánya and Kincsvadász levels and checks each has exactly one solution. The site is deployed only when all tests pass. Run locally with `pip install playwright && python3 -m playwright install chromium`, then `python3 tools/play_test.py`.
 

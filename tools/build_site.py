@@ -15,7 +15,13 @@ Usage:
   python3 tools/build_site.py --check      # also run the policy check (AGENTS.md) and the script syntax check
   python3 tools/build_site.py --out _site  # check, then copy a deployable site to _site/
                                            # (only '_site' inside the repo is accepted)
+
+Every game needs a cover picture, assets/covers/<folder>.webp (make it with tools/make_covers.py).
+The published copy also gets a page icon and share tags (og:*) on every page, and the offline cache
+(sw.js) gets its file list and version.
 """
+import hashlib
+import html
 import json
 import re
 import shutil
@@ -27,6 +33,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKIP = {"tools", "assets", "_site"}
+SITE = "https://nomadbeni.github.io/minigames/"
+COVERS = ROOT / "assets" / "covers"
+COVER_MAX_BYTES = 40_000
+# Apps with an offline cache of their own; the site-wide one (sw.js) leaves them alone.
+OWN_WORKER = {"cornholescore"}
 HOME_LINK = (
     '<a class="home-link" href="../index.html" style="display:inline-flex;'
     'align-self:flex-start;width:fit-content;align-items:center;gap:6px;'
@@ -93,6 +104,7 @@ def collect():
             "title_en": m.get("games:title-en") or title,
             "desc": m.get("description", ""),
             "desc_en": m.get("games:description-en") or m.get("description", ""),
+            "cover": (COVERS / f"{d.name}.webp").exists(),
         })
     return games
 
@@ -107,7 +119,7 @@ def write_index(games):
         src, count=1, flags=re.S,
     )
     if new != src:
-        index.write_text(new, encoding="utf-8")
+        index.write_text(new, encoding="utf-8", newline="\n")
 
 
 def safe_out(out):
@@ -163,6 +175,8 @@ POLICY = [
 POLICY_ALLOW = {
     ("cornholescore/index.html", "service worker"): "installable offline app, caches only its own files (sw.js)",
     ("cornholescore/sw.js", "service worker"): "the offline cache itself, it requests nothing from other sites",
+    ("index.html", "service worker"): "registers the site-wide offline cache (sw.js) and offers its updates",
+    ("sw.js", "service worker"): "the site-wide offline cache: only this site's own, listed files",
 }
 
 # Every page carries this Content-Security-Policy, so the browser itself blocks requests to other sites.
@@ -176,6 +190,7 @@ CSP_EXTRA = {
     "kincsvadasz/index.html": {"style-src": "https://fonts.googleapis.com", "font-src": "https://fonts.gstatic.com"},
     "betubanya/index.html": {"style-src": "https://fonts.googleapis.com", "font-src": "https://fonts.gstatic.com"},
     "cornholescore/index.html": {"worker-src": "'self'", "manifest-src": "'self'"},
+    "index.html": {"worker-src": "'self'", "manifest-src": "'self'"},
 }
 
 
@@ -243,10 +258,26 @@ def check_policy():
     import sync_shared
     for rel, name, msg in sync_shared.differences():
         errors.append(f"{rel}: shared block '{name}': {msg} (fix the master copy, then run tools/sync_shared.py)")
+    # Every game has a small cover picture for its start page card, and no cover is left over.
+    folders = {g["slug"] for g in collect()}
+    for slug in sorted(folders):
+        f = COVERS / f"{slug}.webp"
+        if not f.exists():
+            errors.append(f"assets/covers/{slug}.webp: missing cover picture (run: python3 tools/make_covers.py {slug})")
+        elif f.stat().st_size > COVER_MAX_BYTES:
+            errors.append(f"assets/covers/{slug}.webp: {f.stat().st_size // 1000} KB, keep it under {COVER_MAX_BYTES // 1000} KB")
+        elif f.read_bytes()[:4] != b"RIFF" or f.read_bytes()[8:12] != b"WEBP":
+            errors.append(f"assets/covers/{slug}.webp: not a WebP picture")
+    for f in sorted(COVERS.glob("*")):
+        if f.stem not in folders or f.suffix != ".webp":
+            errors.append(f"assets/covers/{f.name}: no game folder of that name")
+    # The offline cache must keep its placeholders: the file list and the version are written when publishing.
+    sw = (ROOT / "sw.js").read_text(encoding="utf-8")
+    if not re.search(SW_FILES, sw) or not re.search(SW_CACHE, sw):
+        errors.append("sw.js: the FILES or CACHE line is missing (build_site.py fills them in when publishing)")
     # The README table lists exactly the game folders.
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     listed = set(re.findall(r"^\|\s*\[[^\]]+\]\(([a-z0-9-]+)/\)\s*\|", readme, re.M))
-    folders = {g["slug"] for g in collect()}
     for slug in sorted(folders - listed):
         errors.append(f"README.md: the game table has no row for {slug}/")
     for slug in sorted(listed - folders):
@@ -254,6 +285,63 @@ def check_policy():
     if errors:
         print("Policy check failed:\n  " + "\n  ".join(errors))
         sys.exit(1)
+
+
+ICON = ("data:image/svg+xml," + (ROOT / "assets" / "icon.svg").read_text(encoding="utf-8").strip()
+        .replace("#", "%23").replace('"', "'").replace("<", "%3C").replace(">", "%3E"))
+SW_FILES = r"var FILES = \[[^\n]*\];"
+SW_CACHE = r"var CACHE = '[^'\n]*';"
+
+
+def head_extras(page, rel):
+    """Page icon and share tags for a published page, made from its own <head> (skipped where the page has its own)."""
+    src = page.read_text(encoding="utf-8")
+    r = read_page(page)
+    folder = rel.split("/")[0] if "/" in rel else ""
+    url = SITE + (folder + "/" if folder else "")
+    has_cover = folder and (COVERS / f"{folder}.webp").exists()
+    image = SITE + (f"assets/covers/{folder}.webp" if has_cover else "assets/icon-512.png")
+    tags = []
+    if 'rel="icon"' not in src:
+        tags.append(f'<link rel="icon" href="{ICON}">')
+    if 'property="og:' not in src:
+        def e(v):
+            return html.escape(v.strip(), quote=True)
+        tags += [
+            '<meta property="og:type" content="website">',
+            f'<meta property="og:title" content="{e(r.title)}">',
+            f'<meta property="og:description" content="{e(r.meta.get("description", ""))}">',
+            f'<meta property="og:url" content="{url}">',
+            f'<meta property="og:image" content="{image}">',
+            '<meta name="twitter:card" content="' + ("summary_large_image" if has_cover else "summary") + '">',
+        ]
+    if tags and "</head>" in src:
+        page.write_text(src.replace("</head>", "\n".join(tags) + "\n</head>", 1), encoding="utf-8", newline="\n")
+
+
+def offline_files(out):
+    """Everything the site-wide offline cache stores: the start page, the icons, the fonts, the covers and
+    every game page (not the apps with an offline cache of their own)."""
+    files = ["index.html", "manifest.json", "assets/icon.svg", "assets/icon-192.png", "assets/icon-512.png"]
+    files += sorted(f.relative_to(out).as_posix() for f in (out / "assets" / "fonts").glob("*")
+                    if f.suffix in {".css", ".woff2"})
+    files += sorted(f.relative_to(out).as_posix() for f in (out / "assets" / "covers").glob("*.webp"))
+    files += sorted(p.relative_to(out).as_posix() for p in out.glob("*/index.html")
+                    if p.parent.name not in SKIP | OWN_WORKER)
+    return files
+
+
+def write_worker(out):
+    """Fills in the offline cache's file list, and a version that changes whenever any listed file changes."""
+    files = offline_files(out)
+    digest = hashlib.sha256()
+    for f in files:
+        digest.update(f.encode() + b"\0" + (out / f).read_bytes())
+    sw = out / "sw.js"
+    src = sw.read_text(encoding="utf-8")
+    src = re.sub(SW_FILES, lambda m: "var FILES = " + json.dumps(files) + ";", src, count=1)
+    src = re.sub(SW_CACHE, lambda m: f"var CACHE = 'jatektar-{digest.hexdigest()[:12]}';", src, count=1)
+    sw.write_text(src, encoding="utf-8", newline="\n")
 
 
 def build_site(out):
@@ -278,7 +366,11 @@ def build_site(out):
                 "left:calc(8px + env(safe-area-inset-left,0px));margin:0;"
                 "background:rgba(20,20,30,.7);color:#fff;"
             ) + src[m.end():]
-            page.write_text(src, encoding="utf-8")
+            page.write_text(src, encoding="utf-8", newline="\n")
+    for page in [out / "index.html", out / "404.html"] + sorted(out.glob("*/index.html")):
+        if page.exists():
+            head_extras(page, page.relative_to(out).as_posix())
+    write_worker(out)
 
 
 if __name__ == "__main__":
