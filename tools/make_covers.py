@@ -46,6 +46,7 @@ SHOTS = {
     "cornholescore": {"poke": False, "area": "body", "align": "top",
                       "js": "document.querySelector('.top-bar').style.display = 'none'"},
     "kertvedo": {"wait": 9000},
+    "pasziansz": {"poke": False, "clicks": ['[data-v="k1"]'], "area": "#board", "align": "top", "wait": 2500},
     **{g: PLAN for g in ["coloptorony", "feketevar-lovagerod", "hegyormi-var", "kokastely-arokkal", "rejtekhaz",
                          "sasfeszek-sziklavar", "tundervar"]},
 }

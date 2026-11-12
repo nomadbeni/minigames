@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pasziánsz</title>
+<meta name="description" content="Kártyás türelemjáték öt változatban: Klondike 1 vagy 3 lap húzással, Pók 1 vagy 2 színnel és Szabadcella. Minden leosztást a gép előre végigjátszik, így mindegyik megoldható. Koppintásra a lap magától a jó helyre megy, korlátlan visszavonás és tipp.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Solitaire">
+<meta name="games:description-en" content="Patience card game in five versions: Klondike with draw one or draw three, Spider with one or two suits, and FreeCell. Every deal is played through by the computer first, so all of them can be won. Tap a card to send it to the right place, unlimited undo and hints. Hungarian.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Felépítés: vissza gomb, kijelző (változat, idő, lépés), üzenetsor, kártyaasztal, alsó gombsor, felugró ablak */
+:root{
+  --bg:#0d2a1d; --felt:#17603f; --felt2:#0f4630; --panel:#123a28; --panel2:#1a4d36; --line:#2f6e50; --fg:#f2fff6; --muted:#b5d6c2;
+  --accent:#ffd34d; --ok:#5fe08a; --bad:#ff7b7b;
+  --font:"Lexend","Verdana",system-ui,sans-serif; --disp:"Chakra Petch","Lexend",system-ui,sans-serif; --title:"Bungee","Chakra Petch",system-ui,sans-serif; color-scheme:dark;
+  --cw:50px; --ch:70px; --fs:18px;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px);background:var(--bg)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:6px;max-width:900px;margin:0 auto;padding-block:8px;padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.hud{display:flex;align-items:center;gap:6px;min-width:0}
+.chip{display:inline-flex;align-items:baseline;gap:5px;padding:7px 9px;border-radius:9px;background:var(--panel);border:1px solid var(--line);font:700 15px/1 var(--disp);white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--fg)}
+.chip small{font:600 11px/1 var(--disp);color:var(--muted);letter-spacing:.06em}
+button.chip{cursor:pointer;min-height:44px;align-items:center;font:700 15px/1.1 var(--font);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sp{flex:1;min-width:0}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#msg{min-height:22px;text-align:center;font:600 16px/1.3 var(--font);color:var(--muted);transition:opacity .3s}
+#msg.warn{color:var(--bad)}
+#msg.good{color:var(--ok)}
+#msg.tip{color:var(--accent)}
+#board{flex:1;min-height:0;position:relative;touch-action:none;border-radius:14px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 35%,var(--felt) 0%,var(--felt2) 100%);box-shadow:inset 0 0 0 2px #0a3524,inset 0 6px 30px rgba(0,0,0,.35)}
+.bar{display:flex;gap:8px}
+.bar button{flex:1;min-height:52px;border-radius:12px;border:2px solid var(--line);background:var(--panel);color:var(--fg);font:700 16px/1.1 var(--font);cursor:pointer;padding:4px 6px}
+.bar button:active{background:var(--panel2);border-color:var(--accent)}
+.bar button:disabled{opacity:.4;cursor:default}
+.bar b{font-size:20px;margin-right:4px}
+/* Lapok */
+.slot{position:absolute;left:0;top:0;border-radius:calc(var(--cw)*.12);border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;
+  color:rgba(255,255,255,.35);font:700 calc(var(--cw)*.5)/1 var(--font);pointer-events:none}
+.slot.stock{pointer-events:auto;cursor:pointer;border-style:solid}
+.slot small{font-size:calc(var(--cw)*.24);text-align:center;line-height:1.1}
+.cd{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.12);background:#fffdf6;border:1px solid #a9a194;
+  box-shadow:0 1px 3px rgba(0,0,0,.4);color:#16161d;transition:transform .2s ease;will-change:transform;cursor:pointer;touch-action:none}
+.cd.red{color:#cf1d2a}
+.cd .rk{position:absolute;left:calc(var(--fs)*.12);top:calc(var(--fs)*.06);font:700 var(--fs)/1 var(--font);letter-spacing:-.06em}
+.cd .su{position:absolute;right:calc(var(--fs)*.12);top:calc(var(--fs)*.1);font:400 calc(var(--fs)*.9)/1 "Segoe UI Symbol","DejaVu Sans",sans-serif}
+.cd .bg{position:absolute;left:0;right:0;bottom:6%;text-align:center;font:400 calc(var(--cw)*.62)/1 "Segoe UI Symbol","DejaVu Sans",sans-serif}
+.cd .fc{position:absolute;left:0;right:0;bottom:8%;text-align:center;font:700 calc(var(--cw)*.42)/1 var(--title);opacity:.9}
+.cd.down{background:#2c5fa6;border:2px solid #f4f0e6;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px),repeating-linear-gradient(-45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px)}
+.cd.down>*{display:none}
+#board.nt .cd{transition:none}
+.cd.drag{transition:none;box-shadow:0 8px 18px rgba(0,0,0,.5)}
+.cd.hl{outline:3px solid var(--accent);outline-offset:1px;animation:pulse .7s ease-in-out infinite alternate}
+.cd.tg,.slot.tg{outline:3px solid var(--ok);outline-offset:1px}
+.cd.kb,.slot.kb{outline:3px solid #6cc4ff;outline-offset:2px}
+.slot.hl{outline:3px solid var(--accent);outline-offset:1px;animation:pulse .7s ease-in-out infinite alternate}
+@keyframes pulse{from{outline-color:var(--accent)}to{outline-color:rgba(255,211,77,.25)}}
+.cd.no{animation:no .3s}
+@keyframes no{0%,100%{margin-left:0}25%{margin-left:-5px}75%{margin-left:5px}}
+.cd.hop{animation:hop .6s ease-in-out infinite alternate}
+@keyframes hop{from{margin-top:0}to{margin-top:-14px}}
+.conf{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;pointer-events:none;animation:fall linear forwards;z-index:4000}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+@media (prefers-reduced-motion:reduce){.cd{transition:none}.cd.hl,.slot.hl,.cd.hop{animation:none}.conf{display:none}}
+/* Felugró ablak */
+#ov{position:fixed;inset:0;z-index:2000;background:rgba(3,14,9,.78);display:grid;place-items:center;padding:12px}
+#ovc{width:min(440px,100%);max-height:calc(100% - 8px);overflow:auto;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+#ovc h2{margin:0 0 4px;font:400 26px/1.15 var(--title);color:var(--accent);text-align:center}
+#ovc p{margin:6px 0;font:400 16px/1.45 var(--font);color:var(--fg)}
+#ovc .sub{color:var(--muted);text-align:center}
+.vars{display:grid;gap:8px;margin:10px 0}
+.var{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;text-align:left;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer;min-height:56px}
+.var b{font:700 17px/1.2 var(--font)}
+.var span{grid-column:1;font:400 14px/1.3 var(--font);color:var(--muted)}
+.var em{grid-column:2;grid-row:1/3;font:700 13px/1.2 var(--disp);font-style:normal;color:var(--muted);text-align:right}
+.var.hot{border-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{flex:1;min-height:48px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--fg);font:700 16px/1.2 var(--font);cursor:pointer;padding:6px 10px}
+.btn.hot{background:var(--accent);color:#1d1600;border-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0;text-align:center}
+.stats div{background:var(--panel2);border-radius:10px;padding:8px 4px;font:700 20px/1.1 var(--disp)}
+.stats small{display:block;font:600 12px/1.2 var(--font);color:var(--muted);margin-top:3px}
+.rules{padding-left:20px;margin:6px 0}
+.rules li{margin:5px 0;font:400 16px/1.45 var(--font)}
+.spin{width:38px;height:38px;margin:12px auto;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:430px){.hud{gap:4px}.chip{padding:6px 6px;font-size:14px;gap:3px}.chip small{font-size:9px}button.chip{font-size:14px}.bar button{font-size:15px}}
+/* Fekvő telefon: jobb oldalt egy oszlopban a kijelző és a gombok, balra a kártyaasztal */
+@media (orientation:landscape) and (max-height:560px){
+  #app{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) 150px;grid-template-rows:auto auto minmax(0,1fr);gap:4px 8px;padding-block:4px}
+  .top-bar{grid-column:1;grid-row:1}
+  .hud{grid-column:2;grid-row:1/3;flex-direction:column;align-items:stretch;gap:4px}
+  .hud .sp{display:none}
+  #msg{grid-column:1;grid-row:2;min-height:18px;font-size:14px}
+  #board{grid-column:1;grid-row:3}
+  .bar{grid-column:2;grid-row:3;flex-direction:column;justify-content:flex-end}
+  .bar button{flex:none;min-height:46px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <button type="button" class="chip" id="varBtn" aria-label="Játék választása">Pasziánsz</button>
+    <span class="sp"></span>
+    <span class="chip"><small>IDŐ</small><b id="time">0:00</b></span>
+    <span class="chip"><small>LÉPÉS</small><b id="moves">0</b></span>
+  </div>
+  <div id="msg" aria-live="polite"></div>
+  <div id="board" aria-label="Kártyaasztal"></div>
+  <div class="bar">
+    <button type="button" id="undo" aria-label="Visszavonás"><b>↶</b>Vissza</button>
+    <button type="button" id="hint" aria-label="Tipp"><b>★</b>Tipp</button>
+    <button type="button" id="menuBtn" aria-label="Menü"><b>☰</b>Menü</button>
+  </div>
+</div>
+<div id="ov" hidden><div id="ovc" role="dialog" aria-modal="true"></div></div>
+<script>
+// ---------- Leosztás-generátor ----------
+/* Szabálymotor, megoldó és leosztás-generátor. Nem nyúl a DOM-hoz, így a játéktesztben külön is futtatható.
+   Lapok: azonosító 0..n-1, a színt (S) és az értéket (R) a változat paklija adja. Szín: 0 ♠, 1 ♥, 2 ♦, 3 ♣.
+   Állás: t oszlopok (alul az első), d oszloponként a lefordított lapok száma, f alapok (Klondike, Szabadcella:
+   színenként egy-egy sor; Pók: a kész sorok), s húzópakli (a vége a teteje), w dobott lapok, c szabad cellák (-1 üres). */
+const GEN_BUDGET_MS=8000;
+const VARIANTS={
+  k1:{name:'Klondike, 1 lap',type:'k',draw:1,cols:7},
+  k3:{name:'Klondike, 3 lap',type:'k',draw:3,cols:7},
+  p1:{name:'Pók, 1 szín',type:'p',suits:1,cols:10},
+  p2:{name:'Pók, 2 szín',type:'p',suits:2,cols:10},
+  fc:{name:'Szabadcella',type:'f',cols:8}
+};
+function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
+function engine(vid){
+  const v=VARIANTS[vid],type=v.type,S=[],R=[];
+  if(type==='p'){for(let k=0;k<8;k++)for(let r=1;r<=13;r++){S.push(v.suits===1?0:(k<4?0:1));R.push(r)}}
+  else for(let s=0;s<4;s++)for(let r=1;r<=13;r++){S.push(s);R.push(r)}
+  const N=S.length,red=c=>S[c]===1||S[c]===2;
+  const E={vid,v,type,S,R,N,red};
+  const top=a=>a[a.length-1];
+  // b-re (alatta lévő lapra) tehető-e a
+  const onto=E.onto=(a,b)=>R[b]===R[a]+1&&(type==='p'||red(a)!==red(b));
+  // a t oszlop j-edik lapjától induló sor egyben mozgatható-e (szabályos sor)
+  const runOk=E.runOk=(col,j)=>{for(let i=j+1;i<col.length;i++){const a=col[i],b=col[i-1];if(R[b]!==R[a]+1)return false;if(type==='p'?S[a]!==S[b]:red(a)===red(b))return false}return true};
+  E.deal=function(seed){
+    const r=rng(seed),p=[];for(let i=0;i<N;i++)p.push(i);
+    for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1)),x=p[i];p[i]=p[j];p[j]=x}
+    const st={t:[],d:[],f:[],s:[],w:[],c:[]};let k=0;
+    for(let i=0;i<v.cols;i++){st.t.push([]);st.d.push(0)}
+    if(type==='k'){for(let i=0;i<7;i++){for(let j=0;j<=i;j++)st.t[i].push(p[k++]);st.d[i]=i}st.s=p.slice(k);st.f=[[],[],[],[]]}
+    else if(type==='p'){for(let i=0;i<54;i++)st.t[i%10].push(p[k++]);for(let i=0;i<10;i++)st.d[i]=st.t[i].length-1;st.s=p.slice(k)}
+    else{for(let i=0;i<52;i++)st.t[i%8].push(p[k++]);st.f=[[],[],[],[]];st.c=[-1,-1,-1,-1]}
+    return st;
+  };
+  const clone=E.clone=st=>({t:st.t.slice(),d:st.d.slice(),f:st.f.slice(),s:st.s,w:st.w,c:st.c.slice()});
+  E.copy=st=>({t:st.t.map(a=>a.slice()),d:st.d.slice(),f:st.f.map(a=>a.slice()),s:st.s.slice(),w:st.w.slice(),c:st.c.slice()});
+  E.won=st=>type==='p'?st.f.length===8:st.f.every(a=>a.length===13);
+  E.free=st=>{let c=0,e=0;for(const x of st.c)if(x<0)c++;for(const a of st.t)if(!a.length)e++;return{c,e}};
+  // Szabadcellában egyszerre ennyi lapot lehet átrakni (üres cellák és oszlopok segítségével)
+  E.maxMove=(st,toEmpty)=>{const q=E.free(st);return(q.c+1)*Math.pow(2,Math.max(0,q.e-(toEmpty?1:0)))};
+  // Honnan mennyi lap mozdítható: {p:'t',i,j} | {p:'w'} | {p:'c',i} | {p:'f',i}
+  E.cardsAt=(st,src)=>src.p==='t'?st.t[src.i].slice(src.j):src.p==='w'?[top(st.w)]:src.p==='c'?[st.c[src.i]]:[top(st.f[src.i])];
+  E.canPick=(st,src)=>{
+    if(src.p==='t'){const col=st.t[src.i];return src.j>=st.d[src.i]&&src.j<col.length&&runOk(col,src.j)}
+    if(src.p==='w')return type==='k'&&st.w.length>0;
+    if(src.p==='c')return type==='f'&&st.c[src.i]>=0;
+    if(src.p==='f')return type!=='p'&&st.f[src.i]&&st.f[src.i].length>0;
+    return false;
+  };
+  // Szabályos-e a lépés: m={src, to:{p:'t'|'f'|'c', i}}
+  E.legal=(st,m)=>{
+    if(!E.canPick(st,m.src))return false;
+    const cards=E.cardsAt(st,m.src),base=cards[0],n=cards.length,to=m.to;
+    if(to.p==='f'){if(type==='p'||n!==1||m.src.p==='f')return false;return S[base]===to.i&&st.f[to.i].length===R[base]-1}
+    if(to.p==='c'){return type==='f'&&n===1&&m.src.p!=='c'&&st.c[to.i]<0}
+    if(to.p==='t'){
+      if(m.src.p==='t'&&m.src.i===to.i)return false;
+      const col=st.t[to.i];
+      if(type==='f'&&n>E.maxMove(st,!col.length))return false;
+      if(!col.length)return type!=='k'||R[base]===13;
+      return onto(base,top(col));
+    }
+    return false;
+  };
+  function settle(st,i){ // lefordított lap felfordítása, a Pókban a kész sor leemelése
+    const col=st.t[i];
+    if(type==='p'&&col.length>=13&&R[top(col)]===1){
+      const j=col.length-13;
+      if(j>=st.d[i]&&R[col[j]]===13&&runOk(col,j)){st.f=st.f.concat([col.slice(j)]);st.t[i]=col.slice(0,j)}
+    }
+    if(st.d[i]>0&&st.d[i]>=st.t[i].length)st.d[i]=st.t[i].length-1;
+  }
+  // Lépés végrehajtása: új állást ad vissza, a régit nem módosítja
+  E.apply=(st0,m)=>{
+    const st=clone(st0);
+    if(m.k==='draw'){
+      if(type==='k'){
+        if(st.s.length){const n=Math.min(v.draw,st.s.length),s=st.s.slice(),w=st.w.slice();for(let i=0;i<n;i++)w.push(s.pop());st.s=s;st.w=w}
+        else{st.s=st.w.slice().reverse();st.w=[]}
+      }else if(type==='p'){
+        const s=st.s.slice();for(let i=0;i<10&&s.length;i++){st.t[i]=st.t[i].concat([s.pop()])}st.s=s;
+        for(let i=0;i<10;i++)settle(st,i);
+      }
+      return st;
+    }
+    let cards;const src=m.src,to=m.to;
+    if(src.p==='t'){const col=st.t[src.i];cards=col.slice(src.j);st.t[src.i]=col.slice(0,src.j)}
+    else if(src.p==='w'){cards=[top(st.w)];st.w=st.w.slice(0,-1)}
+    else if(src.p==='c'){cards=[st.c[src.i]];st.c[src.i]=-1}
+    else{cards=[top(st.f[src.i])];st.f[src.i]=st.f[src.i].slice(0,-1)}
+    if(to.p==='t')st.t[to.i]=st.t[to.i].concat(cards);
+    else if(to.p==='f')st.f[to.i]=st.f[to.i].concat(cards);
+    else st.c[to.i]=cards[0];
+    if(src.p==='t')settle(st,src.i);
+    if(to.p==='t')settle(st,to.i);
+    return st;
+  };
+  E.canDraw=st=>type==='k'?st.s.length+st.w.length>0:type==='p'?st.s.length>0&&st.t.every(a=>a.length>0):false;
+  // Biztos lépés az alapra: ami biztosan nem kell már a játékban (mindkét ellenkező színű eggyel kisebb lap fent van)
+  E.safeMove=st=>{
+    if(type==='p')return null;
+    const ok=c=>{const r=R[c];if(st.f[S[c]].length!==r-1)return false;if(r<=2)return true;
+      const o=red(c)?[0,3]:[1,2];return st.f[o[0]].length>=r-1&&st.f[o[1]].length>=r-1};
+    for(let i=0;i<st.t.length;i++){const col=st.t[i];if(col.length&&col.length>st.d[i]&&ok(top(col)))return{src:{p:'t',i,j:col.length-1},to:{p:'f',i:S[top(col)]}}}
+    if(type==='k'&&st.w.length&&ok(top(st.w)))return{src:{p:'w'},to:{p:'f',i:S[top(st.w)]}};
+    if(type==='f')for(let i=0;i<4;i++){const c=st.c[i];if(c>=0&&ok(c))return{src:{p:'c',i},to:{p:'f',i:S[c]}}}
+    return null;
+  };
+  E.autoSafe=(st,list)=>{let m;while((m=E.safeMove(st))){if(list)list.push(m);st=E.apply(st,m)}return st};
+  // Befejezhető-e gondolkodás nélkül (minden lap látszik és sorban van)
+  E.finishable=st=>{
+    if(type==='p')return false;
+    if(type==='k'&&(st.s.length||st.w.length))return false;
+    for(let i=0;i<st.t.length;i++){if(st.d[i]>0)return false;const col=st.t[i];for(let j=1;j<col.length;j++)if(R[col[j]]>=R[col[j-1]])return false}
+    return true;
+  };
+  // A befejezés lépései: mindig a legkisebb lapot teszi fel
+  E.finishMoves=st=>{
+    const out=[];let guard=0;
+    while(!E.won(st)&&guard++<60){
+      let best=null,br=99;
+      for(let i=0;i<st.t.length;i++){const col=st.t[i];if(col.length){const c=top(col);if(R[c]<br&&st.f[S[c]].length===R[c]-1){br=R[c];best={src:{p:'t',i,j:col.length-1},to:{p:'f',i:S[c]}}}}}
+      for(let i=0;i<st.c.length;i++){const c=st.c[i];if(c>=0&&R[c]<br&&st.f[S[c]].length===R[c]-1){br=R[c];best={src:{p:'c',i},to:{p:'f',i:S[c]}}}}
+      if(type==='k'&&st.w.length){const c=top(st.w);if(R[c]<br&&st.f[S[c]].length===R[c]-1)best={src:{p:'w'},to:{p:'f',i:S[c]}}}
+      if(!best)break;out.push(best);st=E.apply(st,best);
+    }
+    return out;
+  };
+  // Hasznos lépések (a céltalan ide-oda rakosgatás nélkül). Klondike-ban a húzásokat összevonja:
+  // {draws:k, m} = k-szor húz, aztán a dobott lap felső lapját lerakja.
+  E.useful=st=>{
+    const out=[],nT=st.t.length;
+    const push=(m,draws)=>out.push(draws?{draws,m}:{m});
+    if(type==='k'){
+      let cur=st;const n0s=st.s.length,n0w=st.w.length,lim=n0s+n0w+3;
+      for(let k=0;k<=lim;k++){
+        if(cur.w.length){
+          const c=top(cur.w),src={p:'w'};
+          if(cur.f[S[c]].length===R[c]-1)push({src,to:{p:'f',i:S[c]}},k);
+          let empty=false;
+          for(let x=0;x<nT;x++){const col=cur.t[x];
+            if(!col.length){if(R[c]===13&&!empty){empty=true;push({src,to:{p:'t',i:x}},k)}}
+            else if(onto(c,top(col)))push({src,to:{p:'t',i:x}},k)}
+        }
+        if(!cur.s.length&&!cur.w.length)break;
+        cur=E.apply(cur,{k:'draw'});
+        if(cur.s.length===n0s&&cur.w.length===n0w)break;
+      }
+    }
+    if(type==='p'&&E.canDraw(st))push({k:'draw'});
+    for(let i=0;i<nT;i++){
+      const col=st.t[i],L=col.length;if(!L)continue;
+      let j0=L-1;while(j0>st.d[i]&&runOk(col,j0-1))j0--;
+      for(let j=j0;j<L;j++){
+        const base=col[j],n=L-j,src={p:'t',i,j};
+        if(n===1&&type!=='p'&&st.f[S[base]].length===R[base]-1)push({src,to:{p:'f',i:S[base]}});
+        const below=j>0?col[j-1]:-1,belowUp=j>st.d[i];
+        // Csak akkor érdemes elmozdítani, ha felfordít, kiürít, jobb helyre teszi, vagy az alatta levőt felszabadítja
+        let freesBelow=false;
+        if(belowUp&&type!=='p'&&st.f[S[below]].length===R[below]-1)freesBelow=true;
+        let emptyDone=false;
+        for(let x=0;x<nT;x++){
+          if(x===i)continue;const tc=st.t[x];
+          if(!tc.length){
+            if(emptyDone||j===0)continue;
+            if(type==='k'&&R[base]!==13)continue;
+            if(type==='f'&&n>E.maxMove(st,true))continue;
+            if(belowUp&&onto(base,below)&&!(type==='p'&&S[base]!==S[below])&&!freesBelow)continue;
+            emptyDone=true;push({src,to:{p:'t',i:x}});continue;
+          }
+          const tt=top(tc);if(!onto(base,tt))continue;
+          if(type==='f'&&n>E.maxMove(st,false))continue;
+          if(belowUp&&onto(base,below)){
+            if(type==='p'){if(S[below]===S[base]||S[tt]!==S[base])continue}
+            else if(!freesBelow)continue;
+          }
+          push({src,to:{p:'t',i:x}});
+        }
+        if(type==='f'&&n===1){const ci=st.c.indexOf(-1);if(ci>=0)push({src,to:{p:'c',i:ci}})}
+      }
+    }
+    if(type==='f')for(let i=0;i<4;i++){
+      const c=st.c[i];if(c<0)continue;const src={p:'c',i};
+      if(st.f[S[c]].length===R[c]-1)push({src,to:{p:'f',i:S[c]}});
+      let emptyDone=false;
+      for(let x=0;x<nT;x++){const tc=st.t[x];
+        if(!tc.length){if(!emptyDone){emptyDone=true;push({src,to:{p:'t',i:x}})}}
+        else if(onto(c,top(tc)))push({src,to:{p:'t',i:x}})}
+    }
+    return out;
+  };
+  // Egy összevont lépés végrehajtása (húzások + lerakás), utána a biztos alapra rakások
+  E.applyMacro=(st,mm)=>{for(let k=0;k<(mm.draws||0);k++)st=E.apply(st,{k:'draw'});return E.autoSafe(E.apply(st,mm.m))};
+  E.expand=mm=>{const a=[];for(let k=0;k<(mm.draws||0);k++)a.push({k:'draw'});a.push(mm.m);return a};
+  const ch=c=>String.fromCharCode(48+(type==='p'?S[c]*13+R[c]:c));
+  E.key=st=>{
+    let cols=[];for(let i=0;i<st.t.length;i++){let s=st.d[i]+':';for(const c of st.t[i])s+=ch(c);cols.push(s)}
+    if(type==='f'){cols.sort();return cols.join('|')+'#'+st.c.filter(c=>c>=0).map(ch).sort().join('')+'#'+st.f.map(a=>a.length).join(',')}
+    if(type==='p')return cols.join('|')+'#'+st.s.length+'#'+st.f.length;
+    return cols.join('|')+'#'+st.s.map(ch).join('')+'/'+st.w.map(ch).join('')+'#'+st.f.map(a=>a.length).join(',');
+  };
+  // Értékelés: a megoldó előbb a jobbnak látszó állásokat próbálja
+  E.score=st=>{
+    let sc=0,down=0;for(const x of st.d)down+=x;
+    if(type==='k'){for(const a of st.f)sc+=a.length*10;sc-=down*12;sc-=st.s.length+st.w.length;for(const a of st.t)if(!a.length)sc+=3;return sc}
+    if(type==='p'){
+      sc+=st.f.length*400-down*25-st.s.length*2;
+      for(let i=0;i<st.t.length;i++){const col=st.t[i];if(!col.length){sc+=20;continue}
+        for(let j=Math.max(1,st.d[i]+1);j<col.length;j++){const a=col[j],b=col[j-1];if(R[b]===R[a]+1)sc+=S[a]===S[b]?10:3}}
+      return sc;
+    }
+    let fnd=0;for(const a of st.f)fnd+=a.length;sc=fnd*30;
+    const q=E.free(st);sc+=q.c*6+q.e*12;
+    // a következő alapra kellő lapok fölött hány lap van
+    for(let s=0;s<4;s++){const need=st.f[s].length+1;if(need>13)continue;
+      for(const col of st.t){const j=col.findIndex(c=>S[c]===s&&R[c]===need);if(j>=0){sc-=(col.length-1-j)*4;break}}}
+    for(const col of st.t)for(let j=1;j<col.length;j++)if(onto(col[j],col[j-1]))sc+=2;
+    return sc;
+  };
+  E.solvedEnough=st=>E.won(st)||E.finishable(st);
+  return E;
+}
+/* Megoldó: mélységi keresés a hasznos lépéseken, a már látott állásokat kihagyja.
+   Darabokban fut (step), hogy ne akassza meg az oldalt. Eredmény: 'win' (path: összevont lépések), 'none', 'limit'. */
+function solver(E,st0,maxNodes){
+  const start=E.autoSafe(st0);
+  const seen=new Set([E.key(start)]),stack=[{st:start,ch:null,i:0,mm:null}];
+  const o={status:'pending',nodes:0,path:null,pre:[]};
+  E.autoSafe(st0,o.pre);
+  o.step=function(ms){
+    const end=Date.now()+ms;let n=0;
+    while(stack.length){
+      if((++n&63)===0&&Date.now()>end)return o.status;
+      const fr=stack[stack.length-1];
+      if(!fr.ch){
+        if(E.solvedEnough(fr.st)){o.status='win';o.path=stack.slice(1).map(x=>x.mm);return o.status}
+        if(++o.nodes>maxNodes){o.status='limit';return o.status}
+        const ch=[];
+        for(const mm of E.useful(fr.st)){const s=E.applyMacro(fr.st,mm),k=E.key(s);if(seen.has(k))continue;ch.push({mm,s,k,e:E.score(s)})}
+        ch.sort((a,b)=>b.e-a.e);fr.ch=ch;
+      }
+      if(fr.i>=fr.ch.length){stack.pop();continue}
+      const c=fr.ch[fr.i++];if(seen.has(c.k))continue;seen.add(c.k);
+      stack.push({st:c.s,ch:null,i:0,mm:c.mm});
+    }
+    o.status='none';return o.status;
+  };
+  return o;
+}
+const NODE_LIMIT={k1:6000,k3:6000,p1:15000,p2:5000,fc:15000};
+/* Ellenőrzött leosztás keresése: seed-től kezdve sorra próbálja a leosztásokat, amíg a megoldó nem talál megoldást.
+   gen.step(ms) → 'pending' | 'ok' (gen.seed, gen.path) */
+function dealSearch(vid,seed){
+  const E=engine(vid);let cur=seed>>>0,sv=null;
+  const g={status:'pending',seed:cur,tries:0,path:null};
+  g.step=function(ms){
+    const end=Date.now()+ms;
+    while(Date.now()<end){
+      if(!sv){g.tries++;sv=solver(E,E.deal(cur),NODE_LIMIT[vid])}
+      const r=sv.step(Math.max(1,end-Date.now()));
+      if(r==='win'){g.status='ok';g.seed=cur;g.path=sv.pre.concat(...sv.path.map(mm=>{const a=E.expand(mm);return a}));g.macro=sv.path;return g.status}
+      if(r!=='pending'){sv=null;cur=(cur+1)>>>0}
+    }
+    return g.status;
+  };
+  return g;
+}
+// Egyben, időkorláttal (a játékteszt így hívja): ellenőrzött leosztás vagy null
+function generate(vid,seed){
+  const g=dealSearch(vid,seed),t0=Date.now();
+  while(Date.now()-t0<GEN_BUDGET_MS){if(g.step(50)==='ok')return{seed:g.seed,tries:g.tries,macro:g.macro}}
+  return null;
+}
+// ----------
+
+// ---------- Játék: mentés, kirajzolás, irányítás ----------
+const $=id=>document.getElementById(id);
+const board=$('board'),ov=$('ov'),ovc=$('ovc');
+const SAVE_KEY='pasziansz:save';
+const SUIT=['♠︎','♥︎','♦︎','♣︎'];
+const RANK=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const ORDER=['k1','k3','p1','p2','fc'];
+const INFO={
+  k1:'Egy lapot húzol a pakliból. Ez a legkönnyebb.',
+  k3:'Hármat húzol, de csak a felsőt rakhatod. Nehezebb.',
+  p1:'Két pakli, tíz oszlop, csak pikk. Könnyű pók.',
+  p2:'Pikk és kőr keveredik. Ehhez már türelem kell.',
+  fc:'Minden lap látszik. Négy szabad hely segít.'
+};
+const RULES={
+  k:['Cél: minden lap kerüljön fel a négy alapra (jobb felül). Színenként, ásztól királyig.',
+     'Az oszlopokban lefelé rakj, eggyel kisebbet. A szín váltakozik: piros, fekete, piros.',
+     'Üres oszlopba csak király mehet.',
+     'Ha elakadtál, húzz a pakliból (bal felül). Ha elfogyott, koppints rá újra, és elölről kezdődik.'],
+  p:['Cél: királytól ászig teljes sorokat építeni ugyanabból a színből. A kész sor magától lekerül.',
+     'Bármelyik lapot rakhatod egy eggyel nagyobb lapra. A szín itt mindegy.',
+     'Több lapot egyben csak akkor vihetsz, ha egyforma színűek és sorban vannak.',
+     'A pakli (bal felül) minden oszlopra ad egy új lapot. Csak akkor, ha nincs üres oszlop.'],
+  f:['Cél: minden lap kerüljön fel a négy alapra (jobb felül). Színenként, ásztól királyig.',
+     'Az oszlopokban lefelé rakj, eggyel kisebbet, váltakozó színnel.',
+     'Bal felül négy szabad cella van. Mindegyikbe egy lapot tehetsz félre.',
+     'Több lapot egyben annyit vihetsz, ahány üres cella és oszlop segít.']
+};
+const nat=x=>Number.isInteger(x)&&x>=0&&x<1e9?x:0;
+let SAVE={sound:true,auto:true,variant:'k1',stats:{},next:{}};
+let E=null,G=null; // motor és a folyó játék
+const ENG={};const eng=vid=>ENG[vid]||(ENG[vid]=engine(vid));
+
+function validState(E,st){
+  if(!st||typeof st!=='object'||Array.isArray(st))return null;
+  const ids=a=>Array.isArray(a)&&a.every(x=>Number.isInteger(x)&&x>=0&&x<E.N);
+  const n=E.v.cols,type=E.type;
+  if(!Array.isArray(st.t)||st.t.length!==n||!st.t.every(ids))return null;
+  if(!Array.isArray(st.d)||st.d.length!==n)return null;
+  for(let i=0;i<n;i++){const d=st.d[i],L=st.t[i].length;if(!Number.isInteger(d)||d<0||(L?d>=L:d!==0))return null}
+  if(!Array.isArray(st.f)||!st.f.every(ids))return null;
+  if(type==='p'){if(st.f.length>8)return null;for(const a of st.f)if(a.length!==13||E.R[a[0]]!==13||!E.runOk(a,0))return null}
+  else{if(st.f.length!==4)return null;for(let s=0;s<4;s++)for(let j=0;j<st.f[s].length;j++){const c=st.f[s][j];if(E.S[c]!==s||E.R[c]!==j+1)return null}}
+  if(!ids(st.s)||!ids(st.w))return null;
+  if(type!=='k'&&st.w.length)return null;
+  if(type==='f'&&st.s.length)return null;
+  if(type==='p'&&st.s.length%10)return null;
+  let c=[];
+  if(type==='f'){if(!Array.isArray(st.c)||st.c.length!==4||!st.c.every(x=>Number.isInteger(x)&&x>=-1&&x<E.N))return null;c=st.c.slice()}
+  else if(st.c!==undefined&&!(Array.isArray(st.c)&&st.c.length===0))return null;
+  const seen=new Uint8Array(E.N);let cnt=0;
+  const mark=x=>{if(x<0)return true;if(seen[x])return false;seen[x]=1;cnt++;return true};
+  for(const a of st.t.concat(st.f,[st.s,st.w,c]))for(const x of a)if(!mark(x))return null;
+  if(cnt!==E.N)return null;
+  return{t:st.t.map(a=>a.slice()),d:st.d.slice(),f:st.f.map(a=>a.slice()),s:st.s.slice(),w:st.w.slice(),c};
+}
+function loadSave(){
+  let raw=null;try{const t=localStorage.getItem(SAVE_KEY);if(t)raw=JSON.parse(t)}catch(e){raw=null}
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
+  if(typeof raw.sound==='boolean')SAVE.sound=raw.sound;
+  if(typeof raw.auto==='boolean')SAVE.auto=raw.auto;
+  if(typeof raw.variant==='string'&&ORDER.includes(raw.variant))SAVE.variant=raw.variant;
+  const st=raw.stats&&typeof raw.stats==='object'?raw.stats:{},nx=raw.next&&typeof raw.next==='object'?raw.next:{};
+  for(const k of ORDER){
+    const s=st[k];
+    if(s&&typeof s==='object'&&!Array.isArray(s)){const p=nat(s.p),w=Math.min(nat(s.w),p);SAVE.stats[k]={p,w,best:nat(s.best),bestMv:nat(s.bestMv)}}
+    if(Number.isInteger(nx[k])&&nx[k]>=0&&nx[k]<=4294967295)SAVE.next[k]=nx[k];
+  }
+  // a félbehagyott játék
+  const g=raw.game;
+  if(!g||typeof g!=='object'||Array.isArray(g)||!ORDER.includes(g.vid))return null;
+  const e=eng(g.vid),s0=validState(e,g.st);
+  if(!s0||!Number.isInteger(g.seed)||g.seed<0||g.seed>4294967295)return null;
+  if(g.won===true)return null;
+  const hist=[];
+  if(Array.isArray(g.hist))for(const h of g.hist.slice(-300)){const hs=h&&validState(e,h.st);if(!hs){hist.length=0;break}hist.push({st:hs,mv:nat(h.mv)})}
+  return{vid:g.vid,seed:g.seed,ver:g.ver===true,st:s0,hist,mv:nat(g.mv),time:nat(g.time),started:g.started===true,won:false};
+}
+function writeSave(){
+  const o={v:1,sound:SAVE.sound,auto:SAVE.auto,variant:SAVE.variant,stats:SAVE.stats,next:SAVE.next,game:null};
+  if(G&&!G.won)o.game={vid:G.vid,seed:G.seed,ver:G.ver,st:G.st,hist:G.hist.slice(-300),mv:G.mv,time:G.time,started:G.started};
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(o))}catch(e){}
+}
+const stat=vid=>SAVE.stats[vid]||(SAVE.stats[vid]={p:0,w:0,best:0,bestMv:0});
+
+// ---------- Hang (Web Audio) ----------
+let AC=null;
+function audio(){if(!SAVE.sound)return null;try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch(e){AC=null}return AC}
+function tone(f,dur,type,vol,delay){
+  const a=audio();if(!a)return;
+  try{const t=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();o.type=type||'triangle';o.frequency.setValueAtTime(f,t);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||.12,t+.008);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.02)}catch(e){}
+}
+const SND={
+  place(){tone(520,.06,'triangle',.11);tone(780,.05,'sine',.05,.02)},
+  draw(){tone(380,.05,'triangle',.08);tone(460,.05,'triangle',.08,.05)},
+  found(){tone(660,.08,'sine',.1);tone(990,.1,'sine',.08,.06)},
+  no(){tone(150,.14,'square',.05)},
+  done(){[523,659,784].forEach((f,i)=>tone(f,.12,'triangle',.1,i*.07))},
+  win(){[523,659,784,1047,784,1047].forEach((f,i)=>tone(f,.18,'triangle',.11,i*.12))}
+};
+
+// ---------- Kirajzolás ----------
+let L=null,cardEl=[],slotEl=[],busy=false,kb=null,kbOn=false;
+const colX=i=>L.ox+i*(L.cw+L.g);
+function cardHTML(id){
+  const r=E.R[id],s=E.S[id];
+  return '<span class="rk">'+RANK[r]+'</span><span class="su">'+SUIT[s]+'</span>'+(r>10?'<span class="fc">'+RANK[r]+'</span>':'<span class="bg">'+SUIT[s]+'</span>');
+}
+function slotsFor(){
+  const t=E.type,a=[];
+  if(t==='k'){a.push({p:'s',x:0,txt:'↻'},{p:'w',x:1,txt:''});for(let i=0;i<4;i++)a.push({p:'f',i,x:3+i,txt:SUIT[i]})}
+  else if(t==='p'){a.push({p:'s',x:0,txt:''});for(let i=0;i<8;i++)a.push({p:'f',i,x:2+i,txt:''})}
+  else{for(let i=0;i<4;i++)a.push({p:'c',i,x:i,txt:''});for(let i=0;i<4;i++)a.push({p:'f',i,x:4+i,txt:SUIT[i]})}
+  for(let i=0;i<E.v.cols;i++)a.push({p:'t',i,x:i,txt:t==='k'?'K':''});
+  return a;
+}
+function build(){
+  board.innerHTML='';cardEl=[];slotEl=[];
+  for(const s of slotsFor()){const d=document.createElement('div');d.className='slot'+(s.p==='s'?' stock':'');d.innerHTML=s.txt;d._s=s;board.appendChild(d);slotEl.push(d)}
+  for(let id=0;id<E.N;id++){const d=document.createElement('div');d.className='cd'+(E.red(id)?' red':'');d.dataset.id=id;d.innerHTML=cardHTML(id);board.appendChild(d);cardEl.push(d)}
+  $('varBtn').textContent=E.v.name;
+}
+function layout(){
+  const W=board.clientWidth,H=board.clientHeight,n=E.v.cols;
+  const g=Math.round(Math.max(3,Math.min(10,W*.012)));
+  let cw=Math.floor((W-g*(n+1))/n);
+  cw=Math.max(18,Math.min(cw,Math.floor(H/(1.4*3.3)),112));
+  const ch=Math.round(cw*1.4),fs=Math.max(11,Math.min(28,Math.round(cw*.38)));
+  L={W,H,g,cw,ch,fs,ox:Math.round((W-(n*cw+(n-1)*g))/2),topY:g,tabY:g+ch+Math.round(g*1.8)};
+  board.style.setProperty('--cw',cw+'px');board.style.setProperty('--ch',ch+'px');board.style.setProperty('--fs',fs+'px');
+}
+function colYs(i){
+  const col=G.st.t[i],d=G.st.d[i],n=col.length,ys=[];if(!n)return ys;
+  let fd=Math.max(4,Math.round(L.ch*.11)),fu=Math.max(L.fs+7,Math.round(L.ch*.3));
+  const avail=L.H-L.tabY-L.ch-6,nd=Math.min(d,n-1),nu=n-1-nd;
+  if(nd*fd+nu*fu>avail){
+    if(nu)fu=Math.max(L.fs+3,(avail-nd*fd)/nu);
+    if(nd*fd+nu*fu>avail){fd=Math.max(2,(avail-nu*fu)/Math.max(1,nd));if(nd*fd+nu*fu>avail&&nu)fu=Math.max(5,(avail-nd*fd)/nu)}
+  }
+  ys.push(0);for(let j=1;j<n;j++)ys.push(ys[j-1]+(j-1<d?fd:fu));
+  return ys;
+}
+// Minden lap helye: {x,y,z,down}
+function positions(){
+  const st=G.st,P=new Array(E.N);let z=1;
+  const put=(id,x,y,down)=>{P[id]={x,y,z:z++,down}};
+  if(E.type==='k'){
+    st.s.forEach((id,k)=>put(id,colX(0),L.topY-Math.floor(k/8),true));
+    const fan=E.v.draw===3?Math.round(L.cw*.3):0,m=Math.min(3,st.w.length);
+    st.w.forEach((id,k)=>{const f=k-(st.w.length-m);put(id,colX(1)+(f>0?f*fan:0),L.topY,false)});
+    for(let s=0;s<4;s++)st.f[s].forEach(id=>put(id,colX(3+s),L.topY,false));
+  }else if(E.type==='p'){
+    st.s.forEach((id,k)=>put(id,colX(0)+Math.floor(k/10)*Math.round(L.cw*.14),L.topY,true));
+    st.f.forEach((run,i)=>{for(let j=run.length-1;j>=0;j--)put(run[j],colX(2+i),L.topY,false)});
+  }else{
+    st.c.forEach((id,i)=>{if(id>=0)put(id,colX(i),L.topY,false)});
+    for(let s=0;s<4;s++)st.f[s].forEach(id=>put(id,colX(4+s),L.topY,false));
+  }
+  for(let i=0;i<st.t.length;i++){const ys=colYs(i);st.t[i].forEach((id,j)=>put(id,colX(i),L.tabY+ys[j],j<st.d[i]))}
+  return P;
+}
+let P=[];
+function render(opt){
+  if(!E||!G)return;
+  layout();P=positions();
+  for(const d of slotEl){const s=d._s,y=s.p==='t'?L.tabY:L.topY;d.style.width=L.cw+'px';d.style.height=L.ch+'px';d.style.transform='translate('+colX(s.x)+'px,'+y+'px)';
+    if(s.p==='s')d.innerHTML=E.type==='k'?(G.st.w.length?'↻':''):(G.st.s.length?'':'<small>'+'nincs<br>több'+'</small>')}
+  for(let id=0;id<E.N;id++){
+    const p=P[id],el=cardEl[id];if(!p)continue;
+    el.style.transform='translate('+Math.round(p.x)+'px,'+Math.round(p.y)+'px)';
+    el.style.zIndex=p.z;
+    el.classList.toggle('down',p.down);
+    if(opt&&opt.deal)el.style.transitionDelay=(opt.delay?opt.delay(id):0)+'ms';
+  }
+  $('moves').textContent=G.mv;
+  $('undo').disabled=!G.hist.length||G.won;
+  showKb();
+}
+function noAnim(f){board.classList.add('nt');f();void board.offsetWidth;board.classList.remove('nt')}
+function fmtTime(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+
+// ---------- Üzenet ----------
+let msgT=0;
+function msg(t,cls,ms){const m=$('msg');m.textContent=t||'';m.className=cls||'';clearTimeout(msgT);if(t&&ms!==0)msgT=setTimeout(()=>{m.textContent='';m.className=''},ms||2600)}
+function clearHl(){lastHint=null;board.querySelectorAll('.hl,.tg').forEach(e=>e.classList.remove('hl','tg'))}
+
+// ---------- Lépések ----------
+function where(id){
+  const st=G.st;
+  for(let i=0;i<st.t.length;i++){const j=st.t[i].indexOf(id);if(j>=0)return{p:'t',i,j}}
+  let j=st.s.indexOf(id);if(j>=0)return{p:'s'};
+  j=st.w.indexOf(id);if(j>=0)return{p:'w',top:j===st.w.length-1};
+  j=st.c.indexOf(id);if(j>=0)return{p:'c',i:j};
+  for(let i=0;i<st.f.length;i++){j=st.f[i].indexOf(id);if(j>=0)return{p:'f',i,top:j===st.f[i].length-1}}
+  return null;
+}
+function srcOf(loc){
+  if(!loc)return null;
+  if(loc.p==='t')return{p:'t',i:loc.i,j:loc.j};
+  if(loc.p==='w')return loc.top?{p:'w'}:null;
+  if(loc.p==='c')return{p:'c',i:loc.i};
+  if(loc.p==='f')return loc.top&&E.type!=='p'?{p:'f',i:loc.i}:null;
+  return null;
+}
+function idsOf(src){return E.cardsAt(G.st,src)}
+// Koppintásra a legjobb cél
+function bestDest(src){
+  const st=G.st,cards=idsOf(src),base=cards[0];let best=null,bs=-1;
+  const tryM=(to,sc)=>{const m={src,to};if(sc>bs&&E.legal(st,m)){best=m;bs=sc}};
+  if(src.p!=='f'&&E.type!=='p')tryM({p:'f',i:E.S[base]},100);
+  for(let x=0;x<st.t.length;x++){
+    const col=st.t[x];
+    if(col.length){let sc=50;if(E.type==='p'&&E.S[col[col.length-1]]===E.S[base])sc+=20;tryM({p:'t',i:x},sc-x*.01)}
+    else{const pointless=src.p==='t'&&src.j===0;tryM({p:'t',i:x},(pointless?1:20)-x*.01)}
+  }
+  if(E.type==='f'&&src.p==='t'){const ci=st.c.indexOf(-1);if(ci>=0)tryM({p:'c',i:ci},10)}
+  return best;
+}
+function pushHist(){G.hist.push({st:G.st,mv:G.mv});if(G.hist.length>300)G.hist.shift()}
+function begin(){if(!G.started){G.started=true;stat(G.vid).p++}}
+function doMove(m){
+  if(busy||!G||G.won)return false;
+  if(m.k==='draw'){if(!E.canDraw(G.st))return false}
+  else if(!E.legal(G.st,m))return false;
+  hintStop();clearHl();
+  pushHist();begin();
+  const before=G.st.f.length;
+  let st=E.apply(G.st,m);G.mv++;
+  const auto=[];if(SAVE.auto)st=E.autoSafe(st,auto);
+  G.st=st;
+  if(m.k==='draw')SND.draw();else if(m.to.p==='f'||auto.length)SND.found();else SND.place();
+  if(E.type==='p'&&st.f.length>before){SND.done();msg('Kész egy sor! Még '+(8-st.f.length)+'.','good')}
+  after();
+  return true;
+}
+function after(){
+  render();writeSave();
+  if(E.won(G.st)){win();return}
+  if(E.type!=='p'&&E.finishable(G.st)){finish();return}
+  if(!E.useful(G.st).length)setTimeout(()=>{if(G&&!G.won&&ov.hidden&&!E.useful(G.st).length)stuck()},500);
+}
+function draw(){
+  if(!G||G.won||busy)return;
+  if(E.type==='f')return;
+  if(E.type==='p'&&G.st.s.length&&!E.canDraw(G.st)){SND.no();msg('Előbb tegyél lapot minden üres oszlopba!','warn');return}
+  if(!E.canDraw(G.st))return;
+  doMove({k:'draw'});
+}
+function undo(){
+  if(busy||!G||!G.hist.length||G.won)return;
+  hintStop();clearHl();
+  const h=G.hist.pop();G.st=h.st;G.mv=h.mv;SND.draw();render();writeSave();
+}
+function nope(id){SND.no();const el=cardEl[id];if(el){el.classList.remove('no');void el.offsetWidth;el.classList.add('no')}}
+function tapCard(id){
+  const loc=where(id);if(!loc)return;
+  if(loc.p==='s'){draw();return}
+  const src=srcOf(loc);
+  // a tipp lapjára koppintva pontosan a tippelt lépés történik
+  if(lastHint&&lastHint.src&&src&&idsOf(lastHint.src).includes(id)){const h=lastHint;if(doMove(h))return}
+  if(!src||loc.p==='f'||!E.canPick(G.st,src)){nope(id);if(loc.p==='t'&&loc.j>=G.st.d[loc.i])msg(E.type==='p'?'Egyben csak egyforma színű sort vihetsz.':'Ez a sor nem mozdítható egyben.','warn');return}
+  const m=bestDest(src);
+  if(m)doMove(m);else{nope(id);msg('Ezt most nem tudod hova tenni.','warn',1800)}
+}
+// Befejezés: minden lap látszik, a gép felrakja az alapra
+function finish(){
+  busy=true;const list=E.finishMoves(G.st);let k=0;
+  msg('Befejezem helyetted…','good',0);
+  (function step(){
+    if(!G){busy=false;return}
+    if(k>=list.length){busy=false;render();writeSave();if(E.won(G.st))win();return}
+    G.st=E.apply(G.st,list[k++]);render();if(k%3===1)SND.place();setTimeout(step,70);
+  })();
+}
+function win(){
+  if(G.won)return;G.won=true;busy=false;
+  const s=stat(G.vid);s.w++;const rec=!s.best||G.time<s.best;if(rec)s.best=G.time;if(!s.bestMv||G.mv<s.bestMv)s.bestMv=G.mv;
+  writeSave();render();SND.win();msg('Nyertél!','good',0);
+  cardEl.forEach((el,id)=>{if(P[id]&&!P[id].down&&(id%13===12||E.type==='p')){el.style.animationDelay=((id%8)*80)+'ms';el.classList.add('hop')}});
+  confetti();
+  setTimeout(()=>{if(G&&G.won)showWin(rec)},1300);
+}
+function confetti(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const cols=['#ffd34d','#ff6b6b','#6cc4ff','#7dffa1','#ffffff','#c99bff'];
+  for(let i=0;i<46;i++){const d=document.createElement('div');d.className='conf';d.style.left=(Math.random()*100)+'%';d.style.background=cols[i%cols.length];
+    d.style.animationDuration=(1.6+Math.random()*1.6)+'s';d.style.animationDelay=(Math.random()*.6)+'s';board.appendChild(d);setTimeout(()=>d.remove(),4000)}
+}
+
+// ---------- Tipp: a megoldó keres egy nyerő lépést ----------
+let hintJob=null,lastHint=null;
+function hintStop(){lastHint=null;if(hintJob){clearTimeout(hintJob.t);hintJob=null}}
+// A megtalált nyerő út: minden állásnál tudja a következő lépést, így a további tippek gyorsak és egymásra épülnek
+let plan=null;
+const exactKey=st=>JSON.stringify([st.t,st.d,st.s,st.w,st.c,st.f.map(a=>a.length)]);
+function makePlan(st0,sv){
+  const seq=[];let cur=st0;
+  const add=a=>{seq.push({k:exactKey(cur),a});cur=E.apply(cur,a)};
+  sv.pre.forEach(add);
+  for(const mm of sv.path){E.expand(mm).forEach(add);let m;while((m=E.safeMove(cur)))add(m)}
+  E.finishMoves(cur).forEach(add);
+  return{g:G,seq};
+}
+function hint(){
+  if(!G||G.won||busy)return;
+  if(hintJob)return;
+  clearHl();
+  if(plan&&plan.g===G){const k=exactKey(G.st),e=plan.seq.find(x=>x.k===k);if(e){showHint(e.a);return}}
+  msg('Gondolkodom…','tip',0);
+  const st=G.st,sv=solver(E,st,40000),t0=Date.now(),job={};hintJob=job;
+  (function run(){
+    if(hintJob!==job)return;
+    const r=sv.step(25);
+    if(r==='pending'&&Date.now()-t0<2500){job.t=setTimeout(run,0);return}
+    hintJob=null;
+    let a=null;
+    if(r==='win'){plan=makePlan(st,sv);a=plan.seq.length?plan.seq[0].a:null;if(!a&&E.finishable(st)){finish();return}}
+    else if(r==='none'){SND.no();msg('Innen már nem lehet nyerni. Vonj vissza pár lépést!','warn',5000);return}
+    if(!a){
+      // nincs kész út: a legjobbnak látszó lépés, de olyan állásba nem, ahol már jártunk
+      const been=new Set(G.hist.map(h=>exactKey(h.st)));been.add(exactKey(st));
+      const u=E.useful(st).map(mm=>{const s=E.applyMacro(st,mm);return{mm,e:E.score(s),k:exactKey(s)}}).filter(x=>!been.has(x.k)).sort((x,y)=>y.e-x.e);
+      if(u.length)a=E.expand(u[0].mm)[0];
+    }
+    if(!a){msg('Nem találok jó lépést. Próbáld a Vissza gombot!','warn',5000);return}
+    showHint(a);
+  })();
+}
+function showHint(a){
+  lastHint=a;
+  if(a.k==='draw'){const s=slotEl.find(d=>d._s.p==='s');if(s)s.classList.add('hl');const top=G.st.s[G.st.s.length-1];if(top!==undefined)cardEl[top].classList.add('hl');
+    msg(G.st.s.length||E.type==='p'?'Tipp: húzz a pakliból (bal felül).':'Tipp: koppints a pakli helyére, és kezdd újra.','tip',5000);return}
+  idsOf(a.src).forEach(id=>cardEl[id].classList.add('hl'));
+  const to=a.to;let tgt=null;
+  if(to.p==='t'){const col=G.st.t[to.i];tgt=col.length?cardEl[col[col.length-1]]:slotEl.find(d=>d._s.p==='t'&&d._s.i===to.i)}
+  else if(to.p==='f'){const f=G.st.f[to.i];tgt=f&&f.length?cardEl[f[f.length-1]]:slotEl.find(d=>d._s.p==='f'&&d._s.i===to.i)}
+  else tgt=slotEl.find(d=>d._s.p==='c'&&d._s.i===to.i);
+  if(tgt)tgt.classList.add('tg');
+  msg('Tipp: a sárga lapot tedd a zöld keretes helyre.','tip',5000);
+}
+
+// ---------- Húzás és koppintás ----------
+let pick=null;
+function pileRects(){
+  const r=[],st=G.st;
+  for(let i=0;i<st.t.length;i++){const col=st.t[i],y=L.tabY,last=col.length?P[col[col.length-1]].y:y;r.push({to:{p:'t',i},x:colX(i),y,w:L.cw,h:Math.max(last-y+L.ch,L.H-y)})}
+  if(E.type!=='p')for(let s=0;s<4;s++)r.push({to:{p:'f',i:s},x:colX((E.type==='k'?3:4)+s),y:L.topY,w:L.cw,h:L.ch});
+  if(E.type==='f')for(let i=0;i<4;i++)r.push({to:{p:'c',i},x:colX(i),y:L.topY,w:L.cw,h:L.ch});
+  return r;
+}
+function boardXY(e){const b=board.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}}
+board.addEventListener('pointerdown',e=>{
+  if(!G||busy||G.won||pick)return;
+  audio();kbOn=false;showKb();
+  const el=e.target.closest('.cd'),sl=e.target.closest('.slot');
+  const p=boardXY(e);
+  if(el){
+    const id=+el.dataset.id,loc=where(id),src=srcOf(loc);
+    pick={id,loc,src,x0:p.x,y0:p.y,drag:false,pid:e.pointerId,ids:src&&E.canPick(G.st,src)&&loc.p!=='s'?idsOf(src):null};
+  }else if(sl&&sl._s.p==='s')pick={stock:true,pid:e.pointerId,x0:p.x,y0:p.y};
+  else return;
+  try{board.setPointerCapture(e.pointerId)}catch(_){}
+  e.preventDefault();
+});
+board.addEventListener('pointermove',e=>{
+  if(!pick||pick.pid!==e.pointerId||!pick.ids)return;
+  const p=boardXY(e),dx=p.x-pick.x0,dy=p.y-pick.y0;
+  if(!pick.drag){if(Math.abs(dx)+Math.abs(dy)<9)return;pick.drag=true;hintStop();clearHl();pick.ids.forEach((id,k)=>{cardEl[id].classList.add('drag');cardEl[id].style.zIndex=5000+k})}
+  pick.dx=dx;pick.dy=dy;
+  pick.ids.forEach(id=>{const q=P[id];cardEl[id].style.transform='translate('+Math.round(q.x+dx)+'px,'+Math.round(q.y+dy)+'px)'});
+});
+function endPick(e,cancel){
+  if(!pick||pick.pid!==e.pointerId)return;
+  const pk=pick;pick=null;
+  if(pk.drag){
+    pk.ids.forEach(id=>cardEl[id].classList.remove('drag'));
+    let done=false;
+    if(!cancel){
+      const q=P[pk.ids[0]],cx=q.x+pk.dx,cy=q.y+pk.dy;let best=null,ba=0;
+      for(const r of pileRects()){
+        const ax=Math.max(0,Math.min(cx+L.cw,r.x+r.w)-Math.max(cx,r.x)),ay=Math.max(0,Math.min(cy+L.ch,r.y+r.h)-Math.max(cy,r.y)),a=ax*ay;
+        if(a>ba&&E.legal(G.st,{src:pk.src,to:r.to})){ba=a;best=r.to}
+      }
+      if(best)done=doMove({src:pk.src,to:best});
+    }
+    if(!done){if(!cancel)SND.no();render()}
+    return;
+  }
+  if(cancel)return;
+  if(pk.stock){draw();return}
+  tapCard(pk.id);
+}
+board.addEventListener('pointerup',e=>endPick(e,false));
+board.addEventListener('pointercancel',e=>endPick(e,true));
+board.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ---------- Billentyűzet: nyilakkal kijelölés, Enter: lerakás ----------
+function topPiles(){const t=E.type;return t==='k'?[{p:'s',x:0},{p:'w',x:1},{p:'f',i:0,x:3},{p:'f',i:1,x:4},{p:'f',i:2,x:5},{p:'f',i:3,x:6}]:t==='p'?[{p:'s',x:0}]:[0,1,2,3].map(i=>({p:'c',i,x:i})).concat([0,1,2,3].map(i=>({p:'f',i,x:4+i})))}
+function kbTarget(){
+  if(!kb)return null;const st=G.st;
+  if(kb.row===0){const tp=topPiles()[kb.i];if(!tp)return null;
+    if(tp.p==='s'){const s=st.s;return s.length?cardEl[s[s.length-1]]:slotEl.find(d=>d._s.p==='s')}
+    if(tp.p==='w')return st.w.length?cardEl[st.w[st.w.length-1]]:slotEl.find(d=>d._s.p==='w');
+    if(tp.p==='c')return st.c[tp.i]>=0?cardEl[st.c[tp.i]]:slotEl.find(d=>d._s.p==='c'&&d._s.i===tp.i);
+    const f=st.f[tp.i];return f&&f.length?cardEl[f[f.length-1]]:slotEl.find(d=>d._s.p==='f'&&d._s.i===tp.i)}
+  const col=st.t[kb.i];if(!col.length)return slotEl.find(d=>d._s.p==='t'&&d._s.i===kb.i);
+  kb.depth=Math.max(0,Math.min(kb.depth,col.length-1-st.d[kb.i]));
+  return cardEl[col[col.length-1-kb.depth]];
+}
+function showKb(){board.querySelectorAll('.kb').forEach(e=>e.classList.remove('kb'));if(kbOn&&G){const t=kbTarget();if(t)t.classList.add('kb')}}
+function kbMove(k){
+  if(!kb)kb={row:1,i:0,depth:0};
+  const n=E.v.cols,tp=topPiles();
+  if(!kbOn){kbOn=true;showKb();return}
+  if(k==='ArrowLeft'||k==='ArrowRight'){const len=kb.row?n:tp.length;kb.i=(kb.i+(k==='ArrowLeft'?len-1:1))%len;kb.depth=0}
+  else if(k==='ArrowUp'){
+    if(kb.row===1){const col=G.st.t[kb.i],j=col.length-2-kb.depth;
+      if(j>=G.st.d[kb.i]&&E.canPick(G.st,{p:'t',i:kb.i,j}))kb.depth++;
+      else{let bi=0,bd=99;tp.forEach((t,q)=>{const d=Math.abs(t.x-kb.i);if(d<bd){bd=d;bi=q}});kb={row:0,i:bi,depth:0}}}
+  }else if(k==='ArrowDown'){
+    if(kb.row===0){kb={row:1,i:Math.min(n-1,tp[kb.i].x),depth:0}}else if(kb.depth>0)kb.depth--;
+  }
+  showKb();
+}
+function kbEnter(){
+  if(!kbOn||!kb){kbOn=true;if(!kb)kb={row:1,i:0,depth:0};showKb();return}
+  const st=G.st;
+  if(kb.row===0){const tp=topPiles()[kb.i];
+    if(tp.p==='s'){draw();return}
+    if(tp.p==='w'&&st.w.length){tapCard(st.w[st.w.length-1]);return}
+    if(tp.p==='c'&&st.c[tp.i]>=0){tapCard(st.c[tp.i]);return}
+    return}
+  const col=st.t[kb.i];if(!col.length)return;
+  const id=col[col.length-1-kb.depth];kb.depth=0;tapCard(id);showKb();
+}
+addEventListener('keydown',e=>{
+  if(e.ctrlKey&&(e.key==='z'||e.key==='Z')){e.preventDefault();if(ov.hidden)undo();return}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key==='Escape'){e.preventDefault();if(!ov.hidden){if(ovMode==='menu'&&G&&!G.won)closeOv()}else menu();return}
+  if(!ov.hidden||!G)return;
+  const k=e.key;
+  if(k.startsWith('Arrow')){e.preventDefault();audio();kbMove(k);return}
+  if(k==='Enter'){e.preventDefault();audio();kbEnter();return}
+  if(k===' '||k==='d'||k==='D'){e.preventDefault();audio();draw();return}
+  if(k==='z'||k==='Z'||k==='Backspace'||k==='u'||k==='U'){e.preventDefault();undo();return}
+  if(k==='t'||k==='T'||k==='h'||k==='H'){e.preventDefault();hint();return}
+  if(k==='n'||k==='N'){e.preventDefault();menu();return}
+});
+
+// ---------- Felugró ablakok ----------
+let ovMode='';
+function openOv(mode,html){ovMode=mode;ovc.innerHTML=html;ov.hidden=false;const h=ovc.querySelector('.hot')||ovc.querySelector('button');if(h&&kbOn)h.focus()}
+function closeOv(){ov.hidden=true;ovMode=''}
+function statLine(vid){const s=SAVE.stats[vid];return s&&s.p?'Nyert: '+s.w+'/'+s.p+(s.best?'<br>Rekord: '+fmtTime(s.best):''):'Új'}
+function menu(){
+  if(busy)return;hintStop();
+  const cur=G&&!G.won;
+  let h='<h2>Pasziánsz</h2><p class="sub">Válassz játékot!</p><div class="vars">';
+  for(const v of ORDER)h+='<button type="button" class="var'+(v===SAVE.variant&&!cur?' hot':'')+'" data-v="'+v+'"><b>'+VARIANTS[v].name+'</b><span>'+INFO[v]+'</span><em>'+statLine(v)+'</em></button>';
+  h+='</div>';
+  if(cur)h+='<div class="row"><button type="button" class="btn hot" data-a="close">Folytatom</button></div>';
+  h+='<div class="row"><button type="button" class="btn" data-a="rules">Szabályok</button><button type="button" class="btn" data-a="snd">Hang: '+(SAVE.sound?'be':'ki')+'</button><button type="button" class="btn" data-a="auto">Alapra magától: '+(SAVE.auto?'be':'ki')+'</button></div>';
+  if(cur)h+='<p class="sub" style="font-size:14px">Ez a leosztás '+(G.ver?'biztosan megoldható: a gép már végigjátszotta.':'nincs ellenőrizve.')+'</p>';
+  openOv('menu',h);
+}
+function rules(){
+  const t=E?E.type:VARIANTS[SAVE.variant].type,name=E?E.v.name:VARIANTS[SAVE.variant].name;
+  let h='<h2>Szabályok</h2><p class="sub">'+name+'</p><ul class="rules">';
+  for(const r of RULES[t])h+='<li>'+r+'</li>';
+  h+='<li>Koppints egy lapra: magától a legjobb helyre megy. Húzhatod is az ujjaddal.</li>';
+  h+='<li>A <b>↶ Vissza</b> gomb visszavonja a lépést, akárhányszor. A <b>★ Tipp</b> megmutat egy jó lépést.</li>';
+  h+='<li>Gépen: nyilak és Enter, Szóköz: húzás, Z: vissza, T: tipp, Esc: menü.</li></ul>';
+  h+='<div class="row"><button type="button" class="btn hot" data-a="menu">Rendben</button></div>';
+  openOv('rules',h);
+}
+function stuck(){
+  if(!G||G.won||!ov.hidden)return;SND.no();
+  openOv('stuck','<h2>Elakadtál</h2><p class="sub">Nincs több hasznos lépés.</p><p>Vonj vissza néhány lépést, és próbáld másképp! Vagy kezdj új leosztást.</p>'+
+    '<div class="row"><button type="button" class="btn hot" data-a="undo">↶ Vissza</button><button type="button" class="btn" data-a="again">Új játék</button></div>'+
+    '<div class="row"><button type="button" class="btn" data-a="close">Mégis folytatom</button></div>');
+}
+function showWin(rec){
+  const s=stat(G.vid);
+  openOv('win','<h2>Nyertél!</h2><p class="sub">'+E.v.name+'</p><div class="stats"><div>'+fmtTime(G.time)+'<small>idő</small></div><div>'+G.mv+'<small>lépés</small></div><div>'+s.w+'<small>győzelem</small></div></div>'+
+    (rec&&s.w>1?'<p class="sub" style="color:var(--ok)">Új rekord!</p>':'')+
+    '<div class="row"><button type="button" class="btn hot" data-a="again">Új játék</button><button type="button" class="btn" data-a="menu">Másik játék</button></div>');
+}
+ovc.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;audio();
+  if(b.dataset.v){closeOv();newGame(b.dataset.v);return}
+  const a=b.dataset.a;
+  if(a==='close')closeOv();
+  else if(a==='menu')menu();
+  else if(a==='rules')rules();
+  else if(a==='snd'){SAVE.sound=!SAVE.sound;writeSave();menu()}
+  else if(a==='auto'){SAVE.auto=!SAVE.auto;writeSave();menu()}
+  else if(a==='undo'){closeOv();undo()}
+  else if(a==='again'){closeOv();newGame(G?G.vid:SAVE.variant)}
+});
+$('undo').onclick=()=>{audio();undo()};
+$('hint').onclick=()=>{audio();hint()};
+$('menuBtn').onclick=$('varBtn').onclick=()=>{audio();menu()};
+
+// ---------- Új játék: ellenőrzött leosztás keresése ----------
+let searchJob=null;
+function rand32(){try{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]}catch(e){return Math.floor(Math.random()*4294967296)>>>0}}
+function stopSearch(){if(searchJob){clearTimeout(searchJob.t);searchJob=null}}
+function newGame(vid){
+  stopSearch();hintStop();busy=false;
+  SAVE.variant=vid;
+  if(SAVE.next[vid]!==undefined){const s=SAVE.next[vid];delete SAVE.next[vid];startDeal(vid,s,true);return}
+  openOv('search','<h2>Keverés…</h2><div class="spin"></div><p class="sub">A gép kipróbálja, hogy ez a leosztás megoldható-e.</p>');
+  const g=dealSearch(vid,rand32()),t0=Date.now(),job={bg:false};searchJob=job;
+  (function run(){
+    if(searchJob!==job)return;
+    const r=g.step(30);
+    if(r==='ok'||Date.now()-t0>GEN_BUDGET_MS){searchJob=null;closeOv();startDeal(vid,g.seed,r==='ok');return}
+    job.t=setTimeout(run,0);
+  })();
+}
+// Háttérben megkeresi a következő ellenőrzött leosztást, hogy az új játék azonnal induljon
+function bgSearch(){
+  if(!G||searchJob||SAVE.next[G.vid]!==undefined)return;
+  const vid=G.vid,g=dealSearch(vid,rand32()),job={bg:true},t0=Date.now();searchJob=job;
+  (function run(){
+    if(searchJob!==job)return;
+    if(!pick&&!hintJob&&!busy){const r=g.step(6);if(r==='ok'){searchJob=null;SAVE.next[vid]=g.seed;writeSave();return}}
+    if(Date.now()-t0>120000){searchJob=null;return}
+    job.t=setTimeout(run,60);
+  })();
+}
+function startDeal(vid,seed,ver){
+  E=eng(vid);
+  G={vid,seed,ver,st:E.deal(seed),hist:[],mv:0,time:0,started:false,won:false};
+  kb={row:1,i:0,depth:0};
+  build();layout();
+  // a lapok a pakliból repülnek a helyükre
+  noAnim(()=>{for(let id=0;id<E.N;id++){const el=cardEl[id];el.style.transform='translate('+colX(0)+'px,'+L.topY+'px)';el.classList.add('down')}});
+  const order={};let k=0;for(let j=0;j<20;j++)for(let i=0;i<G.st.t.length;i++)if(G.st.t[i][j]!==undefined)order[G.st.t[i][j]]=k++;
+  render({deal:true,delay:id=>order[id]!==undefined?order[id]*18:0});
+  setTimeout(()=>cardEl.forEach(el=>el.style.transitionDelay=''),k*18+300);
+  $('time').textContent='0:00';
+  msg(ver?'Új leosztás. Ez biztosan megoldható!':'Új leosztás.','good');
+  SND.draw();writeSave();
+  if(SAVE.auto)setTimeout(()=>{if(G&&!G.started&&!busy){const st=E.autoSafe(G.st);if(st!==G.st){G.st=st;render();writeSave()}}},k*18+350);
+  setTimeout(bgSearch,1500);
+}
+function resume(g){
+  E=eng(g.vid);G=g;SAVE.variant=g.vid;kb={row:1,i:0,depth:0};
+  build();noAnim(render);$('time').textContent=fmtTime(G.time);
+  setTimeout(bgSearch,1500);
+}
+
+// ---------- Óra, átméretezés ----------
+setInterval(()=>{
+  if(!G||!G.started||G.won||document.hidden||!ov.hidden||busy)return;
+  G.time++;$('time').textContent=fmtTime(G.time);if(G.time%10===0)writeSave();
+},1000);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)writeSave()});
+addEventListener('pagehide',writeSave);
+let rzT=0;
+function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{if(G&&!pick)noAnim(render)},60)}
+addEventListener('resize',onResize);
+if(window.ResizeObserver)new ResizeObserver(onResize).observe(board);
+
+(function init(){
+  const g=loadSave();
+  if(g){resume(g);msg('Folytatod, ahol abbahagytad.','good')}
+  else{E=eng(SAVE.variant);menu()}
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+</body>
+</html>
