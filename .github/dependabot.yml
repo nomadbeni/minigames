@@ -1,7 +1,12 @@
-# Keeps the commit-pinned GitHub Actions in .github/workflows up to date with a monthly pull request.
+# Keeps the commit-pinned GitHub Actions in .github/workflows up to date.
+# All updates come together in one monthly pull request. Its English commit message breaks the repository
+# rule, so it is not merged as it is: an agent redoes it in one Hungarian commit (see AGENTS.md).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
