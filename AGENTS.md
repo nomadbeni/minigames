@@ -94,6 +94,7 @@ Ezen felül:
 
 ## Mit ne csinálj
 
+- Ne fésüld össze a Dependabot PR-jét úgy, ahogy van (angol commit üzenet, nincs MI-jelölő). Vedd át a frissítést egy saját, magyar commitba: olvasd el a főverziók változásnaplóját, a commit-azonosítót és a verziót megjegyzésben írd be, a Dependabot PR-t pedig zárd le a saját PR-ed linkjével.
 - Ne írd át a git előzményeket, és ne force pusholj, hacsak a tulajdonos kifejezetten nem kéri.
 - Ne kapcsold ki és ne gyengítsd a `tools/build_site.py` ellenőrzéseit azért, hogy átmenjen a build. Javítsd a játékot.
 - Ne tegyél be build-lépést, csomagkezelőt vagy keretrendszert. Minden játék egy önálló HTML fájl marad.
