@@ -47,9 +47,23 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .pad .big b{font-size:40px;line-height:1}
 .pad button.on,.pad button:active{background:var(--panel2);border-color:var(--accent)}
 .pad .big:disabled{opacity:.35}
-@media (hover:hover) and (pointer:fine){.pad{display:none}}
 @media (max-width:430px){.hud{gap:4px}.chip{padding:5px 6px;font-size:14px;gap:3px}.chip small{font-size:9px}.ib{font-size:17px}}
 @media (max-height:700px){.dpad{--b:min(60px,19vw)}.pad .big{height:120px;width:96px}}
+/* Fekvő telefon: a raktár középen, balra az irányítókereszt, jobbra a VISSZA gomb, fölöttük egy sorban a gombok és a kijelző */
+@media (orientation:landscape) and (max-height:560px){
+  #app{max-width:none;display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto minmax(0,1fr);gap:4px 12px;padding-block:6px}
+  .top-bar{grid-column:1/3;grid-row:1}
+  .hud{grid-column:2/4;grid-row:1;justify-self:end;gap:4px}
+  .hud .sp{display:none}
+  .chip{padding:5px 6px;font-size:14px;gap:3px}.chip small{font-size:9px}
+  #msg{grid-column:2;grid-row:2;min-height:0;font-size:15px}
+  #stage{grid-column:2;grid-row:3}
+  .pad{display:contents}
+  .dpad{grid-column:1;grid-row:2/4;align-self:center;--b:min(60px,calc((100dvh - 90px)/3.3))}
+  .pad .big{grid-column:3;grid-row:2/4;align-self:center;width:88px;height:min(120px,calc(100dvh - 100px))}
+  #ov{padding-top:calc(56px + env(safe-area-inset-top,0px))}
+}
+@media (hover:hover) and (pointer:fine){.pad{display:none}}
 #ov{position:fixed;inset:0;background:rgba(12,8,16,.86);display:grid;place-items:center;padding:calc(64px + env(safe-area-inset-top,0px)) 16px 16px;z-index:9}
 .card{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:18px 16px;width:min(470px,100%);max-height:calc(100% - 24px);overflow:auto;display:flex;flex-direction:column;gap:12px;text-align:center}
 .card h1{margin:0;font:400 32px/1.05 var(--title);color:var(--accent);text-shadow:3px 3px 0 #000}
@@ -454,42 +468,6 @@ load(unlocked(SAVE.cur)?SAVE.cur:0);menu();
   d.addEventListener('webkitfullscreenchange', label);
   label();
 })();
-</script>
-<script>
-/* @shared fekvo-jelzes */
-/* Fekvő telefonon „Fordítsd el a telefont” jelzés. A játék álló képernyőre készült, ezért amíg a telefon
-   fekszik, a jelzés eltakarja, és a játék a saját szünet-logikájával megáll (ugyanaz fut le, mint amikor
-   a lap háttérbe kerül). Gépen, széles ablakban nem jelenik meg (csak érintőképernyőn, alacsony ablakban). */
-(function(){
-  var mq;
-  try{ mq=matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'); }catch(e){ return; }
-  var st=document.createElement('style');
-  st.textContent='.rotate-hint{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;'+
-    'background:rgba(5,8,14,.95);color:#fff;font:700 20px/1.3 system-ui,sans-serif;text-align:center}'+
-    '.rotate-hint[hidden]{display:none!important}.rotate-hint p{margin:8px 0}'+
-    '.rotate-hint .sub{font-weight:400;font-size:16px;opacity:.85}.rotate-hint svg{width:56px;height:56px}';
-  var el=document.createElement('div');
-  el.className='rotate-hint';el.setAttribute('role','alert');el.hidden=true;
-  el.innerHTML='<div><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" '+
-    'fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.5" r="1" fill="currentColor"/></svg>'+
-    '<p>Fordítsd el a telefont!</p><p class="sub">Ez a játék álló képernyőre készült. Addig szünetel.</p></div>';
-  function pauseGame(){
-    try{
-      Object.defineProperty(document,'hidden',{configurable:true,get:function(){return true;}});
-      document.dispatchEvent(new Event('visibilitychange'));
-    }catch(e){}
-    try{ delete document.hidden; }catch(e){}
-  }
-  function update(e){
-    if(mq.matches){ if(el.hidden){ el.hidden=false; if(e) pauseGame(); } }
-    else el.hidden=true;
-  }
-  document.head.appendChild(st);
-  document.body.appendChild(el);
-  if(mq.addEventListener) mq.addEventListener('change',update); else if(mq.addListener) mq.addListener(update);
-  update();
-})();
-/* @end fekvo-jelzes */
 </script>
 <script>
 /* @shared pixel-ikon */
