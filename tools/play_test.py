@@ -506,6 +506,42 @@ async def sc_breakout(page):
     check(await txt(page, "#lives") == "♥♥♥", "a new game starts with three lives")
 
 
+async def sc_pinball(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.locator('#card button[data-act="go"]').click()
+    check(await page.locator("#ov").is_hidden(), "Start closes the window")
+    await hold(page, "Space", 600)
+    await wait_js(page, "__flipper.G.ball.state === 'play'", timeout=3000)
+    for balls in (2, 1, 0):
+        # the ball is sent below the flippers, the real drain check has to notice it
+        await page.evaluate("__flipper.drain()")
+        await wait_js(page, f"__flipper.G.balls === {balls}", timeout=3000)
+        if balls:
+            check((await txt(page, "#balls")).count("●") == balls, f"the ball counter shows {balls}")
+            check(await page.evaluate("__flipper.G.ball.state") == "plunger", "the next ball waits in the shooter lane")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=3000)
+    check(await page.evaluate("localStorage.getItem('flipper-save')") is None, "the save is cleared at game over")
+    await page.locator('#card button[data-act="new"]').click()
+    await page.locator('#card button[data-act="go"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await txt(page, "#balls") == "●●●", "a new game starts with three balls")
+
+
+async def sc_pinball_tables(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.locator('#card button[data-act="go"]').click()
+    await page.evaluate("__flipper.finish()")
+    await page.locator("#ov h2", has_text="Asztal kész").wait_for(timeout=4000)
+    check(await page.evaluate("localStorage.getItem('flipper-unlocked')") == "1", "the next table is unlocked")
+    await page.locator('#card button[data-act="go"]').click()
+    check(await page.evaluate("__flipper.T.i") == 1, "the second table is built")
+    check(await page.evaluate("__flipper.G.balls") == 4, "a cleared table gives an extra ball")
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]', has_text="Kristálybarlang").click()
+    await page.locator('#card button[data-act="go"]').click()
+    check(await page.evaluate("[__flipper.G.table, __flipper.G.balls]") == [1, 4], "the game continues on table 2 after a reload")
+
+
 def solve_region_puzzle(n, reg):
     """Independent solver for Gyémántbánya and Kincsvadász: one per row, column and region,
     none touching. Returns every solution (stops at two)."""
@@ -855,6 +891,8 @@ SCENARIOS = [
     ("tankorseg", "Tank Guard: a game controller starts the battle, drives and fires", sc_tank_gamepad, None),
     ("kokori-kaland", "Stone Age Quest: the caveman walks and the run is saved", sc_caveman, None),
     ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
+    ("flipper", "Pinball: a drained ball is counted, the last one ends the game, New game restarts", sc_pinball, None),
+    ("flipper", "Pinball: a finished mission unlocks the next table, the game survives a reload", sc_pinball_tables, None),
     ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),
     ("gyemantbanya", "Diamond Mine: a wrong cell costs a heart, the solver's solution wins", sc_gems, None),
     ("kincsvadasz", "Treasure Hunter: a wrong cell costs a heart, the solver's solution wins", sc_treasure, None),
