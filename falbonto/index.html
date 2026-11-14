@@ -510,7 +510,7 @@ function loop(now){
   if(G){G.fx.forEach(f=>f.l-=dt*2.2);G.fx=G.fx.filter(f=>f.l>0)}
   draw(now);requestAnimationFrame(loop);
 }
-window.__falbonto={get G(){return G},get PY(){return PY},PH,BR}; // játékteszthez (tools/play_test.py)
+if(window.__GAMES_TEST__)window.__falbonto={get G(){return G},get PY(){return PY},PH,BR}; // csak a játékteszt (tools/play_test.py) kapcsolja be
 fit();hud();menu();requestAnimationFrame(loop);
 })();
 </script>

@@ -452,7 +452,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&G.phase
 addEventListener('pagehide',save);
 
 layout();hud();showMenu();
-window.__nyilak={get G(){return G},generate,greedy,rayHit,tap,hint,startLevel,draw}; // játékteszthez (tools/play_test.py)
+if(window.__GAMES_TEST__)window.__nyilak={get G(){return G},generate,greedy,rayHit,tap,hint,startLevel,draw}; // csak a játékteszt (tools/play_test.py) kapcsolja be
 })();
 </script>
 <script>

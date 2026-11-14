@@ -66,13 +66,16 @@ def list_games():
 class Run:
     """One browser context with everything that went wrong in it."""
 
-    def __init__(self, browser, base, mobile=False, seed=None):
-        self.browser, self.base, self.mobile, self.seed = browser, base, mobile, seed
+    def __init__(self, browser, base, mobile=False, seed=None, hooks=True):
+        self.browser, self.base, self.mobile, self.seed, self.hooks = browser, base, mobile, seed, hooks
         self.errors, self.external = [], []
 
     async def __aenter__(self):
         size = {"width": 390, "height": 780} if self.mobile else {"width": 1280, "height": 800}
         self.ctx = await self.browser.new_context(viewport=size, has_touch=self.mobile, is_mobile=self.mobile)
+        if self.hooks:
+            # The games only put their test helpers (window.__kigyo etc.) on the page when this is set.
+            await self.ctx.add_init_script("window.__GAMES_TEST__ = true")
         if self.seed is not None:
             # Written once per tab, before any game script runs; a reload keeps what the game saved.
             await self.ctx.add_init_script(
@@ -159,8 +162,11 @@ BROKEN = {
 async def test_game(browser, base, game):
     problems = []
     route = f"{game}/index.html"
-    async with Run(browser, base) as r:
+    async with Run(browser, base, hooks=False) as r:
         await r.goto(route)
+        hooks = await r.page.evaluate("Object.keys(window).filter(k => k.startsWith('__'))")
+        if hooks:
+            problems.append(f"test helpers on the published page: {', '.join(hooks)}")
         if not (await r.page.title()).strip():
             problems.append("no <title>")
         if await r.page.locator('a.home-link[href="../index.html"]').count() != 1:
@@ -537,14 +543,15 @@ async def sc_snake(page):
 async def sc_baby(page):
     await page.locator('#card button[data-act="play"]').click()
     check(await page.locator("#ov").is_hidden(), "Play closes the menu")
-    check(await page.locator("#lock").is_visible(), "the parent lock shows while playing")
+    check(await page.locator("#lock").is_visible(), "the lock shows while playing")
     await wait_js(page, "__baba.G.fruits.length > 0", timeout=4000)
     box = await page.locator("#cv").bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    total = "__baba.S.total"
     # a tap on a fruit cuts it in two
     await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 0)")
     await page.mouse.click(cx, cy)
-    check(await page.evaluate("[__baba.G.n, __baba.G.fruits.length, __baba.G.halves.length]") == [1, 0, 2],
+    check(await page.evaluate(f"[{total}, __baba.G.fruits.length, __baba.G.halves.length]") == [1, 0, 2],
           "a tap cuts the fruit into two halves")
     # a swipe across a fruit cuts it too
     await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 2)")
@@ -552,47 +559,77 @@ async def sc_baby(page):
     await page.mouse.down()
     await page.mouse.move(cx + 120, cy + 10, steps=8)
     await page.mouse.up()
-    check(await page.evaluate("__baba.G.n") == 2, "a swipe cuts the fruit")
+    check(await page.evaluate(total) == 2, "a swipe cuts the fruit")
     # a tap on the empty sky does nothing bad, just sparkles
     await page.mouse.click(box["x"] + 30, box["y"] + box["height"] - 30)
-    check(await page.evaluate("__baba.G.n") == 2, "a tap on the sky cuts nothing")
+    check(await page.evaluate(total) == 2, "a tap on the sky cuts nothing")
     # any key cuts the highest fruit
     await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 3}, 6)")
     await page.keyboard.press("KeyF")
-    check(await page.evaluate("__baba.G.n") == 3, "a key press cuts a fruit")
+    check(await page.evaluate(total) == 3, "a key press cuts a fruit")
     saved = json.loads(await page.evaluate("localStorage.getItem('pici-gyumolcsvago-save')"))
     check(saved["total"] == 3, "the counter is saved")
-    # tenth fruit: a little party
-    for _ in range(7):
-        await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 1)")
-        await page.evaluate("__baba.slice(0)")
-    check(await page.evaluate("__baba.G.party > 0"), "the tenth fruit starts a party")
-    # holding the lock opens the menu, a short tap does not
+    cut = f"(() => {{ __baba.put({box['width'] / 2}, {box['height'] / 2}, 1); __baba.slice(0); }})()"
+    for _ in range(6):
+        await page.evaluate(cut)
+    check(await page.evaluate(f"[{total}, __baba.G.party > 0]") == [9, False], "no party before the tenth fruit")
+    # the milestone counts from the saved total: 9 saved, reload, the next fruit is the tenth
+    await page.reload()
+    check(await page.evaluate(f"[{total}, __baba.G.party > 0]") == [9, False], "a reload neither resets nor parties")
+    await page.locator('#card button[data-act="play"]').click()
+    await page.evaluate(cut)
+    check(await page.evaluate(f"[{total}, __baba.G.party > 0]") == [10, True], "the tenth fruit parties after a reload")
+    await page.reload()
+    check(await page.evaluate("__baba.G.party > 0") is False, "reloading at ten does not party again")
+    await page.locator('#card button[data-act="play"]').click()
+    for _ in range(9):
+        await page.evaluate(cut)
+    check(await page.evaluate("__baba.G.party > 0") is False, "no party at 19")
+    await page.evaluate(cut)
+    check(await page.evaluate(f"[{total}, __baba.G.party > 0]") == [20, True], "the twentieth fruit parties")
+    # the menu only opens on a long press, the same way for the lock, Escape and the controller's Start
     await page.locator("#lock").click()
     await page.wait_for_timeout(300)
     check(await page.locator("#ov").is_hidden(), "a short tap on the lock does not open the menu")
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(300)
+    check(await page.locator("#ov").is_hidden(), "a short Escape does not open the menu")
     lb = await page.locator("#lock").bounding_box()
     await page.mouse.move(lb["x"] + lb["width"] / 2, lb["y"] + lb["height"] / 2)
     await page.mouse.down()
     await page.wait_for_timeout(1800)
     await page.mouse.up()
     check(await page.locator("#ov").is_visible(), "holding the lock opens the menu")
-    check(await txt(page, "#tot") == "10", "the menu shows the counter")
+    check(await txt(page, "#tot") == "20", "the menu shows the counter")
     await page.keyboard.press("Escape")
     check(await page.locator("#ov").is_hidden(), "Escape continues the game")
-    await page.keyboard.press("Escape")
-    check(await page.locator("#ov").is_visible(), "Escape opens the menu")
+    await page.keyboard.down("Escape")
+    await page.wait_for_timeout(1800)
+    await page.keyboard.up("Escape")
+    check(await page.locator("#ov").is_visible(), "holding Escape opens the menu")
     # settings and counter survive a reload
     await page.locator('#card button[data-speed="gyors"]').click()
     await page.locator('#card button[data-act="snd"]').click()
     await page.reload()
-    check(await page.evaluate("[__baba.S.total, __baba.S.speed, __baba.S.sound]") == [10, "gyors", False],
+    check(await page.evaluate("[__baba.S.total, __baba.S.speed, __baba.S.sound]") == [20, "gyors", False],
           "counter, speed and sound are kept after a reload")
     # resetting the counter needs two taps
     await page.locator('#card button[data-act="reset"]').click()
-    check(await page.evaluate("__baba.S.total") == 10, "one tap does not reset the counter")
+    check(await page.evaluate("__baba.S.total") == 20, "one tap does not reset the counter")
     await page.locator('#card button[data-act="reset"]').click()
     check(await txt(page, "#tot") == "0", "the second tap resets the counter")
+
+
+async def sc_baby_gamepad(page):
+    await page.add_init_script(PAD)
+    await page.reload()
+    await page.evaluate("dispatchEvent(new Event('gamepadconnected'))")
+    await page.locator('#card button[data-act="play"]').click()
+    await page.wait_for_timeout(200)
+    await pad(page, 9, 300)
+    check(await page.locator("#ov").is_hidden(), "a short Start does not open the menu")
+    await pad(page, 9, 1900)
+    check(await page.locator("#ov").is_visible(), "holding Start opens the menu")
 
 
 async def sc_baby_broken(page):
@@ -1061,6 +1098,7 @@ SCENARIOS = [
     ("flipper", "Pinball: a drained ball is counted, the last one ends the game, New game restarts", sc_pinball, None),
     ("flipper", "Pinball: a finished mission unlocks the next table, the game survives a reload", sc_pinball_tables, None),
     ("pici-gyumolcsvago", "Tiny Fruit Slicer: tap, swipe and key cut, the tenth fruit parties, the lock, reload, reset", sc_baby, None),
+    ("pici-gyumolcsvago", "Tiny Fruit Slicer: the controller's Start opens the menu only when held", sc_baby_gamepad, None),
     ("pici-gyumolcsvago", "Tiny Fruit Slicer: a broken save starts with the defaults", sc_baby_broken,
      {"pici-gyumolcsvago-save": '{"speed":"__proto__","sound":"igen","total":-5}'}),
     ("kigyo", "Snake: an apple makes it longer, the game survives a reload, the wall ends it, New game restarts", sc_snake, None),

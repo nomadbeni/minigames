@@ -814,7 +814,7 @@ function frame(now){
 }
 fit();title();requestAnimationFrame(frame);
 /* exposed for the automatic tests only */
-window.__kk={S,LEVELS,TS,KEY,step,startLevel,hurt,jump:()=>{jumpHit=true},atk:()=>{atkHit=true}};
+if(window.__GAMES_TEST__)window.__kk={S,LEVELS,TS,KEY,step,startLevel,hurt,jump:()=>{jumpHit=true},atk:()=>{atkHit=true}};
 </script>
 <script>
 /* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */

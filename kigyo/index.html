@@ -335,7 +335,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&G.phase
 addEventListener('pagehide',save);
 
 fit();hud();showMenu();
-window.__kigyo={get G(){return G},N,step,turn,newGame,over,loadSave,draw}; // játékteszthez (tools/play_test.py)
+if(window.__GAMES_TEST__)window.__kigyo={get G(){return G},N,step,turn,newGame,over,loadSave,draw}; // csak a játékteszt (tools/play_test.py) kapcsolja be
 })();
 </script>
 <script>

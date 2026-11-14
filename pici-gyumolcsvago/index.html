@@ -8,10 +8,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#bfe8ff">
 <title>Pici gyümölcsvágó</title>
-<meta name="description" content="Gyümölcsvágós játék a legkisebbeknek: mosolygós gyümölcsök repülnek fel, egy koppintás vagy egy húzás kettévágja őket, csillogással és vidám hanggal. Nincs veszítés, nincs időre menés, minden tizedik gyümölcs után ünneplés. Szülői zár a menühöz, három sebesség.">
+<meta name="description" content="Gyümölcsvágós játék a legkisebbeknek: mosolygós gyümölcsök repülnek fel, egy koppintás vagy egy húzás kettévágja őket, csillogással és vidám hanggal. Nincs veszítés, nincs időre menés, minden tizedik gyümölcs után ünneplés. A menü csak nyomva tartásra nyílik (véletlen kilépés ellen), három sebesség.">
 <meta name="games:category" content="jatek">
 <meta name="games:title-en" content="Tiny Fruit Slicer">
-<meta name="games:description-en" content="A fruit slicing game for the littlest ones: smiling fruits fly up, a tap or a swipe cuts them in two with sparkles and a happy sound. No losing, no timer, a little party after every tenth fruit. Parent lock for the menu, three speeds.">
+<meta name="games:description-en" content="A fruit slicing game for the littlest ones: smiling fruits fly up, a tap or a swipe cuts them in two with sparkles and a happy sound. No losing, no timer, a little party after every tenth fruit. The menu only opens on a long press (against accidental exits), three speeds.">
 <link rel="stylesheet" href="../assets/fonts/fonts.css">
 <style>
 /* Elrendezés: teljes képernyős vászon; a menü (#ov) a szülőé, játék közben csak a lakat gomb látszik */
@@ -62,7 +62,7 @@ button:not(:disabled):active{transform:translateY(1px)}
   <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
   <div id="stage"><canvas id="cv" aria-label="Játéktér: koppints vagy húzd az ujjad a gyümölcsökön"></canvas></div>
 </div>
-<button type="button" id="lock" hidden aria-label="Menü (szülőknek: tartsd nyomva)" title="Menü: tartsd nyomva"><span aria-hidden="true">🔒</span></button>
+<button type="button" id="lock" hidden aria-label="Menü: tartsd nyomva másfél másodpercig" title="Menü: tartsd nyomva" tabindex="-1"><span aria-hidden="true">🔒</span></button>
 <div id="ov"><div class="card" id="card"></div></div>
 
 <script>
@@ -143,7 +143,7 @@ function sndParty(){
 
 // ---------- állapot ----------
 let W=1,H=1,dpr=1,R=50,raf=0,last=0,lastKey=0,lastFruit=-1;
-const G={fruits:[],halves:[],parts:[],segs:[],clouds:[],t:0,spawnT:0,n:0,combo:0,comboT:0,party:0,playing:false,started:false};
+const G={fruits:[],halves:[],parts:[],segs:[],clouds:[],t:0,spawnT:0,combo:0,comboT:0,party:0,playing:false,started:false};
 function initClouds(){G.clouds=[0,1,2].map(i=>({x:Math.random()*W,y:H*(.08+i*.13),s:.7+Math.random()*.6,v:6+Math.random()*10}))}
 
 function resize(){
@@ -185,10 +185,10 @@ function slice(i,ang){
   burst(o.x,o.y,o.f.juice,few?6:16,260);
   stars(o.x,o.y,few?2:5,['#fff','#fde047']);
   G.parts.push({k:'ring',x:o.x,y:o.y,r:o.r*.6,c:'#ffffff',life:.4,max:.4});
-  G.n++;S.total++;save();
+  S.total++;save();
   G.combo=G.comboT>0?G.combo+1:0;G.comboT=1.3;
   sndSlice(G.combo);
-  if(G.n%10===0)celebrate();
+  if(S.total%10===0)celebrate();   // a mentett összesből számol, így újratöltés után is folytatódik
 }
 function celebrate(){
   G.party=2.2;sndParty();
@@ -358,9 +358,9 @@ function draw(){
   c.globalAlpha=1;c.lineCap='round';
   for(const s of G.segs){const a=s.life/s.max;c.strokeStyle='rgba(255,255,255,'+(a*.9).toFixed(3)+')';c.lineWidth=4+a*10;c.beginPath();c.moveTo(s.x1,s.y1);c.lineTo(s.x2,s.y2);c.stroke()}
   if(G.started){
-    c.fillStyle='rgba(255,255,255,.75)';c.beginPath();c.roundRect?c.roundRect(10,10,92,44,22):c.rect(10,10,92,44);c.fill();
+    c.fillStyle='rgba(255,255,255,.75)';c.beginPath();const pw=Math.max(92,62+String(S.total).length*13);c.roundRect?c.roundRect(10,10,pw,44,22):c.rect(10,10,pw,44);c.fill();
     c.save();c.translate(33,33);drawFruit(c,FR[0],13,false);c.restore();
-    c.fillStyle='#1f2a44';c.font='700 22px "Nunito Sans","Trebuchet MS",sans-serif';c.textAlign='left';c.textBaseline='middle';c.fillText(String(G.n),54,33);
+    c.fillStyle='#1f2a44';c.font='700 22px "Nunito Sans","Trebuchet MS",sans-serif';c.textAlign='left';c.textBaseline='middle';c.fillText(String(S.total),54,33);
   }
   if(G.party>0){
     const t=2.2-G.party,s=RM.matches?1:Math.min(1,t*4)*(1+Math.sin(t*10)*.05*Math.max(0,1-t));
@@ -390,7 +390,7 @@ function renderMenu(){
       '<button type="button" class="b" data-act="snd" aria-pressed="'+S.sound+'">Hang: '+(S.sound?'be':'ki')+'</button>'+
       '<button type="button" class="b'+(resetArm?' warn':'')+'" data-act="reset">'+(resetArm?'Biztosan nullázod? Koppints újra':'Számláló nullázása')+'</button>'+
     '</div>'+
-    '<p class="small"><b>Szülőknek:</b> játék közben a jobb felső lakatot tartsd nyomva, így jön elő ez a menü (gépen: Esc). Tipp: tedd teljes képernyőre, és telefonon kapcsold be a képernyő rögzítését (Androidon „alkalmazás kitűzése”, iPhone-on „Irányított hozzáférés”).</p>';
+    '<p class="small"><b>Szülőknek:</b> játék közben a menühöz tarts nyomva másfél másodpercig a jobb felső lakatot, gépen az Esc-et, kontrolleren a Startot. Ez csak a véletlen kilépés ellen véd, nem jelszavas zár. Tipp: tedd teljes képernyőre, és telefonon kapcsold be a képernyő rögzítését (Androidon „alkalmazás kitűzése”, iPhone-on „Irányított hozzáférés”).</p>';
   const m=$('mini'),mc=m.getContext('2d');
   [[1,70,92,40],[0,240,84,46],[6,410,94,40]].forEach(([k,x,y,r])=>{mc.save();mc.translate(x,y);drawFruit(mc,FR[k],r,true);mc.restore()});
 }
@@ -417,22 +417,26 @@ card.addEventListener('click',e=>{
   if(a==='play')play();
   else if(a==='snd'){S.sound=!S.sound;save();if(S.sound)unlockAudio();resetArm=false;renderMenu();card.querySelector('[data-act="snd"]').focus()}
   else if(a==='reset'){
-    if(resetArm){S.total=0;G.n=0;save();resetArm=false}else resetArm=true;
+    if(resetArm){S.total=0;save();resetArm=false}else resetArm=true;
     renderMenu();card.querySelector('[data-act="reset"]').focus();
   }
 });
 
-// ---------- lakat: nyomva tartásra nyitja a menüt ----------
-let holdRaf=0;
-function endHold(){cancelAnimationFrame(holdRaf);holdRaf=0;lock.style.setProperty('--p','0')}
-lock.addEventListener('pointerdown',e=>{
-  e.preventDefault();endHold();const t0=performance.now();
+// ---------- zár: a menü csak nyomva tartásra nyílik ----------
+// A véletlen kilépés ellen véd (baba koppint, billentyűt csapkod), nem jelszavas zár: aki tudja, kinyitja.
+// Ugyanaz a szabály minden bevitelre: lakat érintéssel/egérrel, Esc a billentyűzeten, Start a kontrolleren
+// (a kontroller blokk a Startot Esc-ként adja tovább, nyomva tartva nyomva marad).
+let holdRaf=0,holdBy='',menuAt=0;
+function endHold(by){if(by&&by!==holdBy)return;cancelAnimationFrame(holdRaf);holdRaf=0;holdBy='';lock.style.setProperty('--p','0')}
+function startHold(by){
+  if(!G.playing||holdBy)return;
+  holdBy=by;const t0=performance.now();
   const step=()=>{const k=(performance.now()-t0)/HOLD;lock.style.setProperty('--p',String(Math.min(1,k)));
-    if(k>=1){endHold();leavePlay();return}holdRaf=requestAnimationFrame(step)};
+    if(k>=1){if(by==='esc')menuAt=performance.now();endHold();leavePlay();return}holdRaf=requestAnimationFrame(step)};
   holdRaf=requestAnimationFrame(step);
-});
-['pointerup','pointercancel','pointerleave'].forEach(ev=>lock.addEventListener(ev,endHold));
-lock.addEventListener('click',e=>{if(e.detail===0)leavePlay()});   // billentyűzetről (Enter) azonnal
+}
+lock.addEventListener('pointerdown',e=>{e.preventDefault();startHold('ptr')});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>lock.addEventListener(ev,()=>endHold('ptr')));
 lock.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ---------- érintés, egér ----------
@@ -458,9 +462,15 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ---------- billentyű, kontroller: bármelyik gomb vág ----------
 addEventListener('keydown',e=>{
-  if(e.key==='Escape'){e.preventDefault();if(G.playing)leavePlay();else if(G.started)play();return}
+  if(e.key==='Escape'){
+    e.preventDefault();
+    if(G.playing)startHold('esc');
+    else if(G.started&&!e.repeat&&performance.now()-menuAt>700)play();  // a menüből egy új Esc folytatja; a nyitó nyomás (a kontroller is újraküldi) nem
+    return;
+  }
   if(!G.playing)return;
-  if(e.ctrlKey||e.metaKey||e.altKey||e.key==='Tab'||/^F\d+$/.test(e.key))return;
+  if(e.key==='Tab'){e.preventDefault();return}  // játék közben a fókusz nem vándorol a gombokra
+  if(e.ctrlKey||e.metaKey||e.altKey||/^F\d+$/.test(e.key))return;
   e.preventDefault();
   const now=performance.now();if(now-lastKey<110)return;lastKey=now;
   unlockAudio();
@@ -469,14 +479,16 @@ addEventListener('keydown',e=>{
   if(bi>=0)slice(bi,(Math.random()-.5)*1.4);else tapFx(W*(.2+Math.random()*.6),H*(.3+Math.random()*.4));
 });
 
+addEventListener('keyup',e=>{if(e.key==='Escape')endHold('esc')});
+addEventListener('blur',()=>endHold());
 addEventListener('pagehide',save);
 if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);else addEventListener('resize',resize);
 resize();openMenu();
 
 // játékteszthez és borítóképhez (tools/play_test.py, tools/make_covers.py)
-window.__baba={get G(){return G},S,slice,spawn,draw,
+if(window.__GAMES_TEST__)window.__baba={get G(){return G},S,slice,spawn,draw,
   put(x,y,k){G.spawnT=99;G.fruits.length=0;const f=FR[k||0];G.fruits.push({f,r:R,g:0,x,y,vx:0,vy:0,rot:0,ph:0,age:0});return G.fruits.length},
-  demo(){G.started=true;G.playing=false;ov.hidden=true;lock.hidden=false;document.body.classList.add('playing');resize();G.n=7;
+  demo(){G.started=true;G.playing=false;ov.hidden=true;lock.hidden=false;document.body.classList.add('playing');resize();
     G.fruits=[[2,.22,.5],[1,.72,.35],[6,.4,.25],[3,.8,.62]].map(([k,fx,fy])=>({f:FR[k],r:R*(FR[k].size||1),g:0,x:W*fx,y:H*fy,vx:0,vy:0,rot:(fx-.5)*.3,ph:0,age:0}));
     G.halves=[1,-1].map(s=>({f:FR[0],r:R,g:0,x:W*.55+s*R*.25,y:H*.58+s*R*.35,vx:0,vy:0,a:-.5,side:s,spin:s*.25,vs:0,life:2}));
     G.parts=[];burst(W*.55,H*.58,FR[0].juice,14,180);stars(W*.55,H*.58,5,['#fff','#fde047']);

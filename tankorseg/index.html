@@ -675,7 +675,7 @@ function frame(now){
 }
 buildStage(1);fit();menu();requestAnimationFrame(frame);
 /* for the automatic tests only */
-window.__tank={S,KEY,step,startStage};
+if(window.__GAMES_TEST__)window.__tank={S,KEY,step,startStage};
 </script>
 <script>
 /* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */

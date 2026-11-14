@@ -609,8 +609,8 @@ function loop(now){
   if(G){for(const m of G.msgs)m.l-=dt;G.msgs=G.msgs.filter(m=>m.l>0);if(G.msgs.length>3)G.msgs.splice(0,G.msgs.length-3)}
   draw(now);requestAnimationFrame(loop);
 }
-// játékteszthez (tools/play_test.py)
-window.__flipper={get G(){return G},get T(){return T},
+// csak a játékteszt (tools/play_test.py) kapcsolja be
+if(window.__GAMES_TEST__)window.__flipper={get G(){return G},get T(){return T},
   drain(){if(G&&G.ball){G.saveT=0;G.ball.state='play';G.ball.x=200;G.ball.y=H+40;G.ball.vx=0;G.ball.vy=100}},
   finish(){if(G){const m=TABLES[G.table].mission;for(const k in m)G.prog[k]=m[k];checkClear()}}};
 fit();sndIcon();T=buildTable(0);hud();showCard('menu');requestAnimationFrame(loop);
