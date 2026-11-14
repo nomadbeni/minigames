@@ -140,7 +140,7 @@ async def poke(page, mobile=False):
 KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", "bringa-muhely:save", "bringa:own",
               "bringa:penz", "bringa-futam:best", "betu-csata:best", "bunyo:save", "csapda:save", "horda:save",
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
-              "pasziansz:save"]
+              "pasziansz:save", "kigyo-save", "kigyo-best"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -504,6 +504,49 @@ async def sc_breakout(page):
     await page.locator('#card button[data-act="new"]').click()
     check(await page.locator("#ov").is_hidden(), "New game closes the end window")
     check(await txt(page, "#lives") == "♥♥♥", "a new game starts with three lives")
+
+
+async def sc_snake(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    # an apple right in front of the head: the real step has to eat it and grow
+    await page.evaluate("(() => { const G = __kigyo.G; G.food = [G.s[0][0] + 1, G.s[0][1]]; })()")
+    await page.keyboard.press("ArrowRight")  # the direction it already faces just starts it
+    await wait_js(page, "__kigyo.G.eat === 1", timeout=3000)
+    check(await page.evaluate("__kigyo.G.s.length") == 4, "eating an apple makes the snake longer")
+    check(await txt(page, "#score") == "1", "the score shows 1")
+    saved = json.loads(await page.evaluate("localStorage.getItem('kigyo-save')"))
+    check(saved and saved["eat"] == 1, "the game is saved after an apple")
+    await page.keyboard.press("Space")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    check(await page.evaluate("[__kigyo.G.eat, __kigyo.G.s.length, __kigyo.G.phase]") == [1, 4, "wait"],
+          "the game continues after a reload, waiting for a direction")
+    # head straight into the wall: the game has to end
+    await page.evaluate("(() => { const G = __kigyo.G; G.food = [0, 0]; })()")
+    await page.keyboard.press("ArrowUp")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=6000)
+    check(await page.evaluate("localStorage.getItem('kigyo-save')") is None, "the save is cleared at game over")
+    check(await page.evaluate("JSON.parse(localStorage.getItem('kigyo-best'))['2']") >= 1, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate("[__kigyo.G.score, __kigyo.G.s.length]") == [0, 3], "a new game starts from zero")
+
+
+async def sc_snake_swipe(page):
+    await page.locator('#card button[data-act="wrap"]').click()
+    await page.locator('#card button[data-act="new"]').click()
+    box = await page.locator("#cv").bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x, y - 60, steps=5)
+    await page.mouse.up()
+    await wait_js(page, "__kigyo.G.d[1] === -1", timeout=2000)
+    # with the wrap-around wall the snake comes back on the other side instead of dying
+    await wait_js(page, "__kigyo.G.s[0][1] === __kigyo.N - 1", timeout=6000)
+    check(await page.evaluate("__kigyo.G.phase") == "play", "the wrap-around wall does not end the game")
 
 
 async def sc_pinball(page):
@@ -893,6 +936,8 @@ SCENARIOS = [
     ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
     ("flipper", "Pinball: a drained ball is counted, the last one ends the game, New game restarts", sc_pinball, None),
     ("flipper", "Pinball: a finished mission unlocks the next table, the game survives a reload", sc_pinball_tables, None),
+    ("kigyo", "Snake: an apple makes it longer, the game survives a reload, the wall ends it, New game restarts", sc_snake, None),
+    ("kigyo", "Snake: a swipe turns it, the wrap-around wall lets it through", sc_snake_swipe, None),
     ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),
     ("gyemantbanya", "Diamond Mine: a wrong cell costs a heart, the solver's solution wins", sc_gems, None),
     ("kincsvadasz", "Treasure Hunter: a wrong cell costs a heart, the solver's solution wins", sc_treasure, None),

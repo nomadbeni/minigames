@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kígyó</title>
+<meta name="description" content="Klasszikus kígyós ügyességi játék álló telefonra: edd meg az almákat, nőj minél hosszabbra, és ne harapj magadba. Minden ötödik alma után rövid ideig aranycsillag ér +3 pontot. Három sebesség, átjárható fal mód, rekord sebességenként.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Snake">
+<meta name="games:description-en" content="Classic snake game for portrait phones: eat the apples, grow as long as you can and don't bite yourself. After every fifth apple a gold star worth +3 points appears for a short time. Three speeds, a wrap-around wall mode, a record for each speed.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Elrendezés: egyképernyős álló arcade — vissza sáv, pontsor, négyzetes pálya, irányító gombok, ablakok */
+:root{
+  --bg:#0a1a12; --panel:#10261b; --line:#1f4330; --fg:#eafbf1; --muted:#8fb5a0;
+  --accent:#4ade80; --gold:#fbbf24; --danger:#ff5d73;
+  --f1:#123323; --f2:#0f2c1e;
+  --display:"Bungee","Arial Black",system-ui,sans-serif;
+  --ui:"Chakra Petch","Trebuchet MS",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html{box-sizing:border-box;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:560px;margin:0 auto}
+.hud{display:flex;align-items:center;gap:14px}
+.stat{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+#score{font-family:var(--display);color:var(--accent);font-size:22px}
+.sp{flex:1}
+.icon{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;padding:0}
+.icon svg{width:20px;height:20px;fill:currentColor}
+.icon:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#stage{flex:1;min-height:0;display:grid;place-items:center;touch-action:none}
+canvas{display:block;touch-action:none;border-radius:12px;box-shadow:0 0 0 2px var(--line)}
+.pad{display:none;grid-template-columns:repeat(3,68px);grid-template-rows:repeat(2,54px);gap:6px;justify-content:center;flex:none}
+.pad button{font-size:22px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;touch-action:manipulation;padding:0}
+.pad button:active{background:var(--line)}
+.pad .u{grid-column:2;grid-row:1}.pad .l{grid-column:1;grid-row:2}.pad .d{grid-column:2;grid-row:2}.pad .r{grid-column:3;grid-row:2}
+.hint{margin:0;text-align:center;font-size:13px;color:var(--muted);flex:none}
+@media (pointer:coarse),(hover:none){.pad{display:grid}.hint.desk{display:none}}
+#ov{position:fixed;inset:0;display:grid;place-items:center;background:rgba(4,12,8,.82);z-index:5;padding-inline:16px}
+.card{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 22px;background:var(--panel);border:1px solid var(--line);border-radius:16px;text-align:center;width:min(360px,100%);max-height:calc(100% - 32px);overflow:auto}
+.card h2{font-family:var(--display);font-weight:400;font-size:32px;margin:0;color:var(--accent);line-height:1.1}
+.card h2.bad{color:var(--danger)}
+.card p{margin:0;color:var(--muted);font-size:15px;line-height:1.45}
+.card b{color:var(--fg)}
+.big{font-family:var(--display);font-size:52px;line-height:1;color:var(--fg)}
+.rec{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--gold);color:#2a1a00;font-weight:700;font-size:14px}
+.btns{display:flex;flex-direction:column;gap:8px;width:100%}
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+.olbl{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:-4px}
+button.b{font-family:var(--ui);font-weight:700;font-size:16px;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;min-height:44px}
+button.b.hot{background:var(--accent);border-color:var(--accent);color:#052e16}
+button.b.sm{font-size:14px;padding:10px 6px}
+button.b[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:rgba(74,222,128,.1)}
+button:not(:disabled):active{translate:0 1px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <div class="stat"><span class="lbl">Pont</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Alma</span><span class="val" id="eat">0</span></div>
+    <div class="stat"><span class="lbl">Rekord</span><span class="val" id="best">0</span></div>
+    <span class="sp"></span>
+    <button class="icon" id="snd" type="button" aria-label="Hang be/ki" aria-pressed="true"><svg viewBox="0 0 24 24" id="sndIcon"></svg></button>
+    <button class="icon" id="pauseBtn" type="button" aria-label="Szünet"><svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+  </div>
+  <div id="stage"><canvas id="cv" aria-label="Kígyó játéktér"></canvas></div>
+  <div class="pad" aria-label="Irányítás">
+    <button type="button" class="u" data-d="0,-1" aria-label="Fel">▲</button>
+    <button type="button" class="l" data-d="-1,0" aria-label="Balra">◀</button>
+    <button type="button" class="d" data-d="0,1" aria-label="Le">▼</button>
+    <button type="button" class="r" data-d="1,0" aria-label="Jobbra">▶</button>
+  </div>
+  <p class="hint desk">Nyilak vagy WASD · szóköz vagy Esc: szünet</p>
+</div>
+<div id="ov" hidden><div class="card" id="card"></div></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const N=18;                                   // a pálya N×N mező
+const SPD={1:[190,4],2:[140,3],3:[100,2]};    // sebesség: [kezdő lépésidő ms, gyorsulás almánként]
+const SPN={1:'Lassú',2:'Normál',3:'Gyors'};
+const GOLD_STEPS=45;                          // ennyi lépésig marad kint az aranycsillag
+let G=null,timer=0,size=0,dpr=1,actx=null,flash=0;
+
+// ---------- beállítás, rekord, mentés (csak localStorage) ----------
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
+let speed=['1','2','3'].includes(lsGet('kigyo-speed'))?+lsGet('kigyo-speed'):2;
+let wrap=lsGet('kigyo-wrap')==='1';
+let sound=lsGet('kigyo-sound')!=='0';
+const mode=()=>speed+(wrap?'w':'');
+function loadBest(){
+  const out={};
+  try{const d=JSON.parse(lsGet('kigyo-best'));
+    if(d&&typeof d==='object'&&!Array.isArray(d))for(const k of ['1','2','3','1w','2w','3w']){const v=d[k];if(Number.isInteger(v)&&v>=0&&v<1e7)out[k]=v}}catch(e){}
+  return out;
+}
+let best=loadBest();
+const bestNow=()=>best[mode()]||0;
+const inGrid=p=>Array.isArray(p)&&p.length===2&&p.every(v=>Number.isInteger(v)&&v>=0&&v<N);
+function save(){
+  if(!G||G.phase==='over')return;
+  lsSet('kigyo-save',JSON.stringify({v:1,s:G.s,d:G.d,food:G.food,eat:G.eat,score:G.score,speed:G.speed,wrap:G.wrap}));
+}
+function loadSave(){
+  try{
+    const d=JSON.parse(lsGet('kigyo-save'));
+    if(!d||d.v!==1||!Array.isArray(d.s)||d.s.length<3||d.s.length>N*N-1||!d.s.every(inGrid))return null;
+    const seen=new Set(d.s.map(p=>p.join()));if(seen.size!==d.s.length)return null;
+    for(let i=1;i<d.s.length;i++){const a=d.s[i-1],b=d.s[i];let dx=Math.abs(a[0]-b[0]),dy=Math.abs(a[1]-b[1]);
+      if(d.wrap===true){dx=Math.min(dx,N-dx);dy=Math.min(dy,N-dy)}if(dx+dy!==1)return null}
+    const dd=d.d;if(!Array.isArray(dd)||!['1,0','-1,0','0,1','0,-1'].includes(dd.join()))return null;
+    if(!inGrid(d.food)||seen.has(d.food.join()))return null;
+    if(!Number.isInteger(d.eat)||d.eat<0||d.eat>N*N||!Number.isInteger(d.score)||d.score<0||d.score>1e7)return null;
+    if(![1,2,3].includes(d.speed)||typeof d.wrap!=='boolean')return null;
+    return {s:d.s.map(p=>p.slice()),d:dd.slice(),food:d.food.slice(),eat:d.eat,score:d.score,speed:d.speed,wrap:d.wrap};
+  }catch(e){return null}
+}
+
+// ---------- hang (Web Audio) ----------
+function beep(f,d=0.06,type='square',v=0.05,at=0){
+  if(!sound)return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+at;
+    o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+0.02);
+  }catch(e){}
+}
+function sndIcon(){
+  $('sndIcon').innerHTML=sound
+    ?'<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4zM14 3.2v2.1a7 7 0 010 13.4v2.1a9 9 0 000-17.6z"/>'
+    :'<path d="M3 9v6h4l5 5V4L7 9H3zm18.4 6L20 16.4l-2.6-2.6-2.6 2.6L13.4 15l2.6-2.6-2.6-2.6 1.4-1.4 2.6 2.6 2.6-2.6 1.4 1.4-2.6 2.6z"/>';
+  $('snd').setAttribute('aria-pressed',sound?'true':'false');
+}
+$('snd').addEventListener('click',()=>{sound=!sound;lsSet('kigyo-sound',sound?'1':'0');sndIcon();beep(660)});
+sndIcon();
+
+// ---------- játék ----------
+function freeCell(){
+  const occ=new Set(G.s.map(p=>p.join()));if(G.food)occ.add(G.food.join());if(G.gold)occ.add(G.gold.p.join());
+  const f=[];for(let x=0;x<N;x++)for(let y=0;y<N;y++)if(!occ.has(x+','+y))f.push([x,y]);
+  return f.length?f[Math.random()*f.length|0]:null;
+}
+function newGame(){
+  const m=N>>1;
+  G={s:[[m,m],[m-1,m],[m-2,m]],d:[1,0],q:[],food:null,gold:null,eat:0,score:0,speed,wrap,phase:'wait',rec:false};
+  G.food=freeCell();hideOv();hud();draw();save();
+}
+function resumeSave(d){G={...d,q:[],gold:null,phase:'wait',rec:false};speed=d.speed;wrap=d.wrap;hideOv();hud();draw()}
+function interval(){const [b,acc]=SPD[G.speed]||SPD[2];return Math.max(55,b-G.eat*acc)}
+function sched(){clearTimeout(timer);timer=setTimeout(step,interval())}
+function step(){
+  if(!G||G.phase!=='play')return;
+  if(G.q.length){const n=G.q.shift();if(n[0]!==-G.d[0]||n[1]!==-G.d[1])G.d=n}
+  const h=G.s[0];let nx=[h[0]+G.d[0],h[1]+G.d[1]];
+  if(G.wrap)nx=[(nx[0]+N)%N,(nx[1]+N)%N];
+  else if(nx[0]<0||nx[1]<0||nx[0]>=N||nx[1]>=N)return over();
+  const willEat=G.food&&nx[0]===G.food[0]&&nx[1]===G.food[1];
+  const body=willEat?G.s:G.s.slice(0,-1);          // a farok közben továbblép, oda szabad lépni
+  if(body.some(p=>p[0]===nx[0]&&p[1]===nx[1]))return over();
+  G.s.unshift(nx);let grow=false;
+  if(willEat){grow=true;G.eat++;G.score++;beep(880,0.05);G.food=freeCell();
+    if(G.eat%5===0&&!G.gold){const p=freeCell();if(p)G.gold={p,t:GOLD_STEPS}}
+    save()}
+  if(G.gold&&nx[0]===G.gold.p[0]&&nx[1]===G.gold.p[1]){grow=true;G.score+=3;G.gold=null;beep(988,0.06,'square',0.05);beep(1319,0.09,'square',0.05,0.07)}
+  else if(G.gold&&--G.gold.t<=0)G.gold=null;
+  if(!grow)G.s.pop();
+  if(!G.food){G.score+=50;return over(true)}       // a kígyó kitöltötte a pályát
+  hud();draw();sched();
+}
+function over(win){
+  clearTimeout(timer);G.phase='over';lsDel('kigyo-save');
+  const k=G.speed+(G.wrap?'w':'');G.rec=G.score>(best[k]||0);
+  if(G.rec){best[k]=G.score;lsSet('kigyo-best',JSON.stringify(best))}
+  if(!win){beep(330,0.12,'sawtooth',0.06);beep(220,0.2,'sawtooth',0.06,0.12);flash=performance.now()}
+  hud();draw();
+  setTimeout(()=>{if(G&&G.phase==='over')showOver(win)},win?200:650);
+}
+function turn(dx,dy){
+  if(!G||G.phase==='over'||G.phase==='pause')return;
+  if(G.phase==='wait')start();
+  const last=G.q.length?G.q[G.q.length-1]:G.d;
+  if((dx===last[0]&&dy===last[1])||(dx===-last[0]&&dy===-last[1])){draw();return}
+  if(G.q.length<3)G.q.push([dx,dy]);
+  draw();
+}
+function start(){if(!G||G.phase!=='wait')return;G.phase='play';draw();sched()}
+function pause(){if(!G||(G.phase!=='play'&&G.phase!=='wait'))return;clearTimeout(timer);G.phase='pause';save();draw();showPause()}
+function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase='wait';draw()}
+function hud(){
+  $('score').textContent=G?G.score.toLocaleString('hu-HU'):'0';
+  $('eat').textContent=G?G.eat:0;
+  $('best').textContent=Math.max(bestNow(),G&&G.phase!=='over'?G.score:0).toLocaleString('hu-HU');
+}
+
+// ---------- rajz ----------
+function fit(){
+  const r=$('stage').getBoundingClientRect();
+  if(r.width<10||r.height<10)return;
+  size=Math.floor(Math.min(r.width,r.height,560));dpr=window.devicePixelRatio||1;
+  cv.style.width=size+'px';cv.style.height=size+'px';
+  cv.width=Math.round(size*dpr);cv.height=Math.round(size*dpr);
+  draw();
+}
+new ResizeObserver(fit).observe($('stage'));
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);ctx.fill()}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function apple(x,y,z){
+  const cx=x*z+z/2,cy=y*z+z/2+z*.04;
+  ctx.fillStyle='#ef4444';ctx.beginPath();ctx.arc(cx-z*.13,cy,z*.27,0,7);ctx.arc(cx+z*.13,cy,z*.27,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.45)';ctx.beginPath();ctx.arc(cx-z*.18,cy-z*.09,z*.07,0,7);ctx.fill();
+  ctx.strokeStyle='#7c4a1d';ctx.lineWidth=Math.max(1.5,z*.07);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(cx,cy-z*.2);ctx.lineTo(cx+z*.04,cy-z*.36);ctx.stroke();
+  ctx.fillStyle='#22c55e';ctx.beginPath();ctx.ellipse(cx+z*.15,cy-z*.32,z*.12,z*.06,-.5,0,7);ctx.fill();
+}
+function star(x,y,z,a){
+  const cx=x*z+z/2,cy=y*z+z/2;ctx.globalAlpha=a;ctx.fillStyle=css('--gold')||'#fbbf24';ctx.beginPath();
+  for(let i=0;i<10;i++){const r=i%2?z*.2:z*.44,an=-Math.PI/2+i*Math.PI/5;ctx.lineTo(cx+Math.cos(an)*r,cy+Math.sin(an)*r)}
+  ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+  ctx.fillStyle='#2a1a00';ctx.font=`700 ${z*.3}px system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('3',cx,cy+z*.03);
+}
+function draw(){
+  if(!size)return;
+  ctx.setTransform(dpr,0,0,dpr,0,0);const z=size/N;
+  const f1=css('--f1')||'#123323',f2=css('--f2')||'#0f2c1e';
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){ctx.fillStyle=(x+y)%2?f2:f1;ctx.fillRect(x*z,y*z,z+.5,z+.5)}
+  if(!G){return}
+  if(G.food)apple(G.food[0],G.food[1],z);
+  if(G.gold){const a=G.gold.t>12?1:.35+.65*((G.gold.t%2)?1:.5);star(G.gold.p[0],G.gold.p[1],z,a)}
+  const n=G.s.length,dead=G.phase==='over';
+  for(let i=n-1;i>=0;i--){
+    const p=G.s[i],t=i/Math.max(1,n-1);
+    ctx.fillStyle=dead?`rgb(${150-60*t},${110-40*t},${120-40*t})`:`rgb(${74-40*t},${222-90*t},${128-60*t})`;
+    const pad=i?z*.1:z*.04;rr(p[0]*z+pad,p[1]*z+pad,z-2*pad,z-2*pad,z*.3);
+  }
+  // fej: szemek a haladási irányba
+  const h=G.s[0],[dx,dy]=G.d,cx=h[0]*z+z/2+dx*z*.14,cy=h[1]*z+z/2+dy*z*.14;
+  for(const s of [1,-1]){const ex=cx+dy*z*.19*s,ey=cy-dx*z*.19*s;
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ex,ey,z*.12,0,7);ctx.fill();
+    ctx.fillStyle='#052e16';ctx.beginPath();ctx.arc(ex+dx*z*.04,ey+dy*z*.04,z*.06,0,7);ctx.fill()}
+  if(dead&&performance.now()-flash<300){ctx.fillStyle='rgba(255,93,115,.25)';ctx.fillRect(0,0,size,size)}
+  if(G.phase==='wait'){
+    ctx.fillStyle='rgba(4,12,8,.55)';ctx.fillRect(0,size*.64,size,size*.24);
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font=`400 ${Math.max(20,size/13)}px ${css('--display')||'system-ui'}`;ctx.fillText('Indulás',size/2,size*.725);
+    ctx.font=`600 ${Math.max(13,size/28)}px ${css('--ui')||'system-ui'}`;
+    ctx.fillText(matchMedia('(pointer:coarse)').matches?'Húzd az ujjad vagy nyomj egy nyilat':'Nyomj egy irányt (nyíl, WASD)',size/2,size*.815);
+  }
+}
+
+// ---------- ablakok ----------
+const ov=$('ov'),card=$('card');
+function showOv(html){card.innerHTML=html;ov.hidden=false;const h=card.querySelector('.hot');if(h)h.focus({preventScroll:true})}
+function hideOv(){ov.hidden=true;if(document.activeElement&&ov.contains(document.activeElement))document.activeElement.blur()}
+function optsHTML(){
+  return `<div class="olbl">Sebesség</div><div class="opts">${[1,2,3].map(v=>`<button class="b sm" type="button" data-act="speed" data-v="${v}" aria-pressed="${speed===v}">${SPN[v]}</button>`).join('')}</div>
+  <button class="b sm" type="button" data-act="wrap" aria-pressed="${wrap}">Átjárható fal: ${wrap?'be':'ki'}</button>
+  <p>Rekord ezzel a beállítással: <b>${bestNow().toLocaleString('hu-HU')}</b></p>`;
+}
+function showMenu(){
+  const s=loadSave();
+  showOv(`<h2>Kígyó</h2><p>Edd meg az almákat, nőj minél hosszabbra, és ne harapj magadba! Minden ötödik alma után rövid ideig <b>aranycsillag</b> jelenik meg: +3 pont.</p>
+  ${optsHTML()}
+  <div class="btns">${s?`<button class="b hot" type="button" data-act="cont">Folytatás · ${s.score} pont</button>`:''}
+  <button class="b ${s?'':'hot'}" type="button" data-act="new">Új játék</button></div>`);
+}
+function showPause(){
+  showOv(`<h2>Szünet</h2><p>Pont: <b>${G.score}</b> · Alma: <b>${G.eat}</b></p>
+  <div class="btns"><button class="b hot" type="button" data-act="resume">Folytatás</button><button class="b" type="button" data-act="menu">Új játék</button></div>`);
+}
+function showOver(win){
+  showOv(`<h2 class="${win?'':'bad'}">${win?'Tele a pálya!':'Vége'}</h2><div class="big">${G.score.toLocaleString('hu-HU')}</div>
+  <p>pont · ${G.eat} alma · ${SPN[G.speed]}${G.wrap?', átjárható fal':''}</p>${G.rec?'<span class="rec">Új rekord!</span>':`<p>Rekord: <b>${bestNow().toLocaleString('hu-HU')}</b></p>`}
+  <div class="btns"><button class="b hot" type="button" data-act="new">Új játék</button><button class="b" type="button" data-act="menu">Beállítások</button></div>`);
+}
+card.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='new'){newGame();beep(520,0.05)}
+  else if(a==='cont'){const s=loadSave();if(s)resumeSave(s);else newGame()}
+  else if(a==='resume')resume();
+  else if(a==='menu'){clearTimeout(timer);if(G&&G.phase==='pause'){/* a félbehagyott kör mentve marad */}showMenu()}
+  else if(a==='speed'){speed=+b.dataset.v;lsSet('kigyo-speed',String(speed));refreshOpts()}
+  else if(a==='wrap'){wrap=!wrap;lsSet('kigyo-wrap',wrap?'1':'0');refreshOpts()}
+});
+function refreshOpts(){
+  card.querySelectorAll('[data-act="speed"]').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.v===speed)));
+  const w=card.querySelector('[data-act="wrap"]');if(w){w.setAttribute('aria-pressed',String(wrap));w.textContent='Átjárható fal: '+(wrap?'be':'ki')}
+  const p=card.querySelector('.opts~button~p b');if(p)p.textContent=bestNow().toLocaleString('hu-HU');
+  if(!G||G.phase==='over')hud();
+}
+
+// ---------- irányítás ----------
+const KEYS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
+addEventListener('keydown',e=>{
+  if(!ov.hidden){
+    if((e.key==='Escape'||e.key==='p'||e.key==='P')&&G&&G.phase==='pause'){e.preventDefault();resume()}
+    return;
+  }
+  const m=KEYS[e.key];
+  if(m){e.preventDefault();turn(m[0],m[1]);return}
+  if(e.key===' '&&G&&G.phase==='wait'){e.preventDefault();start();return}
+  if(e.key===' '||e.key==='Escape'||e.key==='p'||e.key==='P'){e.preventDefault();pause()}
+});
+document.querySelector('.pad').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('button[data-d]');if(!b)return;e.preventDefault();
+  const [x,y]=b.dataset.d.split(',').map(Number);turn(x,y);
+});
+let tx=null;
+$('stage').addEventListener('pointerdown',e=>{tx=[e.clientX,e.clientY];try{$('stage').setPointerCapture(e.pointerId)}catch(_){}});
+$('stage').addEventListener('pointermove',e=>{
+  if(!tx)return;const dx=e.clientX-tx[0],dy=e.clientY-tx[1];
+  if(Math.max(Math.abs(dx),Math.abs(dy))<22)return;          // húzás közben is fordul, nem kell felengedni
+  Math.abs(dx)>Math.abs(dy)?turn(Math.sign(dx),0):turn(0,Math.sign(dy));tx=[e.clientX,e.clientY];
+});
+$('stage').addEventListener('pointerup',e=>{if(tx&&Math.hypot(e.clientX-tx[0],e.clientY-tx[1])<10&&G&&G.phase==='wait')start();tx=null});
+$('stage').addEventListener('pointercancel',()=>{tx=null});
+$('pauseBtn').addEventListener('click',()=>{if(G&&(G.phase==='play'||G.phase==='wait'))pause()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&G.phase==='play')pause()});
+addEventListener('pagehide',save);
+
+fit();hud();showMenu();
+window.__kigyo={get G(){return G},N,step,turn,newGame,over,loadSave,draw}; // játékteszthez (tools/play_test.py)
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+<script>
+/* @shared fekvo-jelzes */
+/* Fekvő telefonon „Fordítsd el a telefont” jelzés. A játék álló képernyőre készült, ezért amíg a telefon
+   fekszik, a jelzés eltakarja, és a játék a saját szünet-logikájával megáll (ugyanaz fut le, mint amikor
+   a lap háttérbe kerül). Gépen, széles ablakban nem jelenik meg (csak érintőképernyőn, alacsony ablakban). */
+(function(){
+  var mq;
+  try{ mq=matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'); }catch(e){ return; }
+  var st=document.createElement('style');
+  st.textContent='.rotate-hint{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;'+
+    'background:rgba(5,8,14,.95);color:#fff;font:700 20px/1.3 system-ui,sans-serif;text-align:center}'+
+    '.rotate-hint[hidden]{display:none!important}.rotate-hint p{margin:8px 0}'+
+    '.rotate-hint .sub{font-weight:400;font-size:16px;opacity:.85}.rotate-hint svg{width:56px;height:56px}';
+  var el=document.createElement('div');
+  el.className='rotate-hint';el.setAttribute('role','alert');el.hidden=true;
+  el.innerHTML='<div><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" '+
+    'fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.5" r="1" fill="currentColor"/></svg>'+
+    '<p>Fordítsd el a telefont!</p><p class="sub">Ez a játék álló képernyőre készült. Addig szünetel.</p></div>';
+  function pauseGame(){
+    try{
+      Object.defineProperty(document,'hidden',{configurable:true,get:function(){return true;}});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }catch(e){}
+    try{ delete document.hidden; }catch(e){}
+  }
+  function update(e){
+    if(mq.matches){ if(el.hidden){ el.hidden=false; if(e) pauseGame(); } }
+    else el.hidden=true;
+  }
+  document.head.appendChild(st);
+  document.body.appendChild(el);
+  if(mq.addEventListener) mq.addEventListener('change',update); else if(mq.addListener) mq.addListener(update);
+  update();
+})();
+/* @end fekvo-jelzes */
+</script>
+<script>
+/* @shared gamepad */
+/* Kontroller (gamepad) a böngésző Gamepad API-jával. A játék kódjához nem nyúl: a kontrollert billentyűkké
+   fordítja, amelyeket a játék már ismer. Ha egy ablak (menü, szünet, vége) látszik, a kar a gombok között lép,
+   az A gomb megnyomja a kijelöltet. Kiosztás (szabványos kontroller):
+     bal kar / d-pad → nyilak, A → szóköz, X → J, Y → K, B → L, RB → L, Start → Escape (szünet), Select → Enter.
+   iPhone-on a böngésző nem támogatja, ott ez a rész nem csinál semmit. */
+(function(){
+  if(!navigator.getGamepads)return;
+  var DIRS=[['ArrowUp',12],['ArrowDown',13],['ArrowLeft',14],['ArrowRight',15]];
+  var BTN=[[0,' ','Space'],[2,'j','KeyJ'],[3,'k','KeyK'],[1,'l','KeyL'],[5,'l','KeyL'],[9,'Escape','Escape'],[8,'Enter','Enter']];
+  var held={},raf=0,shown=false,lastNav=0;
+  function key(type,k,code){
+    var e=new KeyboardEvent(type,{key:k,code:code,bubbles:true,cancelable:true});
+    (document.activeElement&&document.activeElement!==document.body?document.activeElement:document).dispatchEvent(e);
+  }
+  function set(name,on,k,code){if(!!held[name]===on)return;held[name]=on;key(on?'keydown':'keyup',k,code||k)}
+  function visible(el){if(!el||el.hidden)return false;var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden'}
+  function dialog(){
+    var c=document.querySelectorAll('#ov,#over,#pick,#overlay,.modal,dialog[open],.rotate-hint');
+    for(var i=0;i<c.length;i++)if(visible(c[i])&&!c[i].classList.contains('rotate-hint'))return c[i];
+    return null;
+  }
+  function buttons(d){return Array.prototype.filter.call(d.querySelectorAll('button:not(:disabled),a[href]'),visible)}
+  function nav(d,dir){
+    var b=buttons(d);if(!b.length)return;
+    var i=b.indexOf(document.activeElement);
+    if(i<0){var hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0]).focus();return}
+    var cur=b[i].getBoundingClientRect(),best=null,bd=1e9;
+    b.forEach(function(x){if(x===b[i])return;var r=x.getBoundingClientRect(),dx=r.left+r.width/2-(cur.left+cur.width/2),dy=r.top+r.height/2-(cur.top+cur.height/2);
+      var ok=dir==='ArrowUp'?dy<-4:dir==='ArrowDown'?dy>4:dir==='ArrowLeft'?dx<-4:dx>4;if(!ok)return;
+      var dist=Math.abs(dx)+Math.abs(dy)*(dir==='ArrowLeft'||dir==='ArrowRight'?3:1)+Math.abs(dx)*(dir==='ArrowUp'||dir==='ArrowDown'?2:0);if(dist<bd){bd=dist;best=x}});
+    (best||b[(i+(dir==='ArrowUp'||dir==='ArrowLeft'?b.length-1:1))%b.length]).focus();
+  }
+  function note(){
+    if(shown)return;shown=true;
+    var t=document.createElement('div');t.setAttribute('role','status');
+    t.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3500;background:#0b0c10;color:#fff;border:1px solid #444;border-radius:10px;padding:10px 16px;font:700 15px system-ui,sans-serif;pointer-events:none';
+    t.textContent='Kontroller csatlakoztatva';document.body.appendChild(t);setTimeout(function(){t.remove()},2500);
+  }
+  function poll(){
+    raf=setTimeout(poll,16); /* időzítő, nem képkocka: álló képnél is figyeli a kontrollert */
+    var pads=navigator.getGamepads?navigator.getGamepads():[],gp=null;
+    for(var i=0;i<pads.length;i++)if(pads[i]&&pads[i].connected){gp=pads[i];break}
+    if(!gp){for(var n in held)if(held[n])held[n]=false;return}
+    note();
+    var pr=function(i){var b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5)};
+    var ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.25;
+    var dirOn={ArrowUp:ay<-dz,ArrowDown:ay>dz,ArrowLeft:ax<-dz,ArrowRight:ax>dz};
+    DIRS.forEach(function(d){if(pr(d[1]))dirOn[d[0]]=true});
+    var d=dialog();
+    if(d){
+      DIRS.forEach(function(x){if(held[x[0]])set(x[0],false,x[0])});
+      BTN.forEach(function(b){if(held['b'+b[0]])set('b'+b[0],false,b[1],b[2])});
+      var now=performance.now(),any=null;DIRS.forEach(function(x){if(dirOn[x[0]])any=x[0]});
+      if(any&&now-lastNav>220){lastNav=now;nav(d,any)}else if(!any)lastNav=0;
+      var a=pr(0);if(a&&!held.navA){var f=document.activeElement;if(f&&d.contains(f)&&f.click)f.click();else{var b=buttons(d),hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0])&&(hot&&visible(hot)?hot:b[0]).click()}}
+      held.navA=a;
+      if(pr(9)&&!held.Escape)set('Escape',true,'Escape');else if(!pr(9))set('Escape',false,'Escape');
+      return;
+    }
+    held.navA=pr(0);
+    DIRS.forEach(function(x){set(x[0],dirOn[x[0]],x[0])});
+    BTN.forEach(function(b){set('b'+b[0],pr(b[0]),b[1],b[2])});
+  }
+  addEventListener('gamepadconnected',function(){if(!raf)poll()});
+  addEventListener('gamepaddisconnected',function(){var p=navigator.getGamepads(),any=false;for(var i=0;i<p.length;i++)if(p[i])any=true;if(!any){clearTimeout(raf);raf=0;for(var n in held)if(held[n]&&n.indexOf('Arrow')===0)set(n,false,n)}});
+  try{var p0=navigator.getGamepads();for(var i=0;i<p0.length;i++)if(p0[i]){poll();break}}catch(e){}
+})();
+/* @end gamepad */
+</script>
+</body>
+</html>

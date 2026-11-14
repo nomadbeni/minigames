@@ -41,6 +41,8 @@ SHOTS = {
     "falbonto": {"align": "top", "wait": 300},
     "flipper": {"poke": False, "clicks": ['#card button[data-act="new"]', '#card button[data-act="go"]'], "align": "top",
                 "js": "__flipper.G.ball.state = 'play'; __flipper.G.ball.x = 200; __flipper.G.ball.y = 180; __flipper.G.ball.vy = 300", "wait": 400},
+    "kigyo": {"poke": False, "clicks": ['#card button[data-act="new"]'], "area": "#cv",
+              "js": "(() => { const G = __kigyo.G; G.s = [[9,7],[8,7],[7,7],[6,7],[5,7],[4,7],[4,8],[4,9],[5,9],[6,9],[7,9],[8,9],[9,9],[10,9],[11,9]]; G.d = [1,0]; G.food = [13,7]; G.gold = {p: [14,10], t: 40}; G.phase = 'play'; G.score = 17; __kigyo.draw(); })()"},
     "teglatoro": {"poke": False, "clicks": ['[data-diff="normal"]', "#cv"], "align": "top", "wait": 900},
     "gyemantbanya": {"poke": False, "clicks": ["#d-easy"], "area": "#board"},
     "kocka-kert": {"area": "#field"},
