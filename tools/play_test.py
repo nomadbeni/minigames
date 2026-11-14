@@ -140,7 +140,7 @@ async def poke(page, mobile=False):
 KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", "bringa-muhely:save", "bringa:own",
               "bringa:penz", "bringa-futam:best", "betu-csata:best", "bunyo:save", "csapda:save", "horda:save",
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
-              "pasziansz:save", "kigyo-save", "kigyo-best"]
+              "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -549,6 +549,63 @@ async def sc_snake_swipe(page):
     check(await page.evaluate("__kigyo.G.phase") == "play", "the wrap-around wall does not end the game")
 
 
+FREE_ARROW = "(() => { const G = __nyilak.G; const a = G.arrows.find(a => !a.gone && __nyilak.rayHit(a.cells, a.dir, G.occ, G.w, G.h).id < 0); return a ? a.id : -1; })()"
+BLOCKED_ARROW = "(() => { const G = __nyilak.G; const a = G.arrows.find(a => !a.gone && __nyilak.rayHit(a.cells, a.dir, G.occ, G.w, G.h).id >= 0); return a ? a.id : -1; })()"
+
+
+async def sc_arrows(page):
+    await page.locator('#card button[data-act="play"]').click()
+    check(await page.locator("#ov").is_hidden(), "Play closes the menu")
+    # a free arrow slides out, by a real click on its tail cell
+    aid = await page.evaluate(FREE_ARROW)
+    box = await page.locator("#cv").bounding_box()
+    x, y = await page.evaluate(f"""(() => {{ const G = __nyilak.G, c = G.arrows[{aid}].cells[0], cv = document.getElementById('cv').getBoundingClientRect();
+      const cell = Math.floor(Math.min((cv.width-8)/G.w, (cv.height-8)/G.h, 64)), ox = Math.round((cv.width-cell*G.w)/2), oy = Math.round((cv.height-cell*G.h)/2);
+      return [ox + (c[0]+.5)*cell, oy + (c[1]+.5)*cell]; }})()""")
+    await page.mouse.click(box["x"] + x, box["y"] + y)
+    check(await page.evaluate(f"__nyilak.G.arrows[{aid}].gone"), "a click on a free arrow takes it off the board")
+    # a blocked arrow costs a heart and stays
+    bid = await page.evaluate(BLOCKED_ARROW)
+    check(bid >= 0, "level 1 has a blocked arrow at the start")
+    await page.evaluate(f"__nyilak.tap({bid})")
+    check(await page.evaluate(f"[__nyilak.G.hearts, __nyilak.G.arrows[{bid}].gone]") == [2, False], "a blocked arrow costs a heart and stays")
+    # the half-done level survives a reload
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    check(await page.evaluate(f"[__nyilak.G.hearts, __nyilak.G.arrows[{aid}].gone, __nyilak.G.miss]") == [2, True, True], "the level survives a reload")
+    # a hint marks a free arrow
+    await page.locator("#hintBtn").click()
+    check(await page.evaluate("__nyilak.G.hint >= 0 && __nyilak.G.hints === 2"), "the hint marks an arrow and is counted")
+    # clear the board: the win window, 2 stars, level 2 unlocked
+    for _ in range(80):
+        i = await page.evaluate(FREE_ARROW)
+        if i < 0:
+            break
+        await page.evaluate(f"__nyilak.tap({i})")
+    await wait_js(page, "!document.getElementById('ov').hidden", timeout=3000)
+    check(await page.evaluate("__nyilak.G.phase") == "won", "an empty board wins the level")
+    check(await page.evaluate("JSON.parse(localStorage.getItem('nyilak-prog'))") == {"max": 2, "stars": {"1": 2}}, "progress and stars are saved")
+    check(await page.evaluate("localStorage.getItem('nyilak-save')") is None, "the level save is cleared after a win")
+    await page.locator('#card button[data-act="nextlvl"]').click()
+    # three blocked taps lose the level, Again restarts it
+    for _ in range(3):
+        await page.evaluate(f"__nyilak.tap({await page.evaluate(BLOCKED_ARROW)})")
+    await wait_js(page, "!document.getElementById('ov').hidden", timeout=3000)
+    check(await page.evaluate("[__nyilak.G.phase, __nyilak.G.lvl]") == ["lost", 2], "the third mistake loses the level")
+    await page.locator('#card button[data-act="retry"]').click()
+    check(await page.evaluate("[__nyilak.G.hearts, __nyilak.G.arrows.some(a => a.gone)]") == [3, False], "Again restarts the level with three hearts")
+
+
+async def sc_arrows_keys(page):
+    await page.locator('#card button[data-act="play"]').click()
+    await page.keyboard.press("ArrowRight")     # the first key puts the cursor on an arrow head
+    await page.keyboard.press(" ")
+    check(await page.evaluate("__nyilak.G.arrows.some(a => a.gone) || __nyilak.G.hearts === 2"), "Space taps the arrow under the cursor")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("__nyilak.G.phase") == "pause", "Escape pauses")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("__nyilak.G.phase") == "play" and await page.locator("#ov").is_hidden(), "Escape resumes")
+
 async def sc_pinball(page):
     await page.locator('#card button[data-act="new"]').click()
     await page.locator('#card button[data-act="go"]').click()
@@ -938,6 +995,8 @@ SCENARIOS = [
     ("flipper", "Pinball: a finished mission unlocks the next table, the game survives a reload", sc_pinball_tables, None),
     ("kigyo", "Snake: an apple makes it longer, the game survives a reload, the wall ends it, New game restarts", sc_snake, None),
     ("kigyo", "Snake: a swipe turns it, the wrap-around wall lets it through", sc_snake_swipe, None),
+    ("nyilak", "Arrows: a free arrow slides out, a blocked one costs a heart, reload, hint, win, losing, Again", sc_arrows, None),
+    ("nyilak", "Arrows: the keyboard cursor taps arrows, Escape pauses and resumes", sc_arrows_keys, None),
     ("falbonto", "Breakout: a lost ball takes a life, the last one ends the game, New game restarts", sc_breakout, None),
     ("gyemantbanya", "Diamond Mine: a wrong cell costs a heart, the solver's solution wins", sc_gems, None),
     ("kincsvadasz", "Treasure Hunter: a wrong cell costs a heart, the solver's solution wins", sc_treasure, None),
@@ -1241,6 +1300,59 @@ def solve_sokoban(rows):
     return None
 
 
+ARROW_CHECK = r"""
+({from, to}) => {
+  let total = 0, slowest = 0;
+  for (let lvl = from; lvl <= to; lvl++) {
+    const t0 = performance.now(), p = generate(lvl), ms = performance.now() - t0;
+    total += ms; slowest = Math.max(slowest, ms);
+    if (!p || !p.arrows.length) return {error: `level ${lvl}: no arrows`};
+    const seen = new Set();
+    for (const a of p.arrows) {
+      if (a.cells.length < 2) return {error: `level ${lvl}: an arrow shorter than 2`};
+      for (let i = 0; i < a.cells.length; i++) {
+        const [x, y] = a.cells[i], k = x + ',' + y;
+        if (!(x >= 0 && y >= 0 && x < p.w && y < p.h) || seen.has(k)) return {error: `level ${lvl}: arrows overlap or leave the board`};
+        seen.add(k);
+        if (i && Math.abs(x - a.cells[i-1][0]) + Math.abs(y - a.cells[i-1][1]) !== 1) return {error: `level ${lvl}: a broken arrow`};
+      }
+    }
+    // own copy of the rule: an arrow leaves when every cell ahead of its head is empty; greedy removal decides
+    const occ = new Map(); p.arrows.forEach(a => a.cells.forEach(c => occ.set(c.join(), a.id)));
+    const left = new Set(p.arrows.map(a => a.id)); let moved = true;
+    while (moved) { moved = false;
+      for (const id of [...left]) { const a = p.arrows[id], n = a.cells.length, [hx, hy] = a.cells[n-1];
+        const dx = hx - a.cells[n-2][0], dy = hy - a.cells[n-2][1]; let x = hx + dx, y = hy + dy, free = true;
+        while (x >= 0 && y >= 0 && x < p.w && y < p.h) { if (occ.has(x + ',' + y)) { free = false; break; } x += dx; y += dy; }
+        if (free) { left.delete(id); a.cells.forEach(c => occ.delete(c.join())); moved = true; } } }
+    if (left.size) return {error: `level ${lvl}: cannot be cleared (${left.size} arrows stuck)`};
+    if (JSON.stringify(generate(lvl).arrows.map(a => a.cells)) !== JSON.stringify(generate(lvl).arrows.map(a => a.cells)))
+      return {error: `level ${lvl}: not the same level twice`};
+  }
+  return {avg: total / (to - from + 1), slowest};
+}
+"""
+
+
+async def test_arrow_levels(browser, quick):
+    html = (ROOT / "nyilak" / "index.html").read_text(encoding="utf-8")
+    start = html.find("// ---------- Pálya-generátor ----------")
+    if start < 0:
+        return ["nyilak: generator section not found"]
+    src = html[start:html.find("// ---------- vége: generátor ----------", start)]
+    page = await browser.new_page()
+    await page.set_content("<!doctype html><title>gen</title>")
+    await page.add_script_tag(content=src + "\nwindow.generate = generate;")
+    res = await page.evaluate(ARROW_CHECK, {"from": 1, "to": 100 if quick else 600})
+    await page.close()
+    if "error" in res:
+        return [f"nyilak: {res['error']}"]
+    if res["slowest"] > 200:
+        return [f"nyilak: the slowest level took {res['slowest']:.0f} ms"]
+    print(f"     nyilak: levels OK, average {res['avg']:.1f} ms, slowest {res['slowest']:.0f} ms")
+    return []
+
+
 def test_sokoban_levels(quick):
     html = (ROOT / "dobozmester" / "index.html").read_text(encoding="utf-8")
     m = re.search(r"const LEVELS=(\[.*?\n\]);", html, re.S)
@@ -1309,6 +1421,9 @@ async def main():
         if only in (None, "generators") and (not args or "pasziansz" in args):
             print("== solitaire deals (solver)")
             report("solitaire deals", await test_card_deals(browser, quick))
+        if only in (None, "generators") and (not args or "nyilak" in args):
+            print("== arrow levels (every one can be cleared)")
+            report("arrow levels", await test_arrow_levels(browser, quick))
         if only in (None, "generators") and (not args or "dobozmester" in args):
             print("== Sokoban levels (solver)")
             report("sokoban levels", test_sokoban_levels(quick))
