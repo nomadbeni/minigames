@@ -140,7 +140,7 @@ async def poke(page, mobile=False):
 KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", "bringa-muhely:save", "bringa:own",
               "bringa:penz", "bringa-futam:best", "betu-csata:best", "bunyo:save", "csapda:save", "horda:save",
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
-              "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog"]
+              "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -533,6 +533,73 @@ async def sc_snake(page):
     check(await page.locator("#ov").is_hidden(), "New game closes the end window")
     check(await page.evaluate("[__kigyo.G.score, __kigyo.G.s.length]") == [0, 3], "a new game starts from zero")
 
+
+async def sc_baby(page):
+    await page.locator('#card button[data-act="play"]').click()
+    check(await page.locator("#ov").is_hidden(), "Play closes the menu")
+    check(await page.locator("#lock").is_visible(), "the parent lock shows while playing")
+    await wait_js(page, "__baba.G.fruits.length > 0", timeout=4000)
+    box = await page.locator("#cv").bounding_box()
+    cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    # a tap on a fruit cuts it in two
+    await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 0)")
+    await page.mouse.click(cx, cy)
+    check(await page.evaluate("[__baba.G.n, __baba.G.fruits.length, __baba.G.halves.length]") == [1, 0, 2],
+          "a tap cuts the fruit into two halves")
+    # a swipe across a fruit cuts it too
+    await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 2)")
+    await page.mouse.move(cx - 120, cy - 10)
+    await page.mouse.down()
+    await page.mouse.move(cx + 120, cy + 10, steps=8)
+    await page.mouse.up()
+    check(await page.evaluate("__baba.G.n") == 2, "a swipe cuts the fruit")
+    # a tap on the empty sky does nothing bad, just sparkles
+    await page.mouse.click(box["x"] + 30, box["y"] + box["height"] - 30)
+    check(await page.evaluate("__baba.G.n") == 2, "a tap on the sky cuts nothing")
+    # any key cuts the highest fruit
+    await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 3}, 6)")
+    await page.keyboard.press("KeyF")
+    check(await page.evaluate("__baba.G.n") == 3, "a key press cuts a fruit")
+    saved = json.loads(await page.evaluate("localStorage.getItem('pici-gyumolcsvago-save')"))
+    check(saved["total"] == 3, "the counter is saved")
+    # tenth fruit: a little party
+    for _ in range(7):
+        await page.evaluate(f"__baba.put({box['width'] / 2}, {box['height'] / 2}, 1)")
+        await page.evaluate("__baba.slice(0)")
+    check(await page.evaluate("__baba.G.party > 0"), "the tenth fruit starts a party")
+    # holding the lock opens the menu, a short tap does not
+    await page.locator("#lock").click()
+    await page.wait_for_timeout(300)
+    check(await page.locator("#ov").is_hidden(), "a short tap on the lock does not open the menu")
+    lb = await page.locator("#lock").bounding_box()
+    await page.mouse.move(lb["x"] + lb["width"] / 2, lb["y"] + lb["height"] / 2)
+    await page.mouse.down()
+    await page.wait_for_timeout(1800)
+    await page.mouse.up()
+    check(await page.locator("#ov").is_visible(), "holding the lock opens the menu")
+    check(await txt(page, "#tot") == "10", "the menu shows the counter")
+    await page.keyboard.press("Escape")
+    check(await page.locator("#ov").is_hidden(), "Escape continues the game")
+    await page.keyboard.press("Escape")
+    check(await page.locator("#ov").is_visible(), "Escape opens the menu")
+    # settings and counter survive a reload
+    await page.locator('#card button[data-speed="gyors"]').click()
+    await page.locator('#card button[data-act="snd"]').click()
+    await page.reload()
+    check(await page.evaluate("[__baba.S.total, __baba.S.speed, __baba.S.sound]") == [10, "gyors", False],
+          "counter, speed and sound are kept after a reload")
+    # resetting the counter needs two taps
+    await page.locator('#card button[data-act="reset"]').click()
+    check(await page.evaluate("__baba.S.total") == 10, "one tap does not reset the counter")
+    await page.locator('#card button[data-act="reset"]').click()
+    check(await txt(page, "#tot") == "0", "the second tap resets the counter")
+
+
+async def sc_baby_broken(page):
+    check(await page.evaluate("[__baba.S.total, __baba.S.speed, __baba.S.sound]") == [0, "lassu", True],
+          "a broken save falls back to the defaults")
+    await page.locator('#card button[data-act="play"]').click()
+    await wait_js(page, "__baba.G.fruits.length > 0", timeout=4000)
 
 async def sc_snake_swipe(page):
     await page.locator('#card button[data-act="wrap"]').click()
@@ -993,6 +1060,9 @@ SCENARIOS = [
     ("kokori-kaland", "Stone Age Quest: reduced motion turns off the screen shake", sc_caveman_calm, None),
     ("flipper", "Pinball: a drained ball is counted, the last one ends the game, New game restarts", sc_pinball, None),
     ("flipper", "Pinball: a finished mission unlocks the next table, the game survives a reload", sc_pinball_tables, None),
+    ("pici-gyumolcsvago", "Tiny Fruit Slicer: tap, swipe and key cut, the tenth fruit parties, the lock, reload, reset", sc_baby, None),
+    ("pici-gyumolcsvago", "Tiny Fruit Slicer: a broken save starts with the defaults", sc_baby_broken,
+     {"pici-gyumolcsvago-save": '{"speed":"__proto__","sound":"igen","total":-5}'}),
     ("kigyo", "Snake: an apple makes it longer, the game survives a reload, the wall ends it, New game restarts", sc_snake, None),
     ("kigyo", "Snake: a swipe turns it, the wrap-around wall lets it through", sc_snake_swipe, None),
     ("nyilak", "Arrows: a free arrow slides out, a blocked one costs a heart, reload, hint, win, losing, Again", sc_arrows, None),

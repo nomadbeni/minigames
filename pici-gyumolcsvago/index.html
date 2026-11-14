@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#bfe8ff">
+<title>Pici gyümölcsvágó</title>
+<meta name="description" content="Gyümölcsvágós játék a legkisebbeknek: mosolygós gyümölcsök repülnek fel, egy koppintás vagy egy húzás kettévágja őket, csillogással és vidám hanggal. Nincs veszítés, nincs időre menés, minden tizedik gyümölcs után ünneplés. Szülői zár a menühöz, három sebesség.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Tiny Fruit Slicer">
+<meta name="games:description-en" content="A fruit slicing game for the littlest ones: smiling fruits fly up, a tap or a swipe cuts them in two with sparkles and a happy sound. No losing, no timer, a little party after every tenth fruit. Parent lock for the menu, three speeds.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Elrendezés: teljes képernyős vászon; a menü (#ov) a szülőé, játék közben csak a lakat gomb látszik */
+:root{
+  --bg:#bfe8ff; --panel:#ffffff; --line:#d7e6f2; --fg:#1f2a44; --muted:#5b6b86;
+  --accent:#7c3aed; --accent2:#f472b6; --gold:#f59e0b;
+  --display:"Bungee","Arial Black",system-ui,sans-serif;
+  --ui:"Nunito Sans","Trebuchet MS",system-ui,sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html{box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+#app{height:100%;display:flex;flex-direction:column;gap:6px;padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+body.playing #app{padding:0}
+body.playing .top-bar{display:none!important}
+#stage{flex:1;min-height:0;position:relative;touch-action:none}
+canvas#cv{display:block;position:absolute;left:0;top:0;touch-action:none}
+#lock{position:fixed;z-index:4;top:max(10px,env(safe-area-inset-top,0px));right:max(10px,env(safe-area-inset-right,0px));width:52px;height:52px;border-radius:50%;border:0;padding:4px;cursor:pointer;touch-action:none;
+  background:conic-gradient(var(--accent) calc(var(--p,0) * 360deg),rgba(255,255,255,.45) 0)}
+#lock span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,.75);font-size:20px;line-height:1}
+#lock:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#ov{position:fixed;left:0;top:calc(60px + env(safe-area-inset-top,0px));right:0;bottom:0;display:grid;place-items:center;background:rgba(191,232,255,.55);z-index:5;padding:16px}
+body.playing #ov{top:0;background:rgba(31,42,68,.45)}
+.card{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 18px 16px;background:var(--panel);border-radius:22px;text-align:center;width:min(380px,100%);max-height:calc(100% - 16px);overflow:auto;box-shadow:0 10px 40px rgba(31,42,68,.18)}
+.card h2{font-family:var(--display);font-weight:400;font-size:28px;margin:0;color:var(--accent);line-height:1.1}
+.card p{margin:0;color:var(--muted);font-size:15px;line-height:1.45}
+.card b{color:var(--fg)}
+#mini{width:240px;height:84px;display:block}
+.tot{font-size:16px!important}
+.btns{display:flex;flex-direction:column;gap:8px;width:100%}
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+.olbl{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:-4px}
+button.b{font-family:var(--ui);font-weight:800;font-size:16px;color:var(--fg);background:#f4f7fb;border:2px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;min-height:48px}
+button.b.hot{background:var(--accent);border-color:var(--accent);color:#fff;font-size:20px;min-height:58px}
+button.b.sm{font-size:14px;padding:10px 6px}
+button.b[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:#f3edff}
+button.b.warn{border-color:#fca5a5;color:#b91c1c}
+.small{font-size:13px!important;line-height:1.4!important}
+button:not(:disabled):active{transform:translateY(1px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div id="stage"><canvas id="cv" aria-label="Játéktér: koppints vagy húzd az ujjad a gyümölcsökön"></canvas></div>
+</div>
+<button type="button" id="lock" hidden aria-label="Menü (szülőknek: tartsd nyomva)" title="Menü: tartsd nyomva"><span aria-hidden="true">🔒</span></button>
+<div id="ov"><div class="card" id="card"></div></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),stage=$('stage'),ov=$('ov'),card=$('card'),lock=$('lock');
+const KEY='pici-gyumolcsvago-save';
+const HOLD=1500;                               // ennyi ms-ig kell nyomva tartani a lakatot
+// sebesség: g = gravitáció (px/s², 760 px magas képhez), every = indítási időköz (s), max = egyszerre a levegőben
+const SPEEDS={lassu:{g:300,every:1.7,max:3,name:'Lassú'},kozepes:{g:440,every:1.15,max:4,name:'Közepes'},gyors:{g:600,every:.8,max:5,name:'Gyors'}};
+const RM=window.matchMedia?matchMedia('(prefers-reduced-motion: reduce)'):{matches:false};
+const FR=[
+  {n:'alma',shape:'apple',skin:'#ef4444',light:'#fca5a5',dark:'#b91c1c',flesh:'#fef3c7',seed:'#6b3f1d',juice:'#fecaca',stem:true,leaf:true},
+  {n:'narancs',shape:'circle',skin:'#fb923c',light:'#fed7aa',dark:'#ea580c',flesh:'#fdba74',seed:'#fff7ed',juice:'#fed7aa',leaf:true,cut:'citrus'},
+  {n:'görögdinnye',shape:'circle',size:1.15,skin:'#22c55e',light:'#86efac',dark:'#15803d',flesh:'#fb7185',rind:'#dcfce7',seed:'#1f2937',juice:'#fecdd3',stripes:'#166534',cut:'melon'},
+  {n:'citrom',shape:'oval',skin:'#facc15',light:'#fef08a',dark:'#ca8a04',flesh:'#fef9c3',seed:'#fde68a',juice:'#fef08a',leaf:true,cut:'citrus'},
+  {n:'szilva',shape:'circle',size:.9,skin:'#8b5cf6',light:'#c4b5fd',dark:'#5b21b6',flesh:'#fde68a',seed:'#a16207',juice:'#ddd6fe',stem:true,cut:'pit'},
+  {n:'kivi',shape:'oval',skin:'#a16207',light:'#d6a35c',dark:'#713f12',flesh:'#84cc16',seed:'#1c1917',juice:'#d9f99d',core:'#fefce8',cut:'kiwi'},
+  {n:'eper',shape:'berry',skin:'#f43f5e',light:'#fda4af',dark:'#be123c',flesh:'#fecdd3',seed:'#fde047',juice:'#fecdd3',crown:true,cut:'berry'},
+  {n:'körte',shape:'pear',skin:'#a3e635',light:'#d9f99d',dark:'#65a30d',flesh:'#fefce8',seed:'#6b3f1d',juice:'#ecfccb',stem:true,leaf:true}
+];
+const PENTA=[523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.51];
+const CONF=['#f472b6','#a78bfa','#60a5fa','#34d399','#fbbf24','#fb923c'];
+
+// ---------- beállítás és számláló (csak localStorage) ----------
+const S={speed:'lassu',sound:true,total:0};
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem(KEY));
+    if(d&&typeof d==='object'&&!Array.isArray(d)){
+      if(typeof d.speed==='string'&&Object.prototype.hasOwnProperty.call(SPEEDS,d.speed))S.speed=d.speed;
+      if(typeof d.sound==='boolean')S.sound=d.sound;
+      if(Number.isInteger(d.total)&&d.total>=0&&d.total<1e9)S.total=d.total;
+    }
+  }catch(e){}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({v:1,speed:S.speed,sound:S.sound,total:S.total}))}catch(e){}}
+load();
+
+// ---------- hang (Web Audio) ----------
+let AC=null,master=null,noiseBuf=null;
+function unlockAudio(){
+  if(!S.sound)return;
+  try{
+    if(!AC){
+      const A=window.AudioContext||window.webkitAudioContext;if(!A)return;
+      AC=new A();master=AC.createGain();master.gain.value=.5;master.connect(AC.destination);
+      noiseBuf=AC.createBuffer(1,Math.floor(AC.sampleRate*.25),AC.sampleRate);
+      const ch=noiseBuf.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=Math.random()*2-1;
+    }
+    if(AC.state==='suspended')AC.resume();
+  }catch(e){}
+}
+const canPlay=()=>S.sound&&AC&&master;
+function tone(f,t0,dur,type,vol,to){
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t0);if(to)o.frequency.exponentialRampToValueAtTime(to,t0+dur);
+  g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol,t0+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  o.connect(g);g.connect(master);o.start(t0);o.stop(t0+dur+.03);
+}
+function swish(t0){
+  const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();
+  s.buffer=noiseBuf;f.type='bandpass';f.Q.value=1.2;
+  f.frequency.setValueAtTime(2600,t0);f.frequency.exponentialRampToValueAtTime(700,t0+.16);
+  g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(.25,t0+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+.18);
+  s.connect(f);f.connect(g);g.connect(master);s.start(t0);s.stop(t0+.2);
+}
+function sndSlice(combo){
+  if(!canPlay())return;
+  try{const t=AC.currentTime,f=PENTA[Math.min(combo,PENTA.length-1)];swish(t);tone(f,t+.02,.38,'triangle',.32);tone(f*2,t+.02,.2,'sine',.08)}catch(e){}
+}
+function sndBubble(){if(!canPlay())return;try{tone(330+Math.random()*80,AC.currentTime,.15,'sine',.18,700)}catch(e){}}
+function sndParty(){
+  if(!canPlay())return;
+  try{const t=AC.currentTime;[0,2,4,5,7].forEach((k,i)=>tone(PENTA[k],t+i*.1,.3,'triangle',.28));tone(PENTA[7],t+.5,.6,'sine',.2)}catch(e){}
+}
+
+// ---------- állapot ----------
+let W=1,H=1,dpr=1,R=50,raf=0,last=0,lastKey=0,lastFruit=-1;
+const G={fruits:[],halves:[],parts:[],segs:[],clouds:[],t:0,spawnT:0,n:0,combo:0,comboT:0,party:0,playing:false,started:false};
+function initClouds(){G.clouds=[0,1,2].map(i=>({x:Math.random()*W,y:H*(.08+i*.13),s:.7+Math.random()*.6,v:6+Math.random()*10}))}
+
+function resize(){
+  const r=stage.getBoundingClientRect();
+  W=Math.max(1,Math.round(r.width));H=Math.max(1,Math.round(r.height));
+  dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);cv.style.width=W+'px';cv.style.height=H+'px';
+  R=Math.max(36,Math.min(72,Math.min(W,H)*.12));
+  if(!G.clouds.length)initClouds();
+  if(!G.playing)draw();
+}
+
+// ---------- játéklogika ----------
+const sp=()=>SPEEDS[S.speed];
+function spawn(){
+  let k=Math.floor(Math.random()*FR.length);if(k===lastFruit)k=(k+1)%FR.length;lastFruit=k;
+  const f=FR[k],r=R*(f.size||1),g=sp().g*Math.max(.7,H/760);
+  const x0=r+8+Math.random()*Math.max(1,W-2*r-16),y0=H+r;
+  const apex=H*(.16+Math.random()*.22);
+  const vy=-Math.sqrt(2*g*Math.max(50,y0-apex)),tA=-vy/g;
+  const xa=W*.25+Math.random()*W*.5;
+  G.fruits.push({f,r,g,x:x0,y:y0,vx:(xa-x0)/tA*.7,vy,rot:0,ph:Math.random()*6,age:0});
+}
+function burst(x,y,col,n,spd){
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=spd*(.4+Math.random()*.8);
+    G.parts.push({k:'drop',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-80,r:3+Math.random()*5,c:col,life:.7+Math.random()*.4,max:1.1})}
+}
+function stars(x,y,n,cols){
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=60+Math.random()*140;
+    G.parts.push({k:'star',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:5+Math.random()*6,c:cols[i%cols.length],rot:Math.random()*3,life:.55+Math.random()*.3,max:.85})}
+}
+function slice(i,ang){
+  const o=G.fruits[i];if(!o)return;
+  G.fruits.splice(i,1);
+  if(ang==null)ang=(Math.random()-.5)*1.2;
+  const nx=-Math.sin(ang),ny=Math.cos(ang),v=70+o.r;
+  for(const s of [1,-1])G.halves.push({f:o.f,r:o.r,g:o.g*1.15,x:o.x,y:o.y,vx:o.vx*.3+nx*v*s,vy:Math.min(o.vy,0)*.25+ny*v*s-110,a:ang,side:s,spin:0,vs:s*(1.2+Math.random()*1.8),life:2.6});
+  const few=RM.matches;
+  burst(o.x,o.y,o.f.juice,few?6:16,260);
+  stars(o.x,o.y,few?2:5,['#fff','#fde047']);
+  G.parts.push({k:'ring',x:o.x,y:o.y,r:o.r*.6,c:'#ffffff',life:.4,max:.4});
+  G.n++;S.total++;save();
+  G.combo=G.comboT>0?G.combo+1:0;G.comboT=1.3;
+  sndSlice(G.combo);
+  if(G.n%10===0)celebrate();
+}
+function celebrate(){
+  G.party=2.2;sndParty();
+  const n=RM.matches?16:60;
+  for(let i=0;i<n;i++)G.parts.push({k:'conf',x:Math.random()*W,y:-10-Math.random()*H*.3,vx:(Math.random()-.5)*60,vy:60+Math.random()*90,r:5+Math.random()*4,c:CONF[i%CONF.length],rot:Math.random()*6,vr:(Math.random()-.5)*8,life:3,max:3});
+}
+function tapFx(x,y){
+  G.parts.push({k:'ring',x,y,r:8,c:CONF[Math.floor(Math.random()*CONF.length)],life:.45,max:.45});
+  stars(x,y,RM.matches?2:6,CONF);
+  sndBubble();
+}
+function nearest(x,y,rad){
+  let bi=-1,bd=1e9;
+  G.fruits.forEach((o,i)=>{const d=Math.hypot(o.x-x,o.y-y);if(d<o.r*rad&&d<bd){bd=d;bi=i}});
+  return bi;
+}
+function segDist(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy;let t=l?((px-x1)*dx+(py-y1)*dy)/l:0;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
+function update(dt){
+  G.t+=dt;
+  const s=sp();
+  G.spawnT-=dt;
+  if(G.spawnT<=0&&G.fruits.length<s.max){spawn();G.spawnT=s.every*(.8+Math.random()*.4)}
+  if(!G.fruits.length&&G.spawnT>.4&&G.spawnT<50)G.spawnT=.4;
+  for(let i=G.fruits.length-1;i>=0;i--){
+    const o=G.fruits[i];o.age+=dt;o.vy+=o.g*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;
+    if(o.x<o.r){o.x=o.r;o.vx=Math.abs(o.vx)}else if(o.x>W-o.r){o.x=W-o.r;o.vx=-Math.abs(o.vx)}
+    o.rot=Math.sin(o.age*2.2+o.ph)*.18;
+    if(o.vy>0&&o.y>H+o.r*1.5)G.fruits.splice(i,1);
+  }
+  for(let i=G.halves.length-1;i>=0;i--){
+    const h=G.halves[i];h.vy+=h.g*dt;h.x+=h.vx*dt;h.y+=h.vy*dt;h.spin+=h.vs*dt;h.life-=dt;
+    if(h.life<=0||h.y>H+h.r*2)G.halves.splice(i,1);
+  }
+  for(let i=G.parts.length-1;i>=0;i--){
+    const p=G.parts[i];p.life-=dt;
+    if(p.life<=0){G.parts.splice(i,1);continue}
+    if(p.k==='drop'){p.vy+=520*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}
+    else if(p.k==='star'){p.vx*=.96;p.vy*=.96;p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=dt*4}
+    else if(p.k==='ring'){p.r+=dt*160}
+    else if(p.k==='conf'){p.x+=p.vx*dt+Math.sin(G.t*3+p.rot)*.6;p.y+=p.vy*dt;p.rot+=p.vr*dt}
+  }
+  for(let i=G.segs.length-1;i>=0;i--){G.segs[i].life-=dt;if(G.segs[i].life<=0)G.segs.splice(i,1)}
+  G.comboT-=dt;if(G.comboT<=0)G.combo=0;
+  if(G.party>0)G.party-=dt;
+  for(const c of G.clouds){c.x+=c.v*dt;if(c.x>W+120*c.s)c.x=-120*c.s}
+}
+
+// ---------- rajzolás ----------
+function shapePath(c,f,r){
+  c.beginPath();
+  switch(f.shape){
+    case 'oval':c.ellipse(0,0,r*1.12,r*.86,0,0,Math.PI*2);break;
+    case 'apple':
+      c.moveTo(0,-r*.72);
+      c.bezierCurveTo(r*.55,-r*1.08,r*1.12,-r*.62,r,r*.05);
+      c.bezierCurveTo(r*.92,r*.72,r*.45,r*1.02,0,r*.9);
+      c.bezierCurveTo(-r*.45,r*1.02,-r*.92,r*.72,-r,r*.05);
+      c.bezierCurveTo(-r*1.12,-r*.62,-r*.55,-r*1.08,0,-r*.72);break;
+    case 'berry':
+      c.moveTo(0,r*1.05);
+      c.bezierCurveTo(-r*.55,r*.75,-r*1.05,r*.05,-r*.95,-r*.45);
+      c.bezierCurveTo(-r*.85,-r*.98,r*.85,-r*.98,r*.95,-r*.45);
+      c.bezierCurveTo(r*1.05,r*.05,r*.55,r*.75,0,r*1.05);break;
+    case 'pear':
+      c.moveTo(0,-r);
+      c.bezierCurveTo(r*.4,-r,r*.45,-r*.45,r*.6,-r*.15);
+      c.bezierCurveTo(r*1.05,r*.3,r*.95,r,0,r);
+      c.bezierCurveTo(-r*.95,r,-r*1.05,r*.3,-r*.6,-r*.15);
+      c.bezierCurveTo(-r*.45,-r*.45,-r*.4,-r,0,-r);break;
+    default:c.arc(0,0,r,0,Math.PI*2);
+  }
+  c.closePath();
+}
+function topY(f,r){return f.shape==='pear'?-r:f.shape==='oval'?-r*.86:f.shape==='apple'?-r*.72:f.shape==='berry'?-r*.8:-r}
+function drawFruit(c,f,r,face){
+  const ty=topY(f,r);
+  if(f.stem){c.strokeStyle='#7c4a1e';c.lineWidth=Math.max(2,r*.09);c.lineCap='round';c.beginPath();c.moveTo(0,ty+r*.08);c.quadraticCurveTo(r*.02,ty-r*.2,r*.14,ty-r*.32);c.stroke()}
+  if(f.leaf){c.save();c.translate(r*.16,ty-r*.12);c.rotate(-.5);c.fillStyle='#22c55e';c.beginPath();c.ellipse(r*.2,0,r*.24,r*.11,0,0,Math.PI*2);c.fill();c.restore()}
+  const gr=c.createRadialGradient(-r*.35,-r*.4,r*.08,0,0,r*1.15);
+  gr.addColorStop(0,f.light);gr.addColorStop(.55,f.skin);gr.addColorStop(1,f.dark);
+  shapePath(c,f,r);c.fillStyle=gr;c.fill();
+  if(f.stripes){
+    c.save();shapePath(c,f,r);c.clip();c.strokeStyle=f.stripes;c.lineWidth=r*.12;c.globalAlpha=.55;
+    for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(k*r*.42,-r*1.1);c.bezierCurveTo(k*r*.6,-r*.4,k*r*.6,r*.4,k*r*.42,r*1.1);c.stroke()}
+    c.restore();
+  }
+  if(f.shape==='berry'){
+    c.fillStyle=f.seed;
+    for(const [sx,sy] of [[-.5,-.35],[0,-.45],[.5,-.35],[-.6,.1],[.6,.1],[-.3,.5],[.3,.5],[0,.8],[-.25,-.05],[.25,-.05]]){
+      if(face&&sy>-.2&&sy<.45&&Math.abs(sx)<.45)continue;
+      c.beginPath();c.ellipse(sx*r,sy*r,r*.04,r*.07,0,0,Math.PI*2);c.fill();
+    }
+  }
+  if(f.crown){
+    c.fillStyle='#16a34a';
+    for(let k=0;k<5;k++){c.save();c.translate(0,ty);c.rotate((k-2)*.5);c.beginPath();c.ellipse(0,-r*.12,r*.11,r*.26,0,0,Math.PI*2);c.fill();c.restore()}
+  }
+  c.save();c.globalAlpha=.4;c.fillStyle='#fff';c.translate(-r*.42,-r*.45);c.rotate(-.6);c.beginPath();c.ellipse(0,0,r*.26,r*.14,0,0,Math.PI*2);c.fill();c.restore();
+  if(face){
+    const ey=f.shape==='berry'?-r*.12:-r*.06;
+    c.fillStyle='#1f2937';
+    for(const s of [-1,1]){c.beginPath();c.arc(s*r*.3,ey,r*.11,0,Math.PI*2);c.fill()}
+    c.fillStyle='#fff';
+    for(const s of [-1,1]){c.beginPath();c.arc(s*r*.3-r*.035,ey-r*.04,r*.04,0,Math.PI*2);c.fill()}
+    c.strokeStyle='#1f2937';c.lineWidth=Math.max(2,r*.07);c.lineCap='round';
+    c.beginPath();c.arc(0,ey+r*.12,r*.2,.2*Math.PI,.8*Math.PI);c.stroke();
+    c.fillStyle='rgba(255,120,150,.45)';
+    for(const s of [-1,1]){c.beginPath();c.ellipse(s*r*.52,ey+r*.2,r*.12,r*.07,0,0,Math.PI*2);c.fill()}
+  }
+}
+function drawCut(c,f,r){
+  shapePath(c,f,r);c.fillStyle=f.skin;c.fill();
+  if(f.rind){c.save();c.scale(.9,.9);shapePath(c,f,r);c.fillStyle=f.rind;c.fill();c.restore()}
+  c.save();const k=f.rind?.8:.86;c.scale(k,k);shapePath(c,f,r);c.fillStyle=f.flesh;c.fill();c.restore();
+  c.fillStyle=f.seed;
+  switch(f.cut){
+    case 'citrus':
+      c.strokeStyle='rgba(255,255,255,.65)';c.lineWidth=Math.max(1.5,r*.04);
+      for(let k2=0;k2<8;k2++){const a=k2*Math.PI/4;c.beginPath();c.moveTo(0,0);c.lineTo(Math.cos(a)*r*.78,Math.sin(a)*r*.7);c.stroke()}
+      c.beginPath();c.arc(0,0,r*.08,0,Math.PI*2);c.fillStyle='#fff';c.fill();break;
+    case 'melon':
+      for(let k2=0;k2<8;k2++){const a=k2*Math.PI/4+.3;c.beginPath();c.ellipse(Math.cos(a)*r*.45,Math.sin(a)*r*.45,r*.05,r*.08,a,0,Math.PI*2);c.fill()}break;
+    case 'kiwi':
+      c.fillStyle=f.core;c.beginPath();c.ellipse(0,0,r*.28,r*.2,0,0,Math.PI*2);c.fill();
+      c.fillStyle=f.seed;
+      for(let k2=0;k2<16;k2++){const a=k2*Math.PI/8;c.beginPath();c.arc(Math.cos(a)*r*.45,Math.sin(a)*r*.34,r*.035,0,Math.PI*2);c.fill()}break;
+    case 'pit':
+      c.beginPath();c.ellipse(0,0,r*.3,r*.38,0,0,Math.PI*2);c.fill();break;
+    case 'berry':
+      c.fillStyle='rgba(255,255,255,.7)';c.beginPath();c.ellipse(0,0,r*.25,r*.45,0,0,Math.PI*2);c.fill();break;
+    default:
+      for(const s of [-1,1]){c.beginPath();c.ellipse(s*r*.12,r*.05,r*.06,r*.11,s*.3,0,Math.PI*2);c.fill()}
+  }
+}
+function starPath(c,r){c.beginPath();for(let k=0;k<8;k++){const a=k*Math.PI/4,d=k%2?r*.42:r;c.lineTo(Math.cos(a)*d,Math.sin(a)*d)}c.closePath()}
+function cloud(c,x,y,s){
+  c.fillStyle='rgba(255,255,255,.9)';c.beginPath();
+  c.arc(x,y,26*s,0,Math.PI*2);c.arc(x+28*s,y-12*s,30*s,0,Math.PI*2);c.arc(x+60*s,y,24*s,0,Math.PI*2);c.ellipse(x+30*s,y+8*s,52*s,16*s,0,0,Math.PI*2);c.fill();
+}
+function background(c){
+  const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,'#a5dcff');g.addColorStop(.7,'#e0f4ff');g.addColorStop(1,'#fff6d9');
+  c.fillStyle=g;c.fillRect(0,0,W,H);
+  for(const cl of G.clouds)cloud(c,cl.x,cl.y,cl.s);
+  c.fillStyle='#c4ecb0';c.beginPath();c.ellipse(W*.2,H+H*.02,W*.55,H*.11,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#a8df90';c.beginPath();c.ellipse(W*.85,H+H*.03,W*.5,H*.1,0,0,Math.PI*2);c.fill();
+}
+function draw(){
+  const c=ctx;c.setTransform(dpr,0,0,dpr,0,0);
+  background(c);
+  for(const h of G.halves){
+    c.save();c.globalAlpha=Math.max(0,Math.min(1,h.life/.5));
+    c.translate(h.x,h.y);c.rotate(h.a+h.spin);
+    c.beginPath();if(h.side>0)c.rect(-h.r*2,0,h.r*4,h.r*2.5);else c.rect(-h.r*2,-h.r*2.5,h.r*4,h.r*2.5);c.clip();
+    c.rotate(-h.a);drawCut(c,h.f,h.r);c.restore();
+  }
+  for(const o of G.fruits){c.save();c.translate(o.x,o.y);c.rotate(o.rot);drawFruit(c,o.f,o.r,true);c.restore()}
+  for(const p of G.parts){
+    const a=Math.max(0,Math.min(1,p.life/(p.max*.6)));c.globalAlpha=a;
+    if(p.k==='drop'){c.fillStyle=p.c;c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fill()}
+    else if(p.k==='star'){c.save();c.translate(p.x,p.y);c.rotate(p.rot);c.fillStyle=p.c;starPath(c,p.r);c.fill();c.restore()}
+    else if(p.k==='ring'){c.strokeStyle=p.c;c.lineWidth=5;c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.stroke()}
+    else if(p.k==='conf'){c.save();c.translate(p.x,p.y);c.rotate(p.rot);c.fillStyle=p.c;c.fillRect(-p.r,-p.r*.5,p.r*2,p.r);c.restore()}
+  }
+  c.globalAlpha=1;c.lineCap='round';
+  for(const s of G.segs){const a=s.life/s.max;c.strokeStyle='rgba(255,255,255,'+(a*.9).toFixed(3)+')';c.lineWidth=4+a*10;c.beginPath();c.moveTo(s.x1,s.y1);c.lineTo(s.x2,s.y2);c.stroke()}
+  if(G.started){
+    c.fillStyle='rgba(255,255,255,.75)';c.beginPath();c.roundRect?c.roundRect(10,10,92,44,22):c.rect(10,10,92,44);c.fill();
+    c.save();c.translate(33,33);drawFruit(c,FR[0],13,false);c.restore();
+    c.fillStyle='#1f2a44';c.font='700 22px "Nunito Sans","Trebuchet MS",sans-serif';c.textAlign='left';c.textBaseline='middle';c.fillText(String(G.n),54,33);
+  }
+  if(G.party>0){
+    const t=2.2-G.party,s=RM.matches?1:Math.min(1,t*4)*(1+Math.sin(t*10)*.05*Math.max(0,1-t));
+    c.save();c.globalAlpha=Math.min(1,G.party/.4);c.translate(W/2,H*.3);c.scale(s,s);
+    c.font='44px Bungee,"Arial Black",sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.lineWidth=8;c.strokeStyle='#7c3aed';c.lineJoin='round';c.strokeText('Ügyes!',0,0);c.fillStyle='#fde047';c.fillText('Ügyes!',0,0);
+    c.restore();
+  }
+}
+function loop(now){
+  const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
+  if(G.playing){update(dt);draw();raf=requestAnimationFrame(loop)}else raf=0;
+}
+
+// ---------- menü (szülőknek) ----------
+let resetArm=false;
+function renderMenu(){
+  card.innerHTML=
+    '<h2>Pici gyümölcsvágó</h2>'+
+    '<canvas id="mini" width="480" height="168" aria-hidden="true"></canvas>'+
+    '<p>Koppints a gyümölcsre, vagy húzd át rajta az ujjad! Nincs veszítés, nincs időre menés.</p>'+
+    '<p class="tot">Eddig <b id="tot">'+S.total+'</b> gyümölcs</p>'+
+    '<div class="olbl">Sebesség</div>'+
+    '<div class="opts">'+Object.keys(SPEEDS).map(k=>'<button type="button" class="b sm" data-speed="'+k+'" aria-pressed="'+(S.speed===k)+'">'+SPEEDS[k].name+'</button>').join('')+'</div>'+
+    '<div class="btns">'+
+      '<button type="button" class="b hot" data-act="play">'+(G.started?'Folytatás':'Játék')+'</button>'+
+      '<button type="button" class="b" data-act="snd" aria-pressed="'+S.sound+'">Hang: '+(S.sound?'be':'ki')+'</button>'+
+      '<button type="button" class="b'+(resetArm?' warn':'')+'" data-act="reset">'+(resetArm?'Biztosan nullázod? Koppints újra':'Számláló nullázása')+'</button>'+
+    '</div>'+
+    '<p class="small"><b>Szülőknek:</b> játék közben a jobb felső lakatot tartsd nyomva, így jön elő ez a menü (gépen: Esc). Tipp: tedd teljes képernyőre, és telefonon kapcsold be a képernyő rögzítését (Androidon „alkalmazás kitűzése”, iPhone-on „Irányított hozzáférés”).</p>';
+  const m=$('mini'),mc=m.getContext('2d');
+  [[1,70,92,40],[0,240,84,46],[6,410,94,40]].forEach(([k,x,y,r])=>{mc.save();mc.translate(x,y);drawFruit(mc,FR[k],r,true);mc.restore()});
+}
+function openMenu(){
+  G.playing=false;resetArm=false;
+  lock.hidden=true;
+  renderMenu();ov.hidden=false;
+  const b=card.querySelector('[data-act="play"]');if(b)try{b.focus({preventScroll:true})}catch(e){}
+}
+function play(){
+  unlockAudio();
+  G.started=true;G.playing=true;
+  ov.hidden=true;lock.hidden=false;document.body.classList.add('playing');
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+  resize();
+  if(!G.fruits.length&&G.spawnT>.3)G.spawnT=.3;
+  last=performance.now();if(!raf)raf=requestAnimationFrame(loop);
+}
+function leavePlay(){document.body.classList.remove('playing');resize();openMenu()}
+card.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.speed&&SPEEDS[b.dataset.speed]){S.speed=b.dataset.speed;save();resetArm=false;renderMenu();card.querySelector('[data-speed="'+S.speed+'"]').focus();return}
+  const a=b.dataset.act;
+  if(a==='play')play();
+  else if(a==='snd'){S.sound=!S.sound;save();if(S.sound)unlockAudio();resetArm=false;renderMenu();card.querySelector('[data-act="snd"]').focus()}
+  else if(a==='reset'){
+    if(resetArm){S.total=0;G.n=0;save();resetArm=false}else resetArm=true;
+    renderMenu();card.querySelector('[data-act="reset"]').focus();
+  }
+});
+
+// ---------- lakat: nyomva tartásra nyitja a menüt ----------
+let holdRaf=0;
+function endHold(){cancelAnimationFrame(holdRaf);holdRaf=0;lock.style.setProperty('--p','0')}
+lock.addEventListener('pointerdown',e=>{
+  e.preventDefault();endHold();const t0=performance.now();
+  const step=()=>{const k=(performance.now()-t0)/HOLD;lock.style.setProperty('--p',String(Math.min(1,k)));
+    if(k>=1){endHold();leavePlay();return}holdRaf=requestAnimationFrame(step)};
+  holdRaf=requestAnimationFrame(step);
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>lock.addEventListener(ev,endHold));
+lock.addEventListener('click',e=>{if(e.detail===0)leavePlay()});   // billentyűzetről (Enter) azonnal
+lock.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ---------- érintés, egér ----------
+const ptrs=new Map();
+function pos(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+cv.addEventListener('pointerdown',e=>{
+  if(!G.playing)return;e.preventDefault();unlockAudio();
+  const p=pos(e);ptrs.set(e.pointerId,p);
+  try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  const i=nearest(p.x,p.y,1.35);
+  if(i>=0)slice(i,null);else tapFx(p.x,p.y);
+});
+cv.addEventListener('pointermove',e=>{
+  const q=ptrs.get(e.pointerId);if(!q||!G.playing)return;
+  const p=pos(e);if(Math.hypot(p.x-q.x,p.y-q.y)<3)return;
+  G.segs.push({x1:q.x,y1:q.y,x2:p.x,y2:p.y,life:.22,max:.22});
+  const ang=Math.atan2(p.y-q.y,p.x-q.x);
+  for(let i=G.fruits.length-1;i>=0;i--){const o=G.fruits[i];if(segDist(o.x,o.y,q.x,q.y,p.x,p.y)<o.r*1.15)slice(i,ang)}
+  ptrs.set(e.pointerId,p);
+});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>ptrs.delete(e.pointerId)));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ---------- billentyű, kontroller: bármelyik gomb vág ----------
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();if(G.playing)leavePlay();else if(G.started)play();return}
+  if(!G.playing)return;
+  if(e.ctrlKey||e.metaKey||e.altKey||e.key==='Tab'||/^F\d+$/.test(e.key))return;
+  e.preventDefault();
+  const now=performance.now();if(now-lastKey<110)return;lastKey=now;
+  unlockAudio();
+  let bi=-1,by=1e9;
+  G.fruits.forEach((o,i)=>{if(o.y<H-o.r*.3&&o.y<by){by=o.y;bi=i}});
+  if(bi>=0)slice(bi,(Math.random()-.5)*1.4);else tapFx(W*(.2+Math.random()*.6),H*(.3+Math.random()*.4));
+});
+
+addEventListener('pagehide',save);
+if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);else addEventListener('resize',resize);
+resize();openMenu();
+
+// játékteszthez és borítóképhez (tools/play_test.py, tools/make_covers.py)
+window.__baba={get G(){return G},S,slice,spawn,draw,
+  put(x,y,k){G.spawnT=99;G.fruits.length=0;const f=FR[k||0];G.fruits.push({f,r:R,g:0,x,y,vx:0,vy:0,rot:0,ph:0,age:0});return G.fruits.length},
+  demo(){G.started=true;G.playing=false;ov.hidden=true;lock.hidden=false;document.body.classList.add('playing');resize();G.n=7;
+    G.fruits=[[2,.22,.5],[1,.72,.35],[6,.4,.25],[3,.8,.62]].map(([k,fx,fy])=>({f:FR[k],r:R*(FR[k].size||1),g:0,x:W*fx,y:H*fy,vx:0,vy:0,rot:(fx-.5)*.3,ph:0,age:0}));
+    G.halves=[1,-1].map(s=>({f:FR[0],r:R,g:0,x:W*.55+s*R*.25,y:H*.58+s*R*.35,vx:0,vy:0,a:-.5,side:s,spin:s*.25,vs:0,life:2}));
+    G.parts=[];burst(W*.55,H*.58,FR[0].juice,14,180);stars(W*.55,H*.58,5,['#fff','#fde047']);
+    for(const p of G.parts){p.x+=p.vx*.2;p.y+=p.vy*.2}
+    G.segs=[{x1:W*.3,y1:H*.75,x2:W*.8,y2:H*.42,life:.15,max:.22}];draw()}};
+})();
+</script>
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+<script>
+/* @shared gamepad */
+/* Kontroller (gamepad) a böngésző Gamepad API-jával. A játék kódjához nem nyúl: a kontrollert billentyűkké
+   fordítja, amelyeket a játék már ismer. Ha egy ablak (menü, szünet, vége) látszik, a kar a gombok között lép,
+   az A gomb megnyomja a kijelöltet. Kiosztás (szabványos kontroller):
+     bal kar / d-pad → nyilak, A → szóköz, X → J, Y → K, B → L, RB → L, Start → Escape (szünet), Select → Enter.
+   iPhone-on a böngésző nem támogatja, ott ez a rész nem csinál semmit. */
+(function(){
+  if(!navigator.getGamepads)return;
+  var DIRS=[['ArrowUp',12],['ArrowDown',13],['ArrowLeft',14],['ArrowRight',15]];
+  var BTN=[[0,' ','Space'],[2,'j','KeyJ'],[3,'k','KeyK'],[1,'l','KeyL'],[5,'l','KeyL'],[9,'Escape','Escape'],[8,'Enter','Enter']];
+  var held={},raf=0,shown=false,lastNav=0;
+  function key(type,k,code){
+    var e=new KeyboardEvent(type,{key:k,code:code,bubbles:true,cancelable:true});
+    (document.activeElement&&document.activeElement!==document.body?document.activeElement:document).dispatchEvent(e);
+  }
+  function set(name,on,k,code){if(!!held[name]===on)return;held[name]=on;key(on?'keydown':'keyup',k,code||k)}
+  function visible(el){if(!el||el.hidden)return false;var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden'}
+  function dialog(){
+    var c=document.querySelectorAll('#ov,#over,#pick,#overlay,.modal,dialog[open],.rotate-hint');
+    for(var i=0;i<c.length;i++)if(visible(c[i])&&!c[i].classList.contains('rotate-hint'))return c[i];
+    return null;
+  }
+  function buttons(d){return Array.prototype.filter.call(d.querySelectorAll('button:not(:disabled),a[href]'),visible)}
+  function nav(d,dir){
+    var b=buttons(d);if(!b.length)return;
+    var i=b.indexOf(document.activeElement);
+    if(i<0){var hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0]).focus();return}
+    var cur=b[i].getBoundingClientRect(),best=null,bd=1e9;
+    b.forEach(function(x){if(x===b[i])return;var r=x.getBoundingClientRect(),dx=r.left+r.width/2-(cur.left+cur.width/2),dy=r.top+r.height/2-(cur.top+cur.height/2);
+      var ok=dir==='ArrowUp'?dy<-4:dir==='ArrowDown'?dy>4:dir==='ArrowLeft'?dx<-4:dx>4;if(!ok)return;
+      var dist=Math.abs(dx)+Math.abs(dy)*(dir==='ArrowLeft'||dir==='ArrowRight'?3:1)+Math.abs(dx)*(dir==='ArrowUp'||dir==='ArrowDown'?2:0);if(dist<bd){bd=dist;best=x}});
+    (best||b[(i+(dir==='ArrowUp'||dir==='ArrowLeft'?b.length-1:1))%b.length]).focus();
+  }
+  function note(){
+    if(shown)return;shown=true;
+    var t=document.createElement('div');t.setAttribute('role','status');
+    t.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3500;background:#0b0c10;color:#fff;border:1px solid #444;border-radius:10px;padding:10px 16px;font:700 15px system-ui,sans-serif;pointer-events:none';
+    t.textContent='Kontroller csatlakoztatva';document.body.appendChild(t);setTimeout(function(){t.remove()},2500);
+  }
+  function poll(){
+    raf=setTimeout(poll,16); /* időzítő, nem képkocka: álló képnél is figyeli a kontrollert */
+    var pads=navigator.getGamepads?navigator.getGamepads():[],gp=null;
+    for(var i=0;i<pads.length;i++)if(pads[i]&&pads[i].connected){gp=pads[i];break}
+    if(!gp){for(var n in held)if(held[n])held[n]=false;return}
+    note();
+    var pr=function(i){var b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5)};
+    var ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.25;
+    var dirOn={ArrowUp:ay<-dz,ArrowDown:ay>dz,ArrowLeft:ax<-dz,ArrowRight:ax>dz};
+    DIRS.forEach(function(d){if(pr(d[1]))dirOn[d[0]]=true});
+    var d=dialog();
+    if(d){
+      DIRS.forEach(function(x){if(held[x[0]])set(x[0],false,x[0])});
+      BTN.forEach(function(b){if(held['b'+b[0]])set('b'+b[0],false,b[1],b[2])});
+      var now=performance.now(),any=null;DIRS.forEach(function(x){if(dirOn[x[0]])any=x[0]});
+      if(any&&now-lastNav>220){lastNav=now;nav(d,any)}else if(!any)lastNav=0;
+      var a=pr(0);if(a&&!held.navA){var f=document.activeElement;if(f&&d.contains(f)&&f.click)f.click();else{var b=buttons(d),hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0])&&(hot&&visible(hot)?hot:b[0]).click()}}
+      held.navA=a;
+      if(pr(9)&&!held.Escape)set('Escape',true,'Escape');else if(!pr(9))set('Escape',false,'Escape');
+      return;
+    }
+    held.navA=pr(0);
+    DIRS.forEach(function(x){set(x[0],dirOn[x[0]],x[0])});
+    BTN.forEach(function(b){set('b'+b[0],pr(b[0]),b[1],b[2])});
+  }
+  addEventListener('gamepadconnected',function(){if(!raf)poll()});
+  addEventListener('gamepaddisconnected',function(){var p=navigator.getGamepads(),any=false;for(var i=0;i<p.length;i++)if(p[i])any=true;if(!any){clearTimeout(raf);raf=0;for(var n in held)if(held[n]&&n.indexOf('Arrow')===0)set(n,false,n)}});
+  try{var p0=navigator.getGamepads();for(var i=0;i<p0.length;i++)if(p0[i]){poll();break}}catch(e){}
+})();
+/* @end gamepad */
+</script>
+</body>
+</html>
