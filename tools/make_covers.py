@@ -39,6 +39,8 @@ PLAN = {"poke": False, "area": "#isocv",
         "js": "(() => { const b = document.querySelector('#next'); for (let i = 0; i < 99 && b && !b.disabled; i++) b.click(); })()"}
 SHOTS = {
     "falbonto": {"align": "top", "wait": 300},
+    "flipper": {"poke": False, "clicks": ['#card button[data-act="new"]', '#card button[data-act="go"]'], "align": "top",
+                "js": "__flipper.G.ball.state = 'play'; __flipper.G.ball.x = 200; __flipper.G.ball.y = 180; __flipper.G.ball.vy = 300", "wait": 400},
     "teglatoro": {"poke": False, "clicks": ['[data-diff="normal"]', "#cv"], "align": "top", "wait": 900},
     "gyemantbanya": {"poke": False, "clicks": ["#d-easy"], "area": "#board"},
     "kocka-kert": {"area": "#field"},
