@@ -143,7 +143,9 @@ async def poke(page, mobile=False):
 KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", "bringa-muhely:save", "bringa:own",
               "bringa:penz", "bringa-futam:best", "betu-csata:best", "bunyo:save", "csapda:save", "horda:save",
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
-              "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save"]
+              "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save",
+              "kozapor-save", "kozapor-best", "urflotta-save", "urflotta-best", "szarnycsapas-best", "duplazo-save",
+              "duplazo-best"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -1070,6 +1072,162 @@ def _stuck_deal():
             "st": {"t": cols, "d": [len(c) - 1 for c in cols], "f": [[], [], [], []], "s": [], "w": [], "c": []}}
 
 
+async def sc_rocks(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    check(await page.evaluate("__kozapor.G.rocks.length") == 4, "the first wave has four big rocks")
+    # one rock right in front of the nose: holding Space has to split it
+    await page.evaluate("""(() => { const G = __kozapor.G, s = G.ship; G.rocks.length = 1;
+        Object.assign(G.rocks[0], {x: s.x, y: s.y - 70, vx: 0, vy: 0}); })()""")
+    await hold(page, "Space", 700)
+    await wait_js(page, "__kozapor.G.score >= 20 && __kozapor.G.rocks.length >= 2", timeout=3000)
+    check(await txt(page, "#score") != "0", "the score shows the hit")
+    # a rock on the ship (after the start-up shield) takes a life
+    await page.evaluate("""(() => { const G = __kozapor.G, s = G.ship; s.inv = 0;
+        Object.assign(G.rocks[0], {x: s.x, y: s.y, vx: 0, vy: 0}); })()""")
+    await wait_js(page, "__kozapor.G.lives === 2", timeout=2000)
+    check(await txt(page, "#lives") == "♥♥", "the life counter shows two hearts")
+    await page.keyboard.press("Escape")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    score = await page.evaluate("__kozapor.G.score")
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    check(await page.evaluate("[__kozapor.G.score, __kozapor.G.lives, __kozapor.G.wave]") == [score, 2, 1],
+          "the game continues after a reload with the same score and lives")
+    await page.evaluate("(() => { __kozapor.G.lives = 1; __kozapor.G.ship.inv = 0; __kozapor.killShip(); })()")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=4000)
+    check(await page.evaluate("localStorage.getItem('kozapor-save')") is None, "the save is cleared at game over")
+    check(int(await page.evaluate("localStorage.getItem('kozapor-best')")) == score, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate("[__kozapor.G.score, __kozapor.G.lives]") == [0, 3], "a new game starts from zero")
+
+
+async def sc_rocks_touch(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate("__kozapor.G.ship.inv = 9")
+    a0 = await page.evaluate("__kozapor.G.ship.a")
+    await page.evaluate("document.querySelector('.pad').style.display = 'flex'")  # the pad only shows on touch screens
+    btn = page.locator('.pad button[data-k="right"]')
+    box = await btn.bounding_box()
+    await page.mouse.move(box["x"] + 20, box["y"] + 20)
+    await page.mouse.down()
+    await page.wait_for_timeout(400)
+    await page.mouse.up()
+    check(await page.evaluate("__kozapor.G.ship.a") > a0 + 0.8, "holding the turn button turns the ship")
+    check(await page.evaluate("__kozapor.keys.right") is False, "letting go stops the turn")
+
+
+async def sc_fleet(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    check(await page.evaluate("__urflotta.G.aliens.length") == 40, "the fleet has 40 aliens")
+    # an alien of the bottom row right above the cannon
+    await page.evaluate("(() => { const G = __urflotta.G; G.aliens.forEach(a => a.x = 30); G.aliens[39].x = G.px; G.dir = 0; })()")
+    await hold(page, "Space", 1500)
+    await wait_js(page, "__urflotta.G.score >= 10", timeout=3000)
+    check(await page.evaluate("__urflotta.G.aliens.length") < 40, "the shot removes an alien")
+    # an alien bullet on the cannon takes a life
+    await page.evaluate("(() => { const G = __urflotta.G; G.eb.push({x: G.px, y: __urflotta.playerY() - 30, v: 200, z: false}); })()")
+    await wait_js(page, "__urflotta.G.lives === 2", timeout=2000)
+    await page.keyboard.press("Escape")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    score = await page.evaluate("__urflotta.G.score")
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    check(await page.evaluate("[__urflotta.G.score, __urflotta.G.lives]") == [score, 2],
+          "the game continues after a reload with the same score and lives")
+    # the fleet reaches the ground: game over
+    await page.evaluate("(() => { const G = __urflotta.G; G.aliens.forEach(a => a.y = __urflotta.playerY() - 10); })()")
+    await page.locator("#ov h2", has_text="Leszálltak").wait_for(timeout=4000)
+    check(await page.evaluate("localStorage.getItem('urflotta-save')") is None, "the save is cleared at game over")
+    check(int(await page.evaluate("localStorage.getItem('urflotta-best')")) == score, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate("[__urflotta.G.score, __urflotta.G.lives, __urflotta.G.aliens.length]") == [0, 3, 40],
+          "a new game starts from zero")
+
+
+async def sc_flap(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.evaluate("__szarny.G.phase") == "ready", "the bird waits for the first tap")
+    await page.keyboard.press("Space")
+    check(await page.evaluate("__szarny.G.phase") == "play", "the first tap starts the flight")
+    # autopilot: flap whenever the bird sinks below the middle of the next gap
+    t0 = time.time()
+    while time.time() - t0 < 15 and await page.evaluate("__szarny.G.score") < 2:
+        st = await page.evaluate("""(() => { const G = __szarny.G, p = G.pipes.find(p => p.x + p.w > __szarny.BX - 14);
+            return {y: G.y, vy: G.vy, target: p ? p.top + p.gap * 0.62 : __szarny.floorY() * 0.5, phase: G.phase}; })()""")
+        check(st["phase"] == "play", "the autopilot keeps the bird in the air")
+        if st["y"] > st["target"] and st["vy"] > -60:
+            await page.keyboard.press("Space")
+        await page.wait_for_timeout(30)
+    check(await page.evaluate("__szarny.G.score") >= 2, "flying through gaps scores")
+    check(int(await txt(page, "#score")) >= 2, "the score is shown")
+    await page.keyboard.press("Escape")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    y = await page.evaluate("__szarny.G.y")
+    await page.locator('#card button[data-act="resume"]').click()
+    await page.wait_for_timeout(300)
+    check(await page.evaluate("[__szarny.G.phase, __szarny.G.y]") == ["ready", y], "after a pause the bird waits in place")
+    await page.keyboard.press("Space")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=6000)
+    check(json.loads(await page.evaluate("localStorage.getItem('szarnycsapas-best')"))["n"] >= 2, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate("[__szarny.G.score, __szarny.G.phase]") == [0, "ready"], "a new game starts from zero")
+
+
+DOUBLER_SET = "(vals => { __duplazo.G.g = vals.map(v => v ? {id: Math.random(), v} : null); __duplazo.G.phase = 'play'; })"
+
+
+async def sc_doubler(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    check(sum(1 for v in await page.evaluate("__duplazo.vals()") if v) == 2, "a new board starts with two tiles")
+    await page.evaluate(DOUBLER_SET + "([2,2,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0])")
+    await page.keyboard.press("ArrowLeft")
+    check((await page.evaluate("__duplazo.vals()"))[:2] == [4, 0], "two equal tiles merge into their double")
+    check(await txt(page, "#score") == "4", "the merge scores")
+    await page.locator("#undoBtn").click()
+    check((await page.evaluate("__duplazo.vals()"))[:2] == [2, 2], "undo brings the last position back")
+    await page.keyboard.press("ArrowLeft")
+    board = await page.evaluate("__duplazo.vals()")
+    await page.reload()
+    await page.wait_for_timeout(300)
+    check(await page.evaluate("__duplazo.vals()") == board, "the board is restored after a reload")
+    check(await page.locator("#ov").is_hidden(), "a saved game continues right away")
+    # reaching 2048
+    await page.evaluate(DOUBLER_SET + "([1024,1024,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0])")
+    await page.keyboard.press("ArrowLeft")
+    await page.locator("#ov h2", has_text="2048").wait_for(timeout=2000)
+    await page.locator('#card button[data-act="keep"]').click()
+    check(await page.locator("#ov").is_hidden(), "Keep going closes the win window")
+    # no move left: the stuck window, the save is cleared
+    await page.evaluate("Math.random = () => 0")
+    await page.evaluate(DOUBLER_SET + "([4,2,4,2, 2,4,2,4, 4,2,4,2, 4,2,4,0])")
+    await page.keyboard.press("ArrowRight")
+    await page.locator("#ov h2", has_text="Elakadtál").wait_for(timeout=2000)
+    check(await page.evaluate("localStorage.getItem('duplazo-save')") is None, "the save is cleared when stuck")
+    check(json.loads(await page.evaluate("localStorage.getItem('duplazo-best')"))["4"] >= 2048, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the stuck window")
+    check(await page.evaluate("__duplazo.G.score") == 0, "a new game starts from zero")
+
+
+async def sc_doubler_swipe(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate(DOUBLER_SET + "([0,0,0,0, 0,0,0,0, 0,0,0,0, 8,0,0,8])")
+    box = await page.locator("#cv").bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    await page.mouse.move(x - 60, y)
+    await page.mouse.down()
+    await page.mouse.move(x, y, steps=4)
+    await page.mouse.move(x + 60, y, steps=4)
+    await page.mouse.up()
+    check((await page.evaluate("__duplazo.vals()"))[15] == 16, "a swipe to the right merges the row")
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1129,6 +1287,12 @@ SCENARIOS = [
      solitaire_save(NEAR_WIN, auto=False)),
     ("pasziansz", "Solitaire: when no move is left the stuck window comes, its undo takes the move back", sc_solitaire_stuck,
      solitaire_save(_stuck_deal())),
+    ("kozapor", "Rock Storm: a shot splits a rock, a rock takes a life, reload, the last life ends it, New game", sc_rocks, None),
+    ("kozapor", "Rock Storm: holding a touch button turns the ship, letting go stops it", sc_rocks_touch, None),
+    ("urflotta", "Space Fleet: a shot downs an alien, a bullet takes a life, reload, landing ends it, New game", sc_fleet, None),
+    ("szarnycsapas", "Wing Flap: tap to fly through gaps, pause keeps the bird in place, the ground ends it", sc_flap, None),
+    ("duplazo", "Doubler: merge, undo, reload, 2048 win window, stuck window, New game", sc_doubler, None),
+    ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
 ]
 
 

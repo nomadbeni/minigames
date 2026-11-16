@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Duplázó</title>
+<meta name="description" content="Csúsztatós számos logikai játék álló telefonra: húzd az ujjad, és minden lapka arra csúszik. Két egyforma szám összeolvad és megduplázódik. Juss el a 2048-ig, aztán ameddig bírod. 4×4 és könnyebb 5×5 tábla, visszalépés, automatikus mentés.">
+<meta name="games:category" content="jatek">
+<meta name="games:title-en" content="Doubler">
+<meta name="games:description-en" content="Sliding number puzzle for portrait phones: swipe and every tile slides that way. Two equal numbers merge and double. Reach 2048, then keep going as long as you can. 4×4 and an easier 5×5 board, undo, automatic saving.">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
+/* Elrendezés: egyképernyős álló kirakó — vissza sáv, pontsor, négyzetes tábla, gombok, ablakok */
+:root{
+  --bg:#141020; --panel:#1f1830; --line:#3a2f57; --fg:#f5f0ff; --muted:#a99cc8;
+  --accent:#ffb84d; --danger:#ff5d73; --board:#2a2140; --cell:#382c55;
+  --display:"Bungee","Arial Black",system-ui,sans-serif;
+  --ui:"Chakra Petch","Trebuchet MS",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html{box-sizing:border-box;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:10px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:560px;margin:0 auto}
+.hud{display:flex;align-items:center;gap:14px}
+.stat{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+#score{font-family:var(--display);color:var(--accent);font-size:22px}
+.sp{flex:1}
+.icon{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer;padding:0;flex:none}
+.icon svg{width:20px;height:20px;fill:currentColor}
+.icon:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#stage{flex:1;min-height:0;display:grid;place-items:center;touch-action:none}
+canvas{display:block;touch-action:none;border-radius:16px}
+.row{display:flex;gap:8px;flex:none}
+.row button{flex:1}
+.hint{margin:0;text-align:center;font-size:13px;color:var(--muted);flex:none}
+@media (pointer:coarse),(hover:none){.hint.desk{display:none}}
+#ov{position:fixed;left:0;top:0;right:0;bottom:0;display:grid;place-items:center;background:rgba(10,7,18,.8);z-index:5;padding-inline:16px}
+.card{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 22px;background:var(--panel);border:1px solid var(--line);border-radius:16px;text-align:center;width:min(360px,100%);max-height:calc(100% - 32px);overflow:auto}
+.card h2{font-family:var(--display);font-weight:400;font-size:32px;margin:0;color:var(--accent);line-height:1.1}
+.card h2.bad{color:var(--danger)}
+.card p{margin:0;color:var(--muted);font-size:15px;line-height:1.45}
+.card b{color:var(--fg)}
+.big{font-family:var(--display);font-size:48px;line-height:1;color:var(--fg)}
+.rec{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--accent);color:#2a1700;font-weight:700;font-size:14px}
+.btns{display:flex;flex-direction:column;gap:8px;width:100%}
+.opts{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;width:100%}
+.olbl{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:-4px}
+button.b{font-family:var(--ui);font-weight:700;font-size:16px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;min-height:44px}
+button.b.hot{background:var(--accent);border-color:var(--accent);color:#2a1700}
+button.b.sm{font-size:14px;padding:10px 6px}
+button.b:disabled{opacity:.4;cursor:default}
+button.b[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:rgba(255,184,77,.1)}
+button:not(:disabled):active{translate:0 1px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar" style="position:relative;z-index:1000;display:flex;flex-wrap:wrap;align-self:flex-start;align-items:center;gap:8px;margin:0"><a class="home-link" href="../index.html" style="display:inline-flex;align-self:flex-start;width:fit-content;align-items:center;gap:6px;margin:0;min-height:44px;min-width:44px;box-sizing:border-box;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;text-decoration:none;font:600 14px/1.2 system-ui,sans-serif">← Összes játék</a><button type="button" class="fs-btn" aria-label="Teljes képernyő" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:6px 14px;border-radius:999px;border:1px solid currentColor;color:inherit;opacity:.75;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif">⛶ Teljes képernyő</button></div>
+  <div class="hud">
+    <div class="stat"><span class="lbl">Pont</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Rekord</span><span class="val" id="best">0</span></div>
+    <div class="stat"><span class="lbl">Legnagyobb</span><span class="val" id="top">2</span></div>
+    <span class="sp"></span>
+    <button class="icon" id="snd" type="button" aria-label="Hang be/ki" aria-pressed="true"><svg viewBox="0 0 24 24" id="sndIcon"></svg></button>
+    <button class="icon" id="menuBtn" type="button" aria-label="Menü"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z"/></svg></button>
+  </div>
+  <div id="stage"><canvas id="cv" aria-label="Duplázó tábla"></canvas></div>
+  <div class="row">
+    <button class="b" type="button" id="undoBtn">↶ Vissza</button>
+    <button class="b" type="button" id="newBtn">Új játék</button>
+  </div>
+  <p class="hint desk">Nyilak vagy WASD · egérrel húzva is · U: vissza · Esc: menü</p>
+</div>
+<div id="ov" hidden><div class="card" id="card"></div></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const SIZES=[4,5],GOAL=2048,ANIM=110,POP=140;
+// Saját színsor: kis számok hideg, nagyok meleg árnyalatban
+const COL={2:['#4b3d73','#e9e2ff'],4:['#5a4a8c','#f2ecff'],8:['#2f7fb8','#fff'],16:['#249e9a','#fff'],32:['#2fae6a','#fff'],64:['#8fbf2e','#fff'],
+  128:['#e0b52a','#2a1700'],256:['#f09a2a','#2a1700'],512:['#f0732a','#fff'],1024:['#e94e4e','#fff'],2048:['#ff4fa3','#fff']};
+const colOf=v=>COL[v]||['#c13bff','#fff'];
+let G=null,size=0,dpr=1,actx=null,uid=0,anim=null;   // anim: {t0, slides:[{v,from,to}], pops:[{x,y,kind}]}
+let n=4;
+
+// ---------- mentés (csak localStorage) ----------
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
+let sound=lsGet('duplazo-sound')!=='0';
+let pickN=lsGet('duplazo-size')==='5'?5:4;
+function loadBest(){
+  const out={4:0,5:0};
+  try{const d=JSON.parse(lsGet('duplazo-best'));
+    if(d&&typeof d==='object'&&!Array.isArray(d))for(const k of SIZES)if(Number.isInteger(d[k])&&d[k]>=0&&d[k]<1e9)out[k]=d[k]}catch(e){}
+  return out;
+}
+let best=loadBest();
+const isTile=v=>v===0||(Number.isInteger(v)&&v>=2&&v<=131072&&(v&(v-1))===0);
+function vals(){return G.g.map(t=>t?t.v:0)}
+function save(){
+  if(!G)return;
+  lsSet('duplazo-save',JSON.stringify({v:1,n:G.n,g:vals(),score:G.score,won:G.won,moves:G.moves,undo:G.undo}));
+}
+function okGrid(g,size){return Array.isArray(g)&&g.length===size*size&&g.every(isTile)}
+function loadSave(){
+  try{
+    const d=JSON.parse(lsGet('duplazo-save'));
+    if(!d||typeof d!=='object'||Array.isArray(d)||d.v!==1||!SIZES.includes(d.n))return null;
+    if(!okGrid(d.g,d.n)||!d.g.some(v=>v>0))return null;
+    if(!Number.isInteger(d.score)||d.score<0||d.score>1e9||typeof d.won!=='boolean'||!Number.isInteger(d.moves)||d.moves<0||d.moves>1e7)return null;
+    let undo=null;
+    if(d.undo!==null&&d.undo!==undefined){
+      if(typeof d.undo!=='object'||!okGrid(d.undo.g,d.n)||!Number.isInteger(d.undo.score)||d.undo.score<0||d.undo.score>1e9)return null;
+      undo={g:d.undo.g.slice(),score:d.undo.score};
+    }
+    return {n:d.n,g:d.g.slice(),score:d.score,won:d.won,moves:d.moves,undo};
+  }catch(e){return null}
+}
+
+// ---------- hang (Web Audio) ----------
+function beep(f,d=0.06,type='triangle',v=0.04,at=0){
+  if(!sound)return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+at;
+    o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+0.02);
+  }catch(e){}
+}
+function sndIcon(){
+  $('sndIcon').innerHTML=sound
+    ?'<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4zM14 3.2v2.1a7 7 0 010 13.4v2.1a9 9 0 000-17.6z"/>'
+    :'<path d="M3 9v6h4l5 5V4L7 9H3zm18.4 6L20 16.4l-2.6-2.6-2.6 2.6L13.4 15l2.6-2.6-2.6-2.6 1.4-1.4 2.6 2.6 2.6-2.6 1.4 1.4-2.6 2.6z"/>';
+  $('snd').setAttribute('aria-pressed',sound?'true':'false');
+}
+$('snd').addEventListener('click',()=>{sound=!sound;lsSet('duplazo-sound',sound?'1':'0');sndIcon();beep(660)});
+sndIcon();
+
+// ---------- játék ----------
+const tile=v=>v?{id:++uid,v}:null;
+function empties(){const e=[];G.g.forEach((t,i)=>{if(!t)e.push(i)});return e}
+function spawn(){
+  const e=empties();if(!e.length)return null;
+  const i=e[Math.random()*e.length|0];G.g[i]=tile(Math.random()<.9?2:4);return i;
+}
+function newGame(size){
+  n=size||pickN;
+  G={n,g:Array(n*n).fill(null),score:0,won:false,moves:0,undo:null,phase:'play',rec:false};
+  const a=spawn(),b=spawn();
+  anim={t0:performance.now(),slides:[],pops:[a,b].map(i=>({i,kind:'new'}))};
+  save();hideOv();hud();
+}
+function fromSave(d){
+  n=d.n;G={n,g:d.g.map(tile),score:d.score,won:d.won,moves:d.moves,undo:d.undo,phase:'play',rec:false};
+  anim=null;hideOv();hud();
+  if(!canMove())gameOver();
+}
+function canMove(){
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    const t=G.g[y*n+x];if(!t)return true;
+    if(x<n-1&&G.g[y*n+x+1]&&G.g[y*n+x+1].v===t.v)return true;
+    if(y<n-1&&G.g[(y+1)*n+x]&&G.g[(y+1)*n+x].v===t.v)return true;
+  }
+  return false;
+}
+// d: 0 fel, 1 jobbra, 2 le, 3 balra
+function move(d){
+  if(!G||G.phase!=='play')return false;
+  const [vx,vy]=[[0,-1],[1,0],[0,1],[-1,0]][d];
+  const xs=[...Array(n).keys()],ys=[...Array(n).keys()];
+  if(vx===1)xs.reverse();if(vy===1)ys.reverse();
+  const before={g:vals(),score:G.score};
+  const merged=new Set(),slides=[],pops=[];let moved=false,gained=0,topNew=0;
+  const at=(x,y)=>G.g[y*n+x],put=(x,y,t)=>{G.g[y*n+x]=t};
+  for(const y of ys)for(const x of xs){
+    const t=at(x,y);if(!t)continue;
+    let cx=x,cy=y;
+    while(cx+vx>=0&&cx+vx<n&&cy+vy>=0&&cy+vy<n&&!at(cx+vx,cy+vy)){cx+=vx;cy+=vy}
+    const nx=cx+vx,ny=cy+vy,o=nx>=0&&nx<n&&ny>=0&&ny<n?at(nx,ny):null;
+    if(o&&o.v===t.v&&!merged.has(o.id)){
+      const m=tile(t.v*2);merged.add(m.id);put(nx,ny,m);put(x,y,null);
+      slides.push({v:t.v,from:[x,y],to:[nx,ny]});pops.push({i:ny*n+nx,kind:'merge'});
+      gained+=m.v;topNew=Math.max(topNew,m.v);moved=true;
+    }else{
+      if(cx!==x||cy!==y){put(x,y,null);put(cx,cy,t);moved=true}
+      slides.push({v:t.v,from:[x,y],to:[cx,cy]});
+    }
+  }
+  if(!moved){draw();return false}
+  // a beolvadt lapka helyén az összeolvadás előtti lapka is csúszik: az eredeti helyén álló „cél” lapka a slides-ban marad
+  G.undo=before;G.score+=gained;G.moves++;
+  const s=spawn();if(s!==null)pops.push({i:s,kind:'new'});
+  anim={t0:performance.now(),slides,pops};
+  if(gained)beep(300+Math.log2(topNew)*60,.08);else beep(220,.03,'triangle',.02);
+  if(G.score>best[n]){best[n]=G.score;lsSet('duplazo-best',JSON.stringify(best));G.rec=true}
+  save();hud();
+  if(!G.won&&topNew>=GOAL){G.won=true;save();G.phase='won';setTimeout(showWin,ANIM+POP+120);beep(784,.1);beep(1047,.1,'triangle',.04,.1);beep(1319,.2,'triangle',.04,.2)}
+  else if(!canMove())gameOver();
+  return true;
+}
+function gameOver(){
+  G.phase='over';lsDel('duplazo-save');
+  setTimeout(()=>{if(G&&G.phase==='over')showOver()},ANIM+POP+300);
+}
+function undo(){
+  if(!G||!G.undo||(G.phase!=='play'&&G.phase!=='over'))return;
+  G.g=G.undo.g.map(tile);G.score=G.undo.score;G.undo=null;G.phase='play';anim=null;
+  hideOv();save();hud();beep(440,.05);
+}
+function topTile(){return G?Math.max(2,...G.g.map(t=>t?t.v:0)):2}
+function hud(){
+  $('score').textContent=(G?G.score:0).toLocaleString('hu-HU');
+  $('best').textContent=best[G?G.n:pickN].toLocaleString('hu-HU');
+  $('top').textContent=topTile();
+  $('undoBtn').disabled=!G||!G.undo;
+}
+
+// ---------- rajz ----------
+function fit(){
+  const r=$('stage').getBoundingClientRect();
+  if(r.width<10||r.height<10)return;
+  size=Math.floor(Math.min(r.width,r.height,520));dpr=window.devicePixelRatio||1;
+  cv.style.width=size+'px';cv.style.height=size+'px';
+  cv.width=Math.round(size*dpr);cv.height=Math.round(size*dpr);
+  draw();
+}
+new ResizeObserver(fit).observe($('stage'));
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);ctx.fill()}
+function geo(){const gap=size*(n===4?.03:.025),cell=(size-gap*(n+1))/n;return {gap,cell,pos:i=>gap+i*(cell+gap)}}
+function drawTile(v,px,py,cell,s){
+  const [bg,fg]=colOf(v),w=cell*s,o=(cell-w)/2;
+  ctx.fillStyle=bg;rr(px+o,py+o,w,w,cell*.12);
+  if(v>=128){ctx.fillStyle='rgba(255,255,255,.18)';rr(px+o,py+o,w,w*.45,cell*.12)}
+  const digits=String(v).length,fs=cell*s*(digits<=2?.46:digits===3?.38:digits===4?.3:.24);
+  ctx.fillStyle=fg;ctx.font=`400 ${fs}px ${css('--display')||'system-ui'}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(v,px+cell/2,py+cell/2+fs*.06);
+}
+const reduced=matchMedia('(prefers-reduced-motion:reduce)');
+function draw(){
+  if(!size)return;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=css('--board')||'#2a2140';rr(0,0,size,size,16);
+  const {cell,pos}=geo();
+  ctx.fillStyle=css('--cell')||'#382c55';
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++)rr(pos(x),pos(y),cell,cell,cell*.12);
+  if(!G)return;
+  const now=performance.now();
+  let p=anim&&!reduced.matches?(now-anim.t0)/ANIM:9;
+  if(p<1){
+    const e=1-(1-p)*(1-p);
+    for(const s of anim.slides)drawTile(s.v,pos(s.from[0]+(s.to[0]-s.from[0])*e),pos(s.from[1]+(s.to[1]-s.from[1])*e),cell,1);
+    return;
+  }
+  const q=anim&&!reduced.matches?(now-anim.t0-ANIM)/POP:9;
+  const pop=new Map();if(anim)for(const k of anim.pops)if(k.i!==null&&k.i!==undefined)pop.set(k.i,k.kind);
+  G.g.forEach((t,i)=>{
+    if(!t)return;let s=1;
+    if(q<1&&pop.has(i))s=pop.get(i)==='new'?Math.max(.05,q):1+.14*Math.sin(q*Math.PI);
+    drawTile(t.v,pos(i%n),pos(i/n|0),cell,s);
+  });
+  if(q>=1)anim=null;
+}
+function frame(){requestAnimationFrame(frame);if(anim||!G)draw()}
+
+// ---------- ablakok ----------
+const ov=$('ov'),card=$('card');
+function showOv(html){card.innerHTML=html;ov.hidden=false;const h=card.querySelector('.hot');if(h)h.focus({preventScroll:true})}
+function hideOv(){ov.hidden=true;if(document.activeElement&&ov.contains(document.activeElement))document.activeElement.blur();draw()}
+function sizeOpts(){
+  return `<div class="olbl">Tábla</div><div class="opts">${SIZES.map(v=>`<button class="b sm" type="button" data-act="size" data-v="${v}" aria-pressed="${pickN===v}">${v}×${v}${v===5?' (könnyebb)':''}</button>`).join('')}</div>
+  <p>Rekord ezen a táblán: <b id="mbest">${best[pickN].toLocaleString('hu-HU')}</b></p>`;
+}
+function showMenu(){
+  const s=loadSave();
+  showOv(`<h2>Duplázó</h2><p>Húzd az ujjad bármerre: minden lapka arra csúszik. Két egyforma szám <b>összeolvad és megduplázódik</b>. Juss el a <b>2048</b>-ig!</p>
+  ${sizeOpts()}
+  <div class="btns">${s?`<button class="b hot" type="button" data-act="cont">Folytatás · ${s.score.toLocaleString('hu-HU')} pont</button>`:''}
+  <button class="b ${s?'':'hot'}" type="button" data-act="new">Új játék</button></div>`);
+}
+function showWin(){
+  if(!G||G.phase!=='won')return;
+  showOv(`<h2>2048!</h2><p>Megvan a cél, <b>${G.moves}</b> lépésből. Játszhatsz tovább a még nagyobb számokért.</p>
+  <div class="btns"><button class="b hot" type="button" data-act="keep">Tovább</button><button class="b" type="button" data-act="new">Új játék</button></div>`);
+}
+function showOver(){
+  showOv(`<h2 class="bad">Elakadtál</h2><div class="big">${G.score.toLocaleString('hu-HU')}</div><p>pont · legnagyobb lapka: <b>${topTile()}</b> · ${G.n}×${G.n}</p>
+  ${G.rec?'<span class="rec">Új rekord!</span>':`<p>Rekord: <b>${best[G.n].toLocaleString('hu-HU')}</b></p>`}
+  <div class="btns"><button class="b hot" type="button" data-act="new">Új játék</button>${G.undo?'<button class="b" type="button" data-act="undo">↶ Vissza egy lépést</button>':''}</div>`);
+}
+function confirmNew(){
+  showOv(`<h2>Új játék?</h2><p>A mostani állás (${G.score.toLocaleString('hu-HU')} pont) elvész.</p>
+  <div class="btns"><button class="b hot" type="button" data-act="new">Igen, új játék</button><button class="b" type="button" data-act="close">Mégse</button></div>`);
+}
+card.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='new'){newGame(card.querySelector('[data-act="size"]')||!G?pickN:G.n);beep(520,.05)}   // a menüből a választott méret, máshonnan a mostani
+  else if(a==='cont'){const s=loadSave();if(s)fromSave(s);else newGame()}
+  else if(a==='keep'){G.phase='play';hideOv();if(!canMove())gameOver()}
+  else if(a==='undo')undo();
+  else if(a==='close'){hideOv()}
+  else if(a==='size'){pickN=+b.dataset.v===5?5:4;lsSet('duplazo-size',String(pickN));
+    card.querySelectorAll('[data-act="size"]').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.v===pickN)));
+    const mb=$('mbest');if(mb)mb.textContent=best[pickN].toLocaleString('hu-HU')}
+});
+$('undoBtn').addEventListener('click',undo);
+$('newBtn').addEventListener('click',()=>{if(G&&G.moves>0&&G.phase==='play')confirmNew();else newGame(G?G.n:pickN)});
+$('menuBtn').addEventListener('click',()=>{if(ov.hidden)showMenu()});
+
+// ---------- irányítás ----------
+const KEYS={ArrowUp:0,ArrowRight:1,ArrowDown:2,ArrowLeft:3,w:0,d:1,s:2,a:3,W:0,D:1,S:2,A:3};
+addEventListener('keydown',e=>{
+  if(!ov.hidden){if(e.key==='Escape'&&G&&G.phase==='play'){e.preventDefault();hideOv()}return}
+  if(e.key in KEYS){e.preventDefault();move(KEYS[e.key]);return}
+  if(e.key==='u'||e.key==='U'||e.key==='l'||e.key==='L'){e.preventDefault();undo();return}
+  if(e.key==='Escape'){e.preventDefault();showMenu()}
+});
+let sw=null;
+$('stage').addEventListener('pointerdown',e=>{sw=[e.clientX,e.clientY,e.pointerId];try{$('stage').setPointerCapture(e.pointerId)}catch(_){}});
+$('stage').addEventListener('pointermove',e=>{
+  if(!sw||sw[2]!==e.pointerId)return;const dx=e.clientX-sw[0],dy=e.clientY-sw[1];
+  if(Math.max(Math.abs(dx),Math.abs(dy))<26)return;                       // elég húzni, nem kell felengedni
+  move(Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0));sw=null;
+});
+$('stage').addEventListener('pointerup',()=>{sw=null});
+$('stage').addEventListener('pointercancel',()=>{sw=null});
+addEventListener('pagehide',save);
+
+fit();
+const s0=loadSave();
+if(s0)fromSave(s0);   // az utolsó állás azonnal folytatható
+else{n=pickN;hud();showMenu()}
+hud();draw();requestAnimationFrame(frame);
+if(window.__GAMES_TEST__)window.__duplazo={get G(){return G},move,undo,newGame,loadSave,vals,canMove,draw}; // csak a játékteszt (tools/play_test.py) kapcsolja be
+})();
+</script>
+
+<script>
+/* Teljes képernyő gomb: csak ott látszik, ahol a böngésző támogatja (iPhone-on nem). */
+(function(){
+  var d=document, el=d.documentElement, b=d.querySelector('.fs-btn');
+  if(!b) return;
+  var can=d.fullscreenEnabled||d.webkitFullscreenEnabled;
+  if(!can||!(el.requestFullscreen||el.webkitRequestFullscreen)){ b.remove(); return; }
+  function on(){ return !!(d.fullscreenElement||d.webkitFullscreenElement); }
+  function label(){ b.textContent=b.dataset.compact?'⛶':(on()?'⛶ Kilépés':'⛶ Teljes képernyő'); b.setAttribute('aria-label', on()?'Kilépés a teljes képernyőből':'Teljes képernyő'); }
+  b.addEventListener('click', function(){
+    try{
+      if(on()){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); }
+      else{ var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el); if(p&&p.catch) p.catch(function(){}); }
+    }catch(e){}
+    b.blur();
+  });
+  d.addEventListener('fullscreenchange', label);
+  d.addEventListener('webkitfullscreenchange', label);
+  label();
+})();
+</script>
+<script>
+/* @shared fekvo-jelzes */
+/* Fekvő telefonon „Fordítsd el a telefont” jelzés. A játék álló képernyőre készült, ezért amíg a telefon
+   fekszik, a jelzés eltakarja, és a játék a saját szünet-logikájával megáll (ugyanaz fut le, mint amikor
+   a lap háttérbe kerül). Gépen, széles ablakban nem jelenik meg (csak érintőképernyőn, alacsony ablakban). */
+(function(){
+  var mq;
+  try{ mq=matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'); }catch(e){ return; }
+  var st=document.createElement('style');
+  st.textContent='.rotate-hint{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;'+
+    'background:rgba(5,8,14,.95);color:#fff;font:700 20px/1.3 system-ui,sans-serif;text-align:center}'+
+    '.rotate-hint[hidden]{display:none!important}.rotate-hint p{margin:8px 0}'+
+    '.rotate-hint .sub{font-weight:400;font-size:16px;opacity:.85}.rotate-hint svg{width:56px;height:56px}';
+  var el=document.createElement('div');
+  el.className='rotate-hint';el.setAttribute('role','alert');el.hidden=true;
+  el.innerHTML='<div><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" '+
+    'fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18.5" r="1" fill="currentColor"/></svg>'+
+    '<p>Fordítsd el a telefont!</p><p class="sub">Ez a játék álló képernyőre készült. Addig szünetel.</p></div>';
+  function pauseGame(){
+    try{
+      Object.defineProperty(document,'hidden',{configurable:true,get:function(){return true;}});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }catch(e){}
+    try{ delete document.hidden; }catch(e){}
+  }
+  function update(e){
+    if(mq.matches){ if(el.hidden){ el.hidden=false; if(e) pauseGame(); } }
+    else el.hidden=true;
+  }
+  document.head.appendChild(st);
+  document.body.appendChild(el);
+  if(mq.addEventListener) mq.addEventListener('change',update); else if(mq.addListener) mq.addListener(update);
+  update();
+})();
+/* @end fekvo-jelzes */
+</script>
+<script>
+/* @shared gamepad */
+/* Kontroller (gamepad) a böngésző Gamepad API-jával. A játék kódjához nem nyúl: a kontrollert billentyűkké
+   fordítja, amelyeket a játék már ismer. Ha egy ablak (menü, szünet, vége) látszik, a kar a gombok között lép,
+   az A gomb megnyomja a kijelöltet. Kiosztás (szabványos kontroller):
+     bal kar / d-pad → nyilak, A → szóköz, X → J, Y → K, B → L, RB → L, Start → Escape (szünet), Select → Enter.
+   iPhone-on a böngésző nem támogatja, ott ez a rész nem csinál semmit. */
+(function(){
+  if(!navigator.getGamepads)return;
+  var DIRS=[['ArrowUp',12],['ArrowDown',13],['ArrowLeft',14],['ArrowRight',15]];
+  var BTN=[[0,' ','Space'],[2,'j','KeyJ'],[3,'k','KeyK'],[1,'l','KeyL'],[5,'l','KeyL'],[9,'Escape','Escape'],[8,'Enter','Enter']];
+  var held={},raf=0,shown=false,lastNav=0;
+  function key(type,k,code){
+    var e=new KeyboardEvent(type,{key:k,code:code,bubbles:true,cancelable:true});
+    (document.activeElement&&document.activeElement!==document.body?document.activeElement:document).dispatchEvent(e);
+  }
+  function set(name,on,k,code){if(!!held[name]===on)return;held[name]=on;key(on?'keydown':'keyup',k,code||k)}
+  function visible(el){if(!el||el.hidden)return false;var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden'}
+  function dialog(){
+    var c=document.querySelectorAll('#ov,#over,#pick,#overlay,.modal,dialog[open],.rotate-hint');
+    for(var i=0;i<c.length;i++)if(visible(c[i])&&!c[i].classList.contains('rotate-hint'))return c[i];
+    return null;
+  }
+  function buttons(d){return Array.prototype.filter.call(d.querySelectorAll('button:not(:disabled),a[href]'),visible)}
+  function nav(d,dir){
+    var b=buttons(d);if(!b.length)return;
+    var i=b.indexOf(document.activeElement);
+    if(i<0){var hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0]).focus();return}
+    var cur=b[i].getBoundingClientRect(),best=null,bd=1e9;
+    b.forEach(function(x){if(x===b[i])return;var r=x.getBoundingClientRect(),dx=r.left+r.width/2-(cur.left+cur.width/2),dy=r.top+r.height/2-(cur.top+cur.height/2);
+      var ok=dir==='ArrowUp'?dy<-4:dir==='ArrowDown'?dy>4:dir==='ArrowLeft'?dx<-4:dx>4;if(!ok)return;
+      var dist=Math.abs(dx)+Math.abs(dy)*(dir==='ArrowLeft'||dir==='ArrowRight'?3:1)+Math.abs(dx)*(dir==='ArrowUp'||dir==='ArrowDown'?2:0);if(dist<bd){bd=dist;best=x}});
+    (best||b[(i+(dir==='ArrowUp'||dir==='ArrowLeft'?b.length-1:1))%b.length]).focus();
+  }
+  function note(){
+    if(shown)return;shown=true;
+    var t=document.createElement('div');t.setAttribute('role','status');
+    t.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3500;background:#0b0c10;color:#fff;border:1px solid #444;border-radius:10px;padding:10px 16px;font:700 15px system-ui,sans-serif;pointer-events:none';
+    t.textContent='Kontroller csatlakoztatva';document.body.appendChild(t);setTimeout(function(){t.remove()},2500);
+  }
+  function poll(){
+    raf=setTimeout(poll,16); /* időzítő, nem képkocka: álló képnél is figyeli a kontrollert */
+    var pads=navigator.getGamepads?navigator.getGamepads():[],gp=null;
+    for(var i=0;i<pads.length;i++)if(pads[i]&&pads[i].connected){gp=pads[i];break}
+    if(!gp){for(var n in held)if(held[n])held[n]=false;return}
+    note();
+    var pr=function(i){var b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5)};
+    var ax=gp.axes[0]||0,ay=gp.axes[1]||0,dz=.25;
+    var dirOn={ArrowUp:ay<-dz,ArrowDown:ay>dz,ArrowLeft:ax<-dz,ArrowRight:ax>dz};
+    DIRS.forEach(function(d){if(pr(d[1]))dirOn[d[0]]=true});
+    var d=dialog();
+    if(d){
+      DIRS.forEach(function(x){if(held[x[0]])set(x[0],false,x[0])});
+      BTN.forEach(function(b){if(held['b'+b[0]])set('b'+b[0],false,b[1],b[2])});
+      var now=performance.now(),any=null;DIRS.forEach(function(x){if(dirOn[x[0]])any=x[0]});
+      if(any&&now-lastNav>220){lastNav=now;nav(d,any)}else if(!any)lastNav=0;
+      var a=pr(0);if(a&&!held.navA){var f=document.activeElement;if(f&&d.contains(f)&&f.click)f.click();else{var b=buttons(d),hot=d.querySelector('.hot:not(:disabled)');(hot&&visible(hot)?hot:b[0])&&(hot&&visible(hot)?hot:b[0]).click()}}
+      held.navA=a;
+      if(pr(9)&&!held.Escape)set('Escape',true,'Escape');else if(!pr(9))set('Escape',false,'Escape');
+      return;
+    }
+    held.navA=pr(0);
+    DIRS.forEach(function(x){set(x[0],dirOn[x[0]],x[0])});
+    BTN.forEach(function(b){set('b'+b[0],pr(b[0]),b[1],b[2])});
+  }
+  addEventListener('gamepadconnected',function(){if(!raf)poll()});
+  addEventListener('gamepaddisconnected',function(){var p=navigator.getGamepads(),any=false;for(var i=0;i<p.length;i++)if(p[i])any=true;if(!any){clearTimeout(raf);raf=0;for(var n in held)if(held[n]&&n.indexOf('Arrow')===0)set(n,false,n)}});
+  try{var p0=navigator.getGamepads();for(var i=0;i<p0.length;i++)if(p0[i]){poll();break}}catch(e){}
+})();
+/* @end gamepad */
+</script>
+</body>
+</html>

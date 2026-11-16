@@ -53,6 +53,18 @@ SHOTS = {
     "cornholescore": {"poke": False, "area": "body", "align": "top",
                       "js": "document.querySelector('.top-bar').style.display = 'none'"},
     "kertvedo": {"wait": 9000},
+    "kozapor": {"poke": False, "clicks": ['#card button[data-act="new"]'], "wait": 300,
+                "js": "(() => { const G = __kozapor.G, h = __kozapor.H, s = G.ship; G.banner = null; s.inv = 0; s.a = -1.1; "
+                      "[[70, -70], [290, -40], [250, 95], [95, 85]].forEach(([x, y], i) => Object.assign(G.rocks[i], {x, y: h / 2 + y})); "
+                      "for (let i = 1; i < 4; i++) G.bullets.push({x: s.x + Math.cos(s.a) * 24 * i, y: s.y + Math.sin(s.a) * 24 * i, vx: 0, vy: 0, t: 9}); "
+                      "G.phase = 'pause'; })()"},
+    "urflotta": {"poke": False, "clicks": ['#card button[data-act="new"]'], "align": "top", "wait": 2200,
+                 "js": "(() => { const G = __urflotta.G; G.aliens.splice(13, 3); G.aliens.splice(30, 2); })()"},
+    "szarnycsapas": {"poke": False, "clicks": ['#card button[data-act="new"]'],
+                     "js": "(() => { const G = __szarny.G; G.phase = 'pause'; G.score = 7; G.y = __szarny.floorY() * .5; G.rot = -.25; "
+                           "G.pipes = [{x: 10, top: __szarny.floorY() * .5 - 100, gap: 160, w: 58}, {x: 206, top: __szarny.floorY() * .5 - 20, gap: 160, w: 58}]; })()"},
+    "duplazo": {"poke": False, "clicks": ['#card button[data-act="new"]'], "area": "#cv", "wait": 500,
+                "js": "(() => { __duplazo.G.g = [2,0,4,2, 8,16,32,4, 128,64,16,8, 256,512,1024,2048].map(v => v ? {id: Math.random(), v} : null); __duplazo.draw(); })()"},
     "pasziansz": {"poke": False, "clicks": ['[data-v="k1"]'], "area": "#board", "align": "top", "wait": 2500},
     **{g: PLAN for g in ["coloptorony", "feketevar-lovagerod", "hegyormi-var", "kokastely-arokkal", "rejtekhaz",
                          "sasfeszek-sziklavar", "tundervar"]},
