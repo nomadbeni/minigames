@@ -65,6 +65,10 @@ SHOTS = {
                            "G.pipes = [{x: 10, top: __szarny.floorY() * .5 - 100, gap: 160, w: 58}, {x: 206, top: __szarny.floorY() * .5 - 20, gap: 160, w: 58}]; })()"},
     "duplazo": {"poke": False, "clicks": ['#card button[data-act="new"]'], "area": "#cv", "wait": 500,
                 "js": "(() => { __duplazo.G.g = [2,0,4,2, 8,16,32,4, 128,64,16,8, 256,512,1024,2048].map(v => v ? {id: Math.random(), v} : null); __duplazo.draw(); })()"},
+    "kardvihar": {"poke": False, "clicks": ['#card button[data-act="new"]'], "wait": 200,
+                  "js": "(() => { const K = __kardvihar, G = K.G, p = G.pl; G.banner = null; G.toSpawn = []; G.en = []; p.inv = 0; p.face = 0.3; "
+                        "[['slime', 70, -60], ['bat', -80, -40], ['boar', -60, 70], ['shroom', 110, 50], ['slime', 20, 95]].forEach(([k, dx, dy]) => { K.spawn(k); Object.assign(G.en[G.en.length - 1], {x: p.x + dx, y: p.y + dy, born: 0}); }); "
+                        "G.parts = []; K.attack(); G.phase = 'pause'; })()"},
     "pasziansz": {"poke": False, "clicks": ['[data-v="k1"]'], "area": "#board", "align": "top", "wait": 2500},
     **{g: PLAN for g in ["coloptorony", "feketevar-lovagerod", "hegyormi-var", "kokastely-arokkal", "rejtekhaz",
                          "sasfeszek-sziklavar", "tundervar"]},

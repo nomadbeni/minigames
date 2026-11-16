@@ -145,7 +145,7 @@ KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", 
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
               "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save",
               "kozapor-save", "kozapor-best", "urflotta-save", "urflotta-best", "szarnycsapas-best", "duplazo-save",
-              "duplazo-best"]
+              "duplazo-best", "kardvihar-save", "kardvihar-best"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -1228,6 +1228,70 @@ async def sc_doubler_swipe(page):
     check((await page.evaluate("__duplazo.vals()"))[15] == 16, "a swipe to the right merges the row")
 
 
+async def sc_blade(page):
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    # one slime right in front of the knight, held in place: two sword hits defeat it
+    await page.evaluate("""(() => { const K = __kardvihar, G = K.G, p = G.pl; G.toSpawn = []; G.en = []; K.spawn('slime');
+        Object.assign(G.en[0], {x: p.x + 28, y: p.y, born: 0, stun: 99}); p.face = 0; p.inv = 99; })()""")
+    for _ in range(3):
+        await page.keyboard.press("Space")
+        await page.wait_for_timeout(260)
+    await wait_js(page, "__kardvihar.G.score === 10 && __kardvihar.G.en.length === 0", timeout=2000)
+    check(await txt(page, "#score") == "10", "the score shows the defeated slime")
+    await wait_js(page, "__kardvihar.G.wave === 2", timeout=4000)
+    # a level-up offers three skills, picking one closes the window
+    await page.evaluate("__kardvihar.G.perkQ = 1")
+    await page.locator("#ov h2", has_text="szint").wait_for(timeout=2000)
+    check(await page.locator("#card button[data-act='perk']").count() == 3, "three skills are offered")
+    await page.locator("#card button[data-act='perk']").first.click()
+    check(await page.locator("#ov").is_hidden(), "picking a skill closes the window")
+    perks = await page.evaluate("__kardvihar.G.P")
+    check(sum(perks.values()) == 1, "the skill is counted")
+    # a hit takes a heart, the dodge roll moves the knight
+    await page.evaluate("(() => { const G = __kardvihar.G; G.en = []; G.toSpawn = ['slime']; G.pl.inv = 0; __kardvihar.hurtPlayer(1, G.pl.x + 10, G.pl.y); })()")
+    check(await page.evaluate("__kardvihar.G.hp") == 4, "a hit takes one heart")
+    await page.evaluate("__kardvihar.G.pl.inv = 0")
+    x0 = await page.evaluate("__kardvihar.G.pl.x")
+    await page.keyboard.down("ArrowLeft")
+    await page.keyboard.press("KeyK")
+    await page.wait_for_timeout(250)
+    await page.keyboard.up("ArrowLeft")
+    check(await page.evaluate("__kardvihar.G.pl.x") < x0 - 60, "the roll moves the knight far")
+    await page.keyboard.press("Escape")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    got = await page.evaluate("[__kardvihar.G.wave, __kardvihar.G.hp, __kardvihar.G.score, __kardvihar.G.P]")
+    check(got[:3] == [2, 4, 10] and got[3] == perks, f"the game continues after a reload: {got}")
+    # the fifth wave brings the golem
+    await page.evaluate("__kardvihar.startWave(5)")
+    check("golem" in await page.evaluate("__kardvihar.G.toSpawn"), "the fifth wave has the golem")
+    await page.evaluate("(() => { const G = __kardvihar.G; G.hp = 1; G.pl.inv = 0; G.pl.dash = 0; __kardvihar.hurtPlayer(1, G.pl.x, G.pl.y + 10); })()")
+    await page.locator("#ov h2", has_text="Elestél").wait_for(timeout=3000)
+    check(await page.evaluate("localStorage.getItem('kardvihar-save')") is None, "the save is cleared at game over")
+    check(json.loads(await page.evaluate("localStorage.getItem('kardvihar-best')")) == {"score": 10, "wave": 5}, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate("[__kardvihar.G.score, __kardvihar.G.hp, __kardvihar.G.wave]") == [0, 5, 1], "a new game starts from zero")
+
+
+async def sc_blade_touch(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate("(() => { const G = __kardvihar.G; G.toSpawn = []; G.en = []; G.pl.inv = 99; })()")
+    box = await page.locator("#cv").bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    x0 = await page.evaluate("__kardvihar.G.pl.x")
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + 50, y, steps=3)
+    await page.wait_for_timeout(500)
+    await page.mouse.up()
+    check(await page.evaluate("__kardvihar.G.pl.x") > x0 + 30, "dragging on the arena moves the knight")
+    await page.mouse.click(x, y)
+    check(await page.evaluate("__kardvihar.G.pl.combo") >= 0, "a short tap on the arena swings the sword")
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1293,6 +1357,8 @@ SCENARIOS = [
     ("szarnycsapas", "Wing Flap: tap to fly through gaps, pause keeps the bird in place, the ground ends it", sc_flap, None),
     ("duplazo", "Doubler: merge, undo, reload, 2048 win window, stuck window, New game", sc_doubler, None),
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
+    ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
+    ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
 ]
 
 
