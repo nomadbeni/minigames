@@ -913,7 +913,8 @@ async def sc_horde_ultra(page):
     await page.reload()
     check(await page.locator('[data-df="ultra"]').get_attribute("aria-pressed") == "true", "Ultra kept after reload")
     await page.locator("#go").click()
-    await page.locator("#ovc", has_text="ELESTETEK").wait_for(timeout=60000)
+    # game time follows the frame rate: on a busy CI machine the swarm needs more than a minute
+    await page.locator("#ovc", has_text="ELESTETEK").wait_for(timeout=120000)
     check("Ultra" in await txt(page, "#ovc"), "game over shows the level")
     saved = json.loads(await page.evaluate("localStorage.getItem('horda:save')"))
     check(saved["rec"]["ultra"]["best"] > 0 and saved["best"] == 0, f"Ultra record kept apart from Alap: {saved}")
@@ -1249,12 +1250,13 @@ async def sc_blade(page):
     await page.evaluate("__kardvihar.G.perkQ = 1")
     await page.locator("#ov h2", has_text="szint").wait_for(timeout=2000)
     check(await page.locator("#card button[data-act='perk']").count() == 3, "three skills are offered")
-    await page.locator("#card button[data-act='perk']").first.click()
+    # not the extra heart: it would change the heart count checked below
+    await page.locator("#card button[data-act='perk']").filter(has_not_text="Erős szív").first.click()
     check(await page.locator("#ov").is_hidden(), "picking a skill closes the window")
     perks = await page.evaluate("__kardvihar.G.P")
     check(sum(perks.values()) == 1, "the skill is counted")
     # a hit takes a heart, the dodge roll moves the knight
-    await page.evaluate("(() => { const G = __kardvihar.G; G.en = []; G.toSpawn = ['slime']; G.pl.inv = 0; __kardvihar.hurtPlayer(1, G.pl.x + 10, G.pl.y); })()")
+    await page.evaluate("(() => { const G = __kardvihar.G; G.en = []; G.toSpawn = ['slime']; G.pl.inv = 0; G.pl.dash = 0; G.pl.spin = 0; __kardvihar.hurtPlayer(1, G.pl.x + 10, G.pl.y); })()")
     check(await page.evaluate("__kardvihar.G.hp") == 4, "a hit takes one heart")
     await page.evaluate("__kardvihar.G.pl.inv = 0")
     x0 = await page.evaluate("__kardvihar.G.pl.x")
