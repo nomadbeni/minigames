@@ -69,6 +69,10 @@ SHOTS = {
                   "js": "(() => { const K = __kardvihar, G = K.G, p = G.pl; G.banner = null; G.toSpawn = []; G.en = []; p.inv = 0; p.face = 0.3; "
                         "[['slime', 70, -60], ['bat', -80, -40], ['boar', -60, 70], ['shroom', 110, 50], ['slime', 20, 95]].forEach(([k, dx, dy]) => { K.spawn(k); Object.assign(G.en[G.en.length - 1], {x: p.x + dx, y: p.y + dy, born: 0}); }); "
                         "G.parts = []; K.attack(); G.phase = 'pause'; })()"},
+    "szigetrepulo": {"poke": False, "clicks": ['#card button[data-act="new"]'], "wait": 900,
+                     "js": "(() => { const T = __szigetrepulo, G = T.G; T.S.view = 1; G.inv = 0; G.alt = Math.max(G.alt, 70); G.roll = 0.35; "
+                           "G.rings.push({x: (G.x + Math.cos(G.yaw) * 90 + 1024) % 1024, y: (G.y + Math.sin(G.yaw) * 90 + 1024) % 1024, alt: G.alt + 4, ang: G.yaw}); "
+                           "T.K.boost = 1; })()"},
     "pasziansz": {"poke": False, "clicks": ['[data-v="k1"]'], "area": "#board", "align": "top", "wait": 2500},
     **{g: PLAN for g in ["coloptorony", "feketevar-lovagerod", "hegyormi-var", "kokastely-arokkal", "rejtekhaz",
                          "sasfeszek-sziklavar", "tundervar"]},

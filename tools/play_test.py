@@ -145,7 +145,8 @@ KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", 
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
               "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save",
               "kozapor-save", "kozapor-best", "urflotta-save", "urflotta-best", "szarnycsapas-best", "duplazo-save",
-              "duplazo-best", "kardvihar-save", "kardvihar-best"]
+              "duplazo-best", "kardvihar-save", "kardvihar-best",
+              "szigetrepulo-save", "szigetrepulo-best", "szigetrepulo-set"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -1292,6 +1293,71 @@ async def sc_blade_touch(page):
     check(await page.evaluate("__kardvihar.G.pl.combo") >= 0, "a short tap on the arena swings the sword")
 
 
+async def sc_island(page):
+    T = "__szigetrepulo"
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    # a ring straight ahead at the plane's height, high above the land: flying on collects it
+    await page.evaluate(f"""(() => {{ const T = {T}, G = T.G; T.setView(1); Object.assign(G, {{x: 500, y: 500, yaw: 0, camYaw: 0, pitch: 0, alt: 150, inv: 99, fuel: 50}});
+        G.rings = [{{x: 530, y: 500, alt: 150, ang: 0}}]; }})()""")
+    await wait_js(page, f"{T}.G.score === 10", timeout=4000)
+    check(await page.evaluate(f"{T}.G.fuel") > 60, "a ring gives fuel")
+    check(await page.evaluate(f"{T}.G.rings.length") >= 1, "a new ring appears after one is collected")
+    # a roll through a ring is worth double
+    await page.evaluate(f"""(() => {{ const T = {T}, G = T.G; Object.assign(G, {{x: 500, y: 500, yaw: 0, pitch: 0, alt: 150}});
+        G.rings = [{{x: 520, y: 500, alt: 150, ang: 0}}]; T.doRoll(); }})()""")
+    await wait_js(page, f"{T}.G.score === 30", timeout=3000)
+    # flying into the sea costs a life
+    await page.evaluate(f"(() => {{ const G = {T}.G; G.inv = 0; G.alt = 0.5; }})()")
+    await wait_js(page, f"{T}.G.lives === 2", timeout=2000)
+    check(await page.evaluate(f"{T}.G.alt") > 30, "after a crash the plane starts again high up")
+    # reload during the game: the save comes back
+    await page.evaluate(f"{T}.save()")
+    await page.reload()
+    await page.locator('#card button[data-act="resume"]').click()
+    got = await page.evaluate(f"[{T}.G.score, {T}.G.lives]")
+    check(got == [30, 2], f"the save is restored: {got}")
+    # a broken save starts a new game (pause first: leaving the page while flying saves the game again)
+    await page.locator("#pauseBtn").click()
+    await page.evaluate("localStorage.setItem('szigetrepulo-save', '{\"v\":1,\"seed\":\"x\"}')")
+    await page.reload()
+    check(await page.locator('#card button[data-act="resume"]').count() == 0, "a broken save offers no Continue")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.evaluate(f"[{T}.G.score, {T}.G.lives]") == [0, 3], "a broken save starts a new game")
+    # the last life: game over, record saved, New game starts from zero
+    await page.evaluate(f"(() => {{ const T = {T}, G = T.G; G.score = 40; G.lives = 1; G.inv = 0; T.crash(); }})()")
+    check(await page.locator("#ov").is_visible(), "the end window appears")
+    check(await page.evaluate("localStorage.getItem('szigetrepulo-save')") is None, "the save is cleared at game over")
+    check(json.loads(await page.evaluate("localStorage.getItem('szigetrepulo-best')")) == {"score": 40}, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate(f"[{T}.G.score, {T}.G.lives, {T}.G.over]") == [0, 3, False], "a new game starts from zero")
+    # running out of fuel also ends the game
+    await page.evaluate(f"(() => {{ const G = {T}.G; G.fuel = 0.01; G.inv = 99; G.alt = 150; }})()")
+    await wait_js(page, f"{T}.G.over === true", timeout=2000)
+    check("Kifogyott" in await page.locator("#card h2").inner_text(), "the fuel end window says so")
+
+
+async def sc_island_touch(page):
+    T = "__szigetrepulo"
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate(f"(() => {{ const T = {T}, G = T.G; T.setView(1); Object.assign(G, {{alt: 150, inv: 99, yaw: 0, camYaw: 0}}); }})()")
+    box = await page.locator("#stage").bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + box["width"] * 0.35, y, steps=3)
+    await page.wait_for_timeout(500)
+    check(await page.evaluate(f"{T}.G.yaw") > 0.3, "holding the mouse to the right turns the plane right")
+    check(await page.evaluate(f"{T}.G.boost"), "holding the mouse button fires the afterburner")
+    await page.mouse.up()
+    await page.mouse.move(x, y)
+    await page.mouse.click(x, y)
+    check(await page.evaluate(f"{T}.G.spin") > 0, "a click starts a barrel roll")
+    await page.keyboard.press("k")
+    check(await page.evaluate(f"{T}.S.view") == 2, "K switches the view")
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1359,6 +1425,8 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
+    ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
 ]
 
 
