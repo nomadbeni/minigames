@@ -382,11 +382,15 @@ async def sc_brawl(page):
     await page.locator('[data-d="0"]').click()
     await page.locator("#go").click()
     await page.wait_for_timeout(2600)
-    for _ in range(12):
+    # A lassabb CI-gépen az ellenfél néha kitér; addig ütünk, amíg talál (legfeljebb 30 kör).
+    hp = 100.0
+    for _ in range(30):
         await hold(page, "d", 150)
         await hold(page, "j", 60)
         await hold(page, "k", 60)
-    hp = float(await page.locator("#h1").evaluate("e => parseFloat(e.style.width)"))
+        hp = float(await page.locator("#h1").evaluate("e => parseFloat(e.style.width)"))
+        if hp < 100:
+            break
     check(hp < 100, f"hits take the opponent's health ({hp}%)")
 
 
