@@ -107,6 +107,9 @@ const FOV=0.78;                        // a fél vízszintes látószög tangens
 const RING_R=9;                        // karika sugara
 const RINGS=5;                         // ennyi karika van egyszerre a pályán
 const VIEWS=['Felülnézet','Üldöző nézet','Pilótafülke'];
+// Csökkentett mozgás: nincs villogás és villanás, a pilótafülke nem pörög orsóban (a műhorizont mutatja)
+let rmMq=null;try{rmMq=matchMedia('(prefers-reduced-motion: reduce)')}catch(e){}
+const RM=()=>!!(rmMq&&rmMq.matches);
 const SAVE_KEY='szigetrepulo-save',BEST_KEY='szigetrepulo-best',SET_KEY='szigetrepulo-set';
 const TAU=Math.PI*2;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -337,10 +340,10 @@ $('pauseBtn').addEventListener('click',()=>{if(playing())pause();$('pauseBtn').b
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing())pause();engineUpdate()});
 
 /* ---------------- méretezés ---------------- */
-let LW=200,LH=300,PS=2,SS=400,scCv=null,scCtx=null,scImg=null,scBuf=null,ybuf=null,shCv=null,shCtx=null;
+let lowRes=0,LW=200,LH=300,PS=2,SS=400,scCv=null,scCtx=null,scImg=null,scBuf=null,ybuf=null,shCv=null,shCtx=null;
 function fit(){
   const r=stage.getBoundingClientRect(),w=Math.max(100,r.width),h=Math.max(100,r.height);
-  PS=Math.max(2,Math.round(Math.min(w,h)/185));
+  PS=Math.max(2,Math.round(Math.min(w,h)/185))+lowRes;
   LW=Math.floor(w/PS);LH=Math.floor(h/PS);
   cv.width=LW;cv.height=LH;cv.style.width=LW*PS+'px';cv.style.height=LH*PS+'px';
   cv.style.left=Math.floor((w-LW*PS)/2)+'px';cv.style.top=Math.floor((h-LH*PS)/2)+'px';
@@ -548,7 +551,7 @@ function drawTop(){
   for(let j=0;j<2;j++)for(let i=0;i<2;i++)ctx.drawImage(mapCv,-sx0+i*N,-sy0+j*N);
   const scr=(x,y)=>[LW/2+wd(x-camX),LH/2+wd(y-camY)];
   // karikák (felülről kapuként látszanak)
-  const pulse=0.5+0.5*Math.sin(G.t*6);
+  const pulse=RM()?0.6:0.5+0.5*Math.sin(G.t*6);
   for(const r of G.rings){
     const [x,y]=scr(r.x,r.y);if(x<-20||y<-20||x>LW+20||y>LH+20)continue;
     const px=-Math.sin(r.ang)*RING_R,py=Math.cos(r.ang)*RING_R,so=(r.alt-ground(r.x,r.y))*0.25;
@@ -573,7 +576,7 @@ function drawTop(){
   for(const c of CL){const [x,y]=scr(c.x,c.y);if(x<-70||y<-70||x>LW+40||y>LH+40)continue;vis.push([x,y,c]);
     const so=(c.z-ground(c.x,c.y))*0.22;disc(shCtx,x+so,y+so*1.3,c.r)}
   ctx.globalAlpha=0.24;ctx.drawImage(shCv,0,0);ctx.globalAlpha=1;
-  const blink=G.inv>0&&(G.t*8|0)%2;
+  const blink=G.inv>0&&!RM()&&(G.t*8|0)%2;
   if(!blink)drawJetTop(ctx,px,py,G.yaw,sc,G.roll+spinAngle());
   // felhők a repülő fölött
   vis.sort((a,b)=>a[2].z-b[2].z);
@@ -594,7 +597,7 @@ function camera(){
     let ca=G.alt-Math.sin(G.pitch)*back+7;ca=Math.max(ca,ground(cx,cyy)+2.5);
     return {x:cx,y:cyy,alt:ca,yaw:cy,pitch:G.pitch*0.6-0.12,roll:G.roll*0.5};
   }
-  return {x:G.x,y:G.y,alt:G.alt+1.2,yaw:G.yaw,pitch:G.pitch,roll:G.roll+spinAngle()};
+  return {x:G.x,y:G.y,alt:G.alt+1.2,yaw:G.yaw,pitch:G.pitch,roll:G.roll+(RM()?0:spinAngle())};
 }
 let focal=100,hor=0,cam=null;
 function project(x,y,z){
@@ -650,7 +653,7 @@ function render3D(){
     const fa=o[0]<160?1:Math.max(0,1-(o[0]-160)/(MAXD-160));
     if(o[1]===0){const p=o[2],rp=o[3];C.globalAlpha=fa;C.fillStyle='#c6d4e4';disc(C,p[0],p[1]+rp*0.18,rp);C.fillStyle='#fff';disc(C,p[0],p[1]-rp*0.06,rp*0.88);C.globalAlpha=1}
     else if(o[1]===1)drawRing3D(C,o[2],fa);
-    else{const p=project(G.x,G.y,G.alt);const blink=G.inv>0&&(G.t*8|0)%2;if(!blink&&p[2]>1)drawJetBack(C,p[0],p[1],9.5*focal/p[2],G.roll+spinAngle(),G.t)}
+    else{const p=project(G.x,G.y,G.alt);const blink=G.inv>0&&!RM()&&(G.t*8|0)%2;if(!blink&&p[2]>1)drawJetBack(C,p[0],p[1],9.5*focal/p[2],G.roll+spinAngle(),G.t)}
   }
   if(S.view===2)ladder(C);
   // a jelenet elforgatva a képernyőre
@@ -756,7 +759,7 @@ function drawArrow(pos,bottom){
   const s=Math.min((LW/2-m)/Math.abs(dx||1e-6),((dy>0?h-cy:cy)-m)/Math.abs(dy||1e-6));
   const ax=cx+dx*s,ay=cy+dy*s,a=Math.atan2(dy,dx);
   ctx.save();ctx.translate(Math.round(ax),Math.round(ay));ctx.rotate(a);
-  const bob=Math.sin(G.t*8)*1.5;poly(ctx,[2+bob,0,-6+bob,-5,-6+bob,5],'#8a5a00');poly(ctx,[1+bob,0,-5+bob,-3.5,-5+bob,3.5],'#ffd23f');
+  const bob=RM()?0:Math.sin(G.t*8)*1.5;poly(ctx,[2+bob,0,-6+bob,-5,-6+bob,5],'#8a5a00');poly(ctx,[1+bob,0,-5+bob,-3.5,-5+bob,3.5],'#ffd23f');
   ctx.restore();
 }
 
@@ -764,12 +767,22 @@ function drawArrow(pos,bottom){
 function draw(){
   if(!G||!HM)return;
   if(S.view===0)drawTop();else render3D();
-  if(G.flash>0){ctx.globalAlpha=Math.min(0.45,G.flash);ctx.fillStyle=G.flashCol;ctx.fillRect(0,0,LW,LH);ctx.globalAlpha=1}
+  if(G.flash>0){
+    if(RM()){ctx.strokeStyle=G.flashCol;ctx.lineWidth=2;ctx.strokeRect(1,1,LW-2,LH-2)} // villanás helyett nyugodt keret
+    else{ctx.globalAlpha=Math.min(0.45,G.flash);ctx.fillStyle=G.flashCol;ctx.fillRect(0,0,LW,LH);ctx.globalAlpha=1}
+  }
 }
-let last=performance.now(),saveT=0,hudT=0;
+let last=performance.now(),saveT=0,hudT=0,slowEma=1/60,slowT=0;
+// Lassú gépen (tartósan 40 kép/mp alatt) kisebb belső felbontásra vált, legfeljebb kétszer; vissza nem vált, hogy ne ugráljon
+function lowerRes(){if(lowRes>=2)return false;lowRes++;fit();slowT=0;slowEma=1/60;return true}
+function watchSpeed(raw){
+  if(!playing()||raw<=0||raw>0.25){slowT=0;return}
+  slowEma+=(raw-slowEma)*0.05;
+  if(slowEma>0.025){slowT+=raw;if(slowT>2)lowerRes()}else slowT=0;
+}
 function frame(t){
   requestAnimationFrame(frame);
-  let dt=(t-last)/1000;last=t;if(!(dt>0))dt=0;dt=Math.min(dt,0.05);
+  let dt=(t-last)/1000;last=t;if(!(dt>0))dt=0;watchSpeed(dt);dt=Math.min(dt,0.05);
   if(playing()){
     step(dt);saveT+=dt;hudT+=dt;
     if(saveT>2){saveT=0;save()}
@@ -787,7 +800,7 @@ loadSettings();sndIcon();fit();
   camX=G.x;camY=G.y;hud();
 }
 showMenu();requestAnimationFrame(t=>{last=t;frame(t)});
-if(window.__GAMES_TEST__)window.__szigetrepulo={get G(){return G},get S(){return S},K,newGame,crash,collect,spawnRing,loadSave,setView,doRoll,ground,save,RING_R}; // csak a játékteszt (tools/play_test.py) kapcsolja be
+if(window.__GAMES_TEST__)window.__szigetrepulo={get G(){return G},get S(){return S},K,newGame,crash,collect,spawnRing,loadSave,setView,doRoll,ground,save,RING_R,camera,lowerRes,watchSpeed,get lowRes(){return lowRes}}; // csak a játékteszt (tools/play_test.py) kapcsolja be
 })();
 </script>
 

@@ -1362,6 +1362,27 @@ async def sc_island_touch(page):
     check(await page.evaluate(f"{T}.S.view") == 2, "K switches the view")
 
 
+async def sc_island_calm(page):
+    T = "__szigetrepulo"
+    await page.emulate_media(reduced_motion="reduce")
+    await page.locator('#card button[data-act="new"]').click()
+    # reduced motion: the cockpit does not spin with a barrel roll, only the instruments show it
+    await page.evaluate(f"(() => {{ const T = {T}, G = T.G; T.setView(2); Object.assign(G, {{alt: 150, inv: 99}}); T.doRoll(); }})()")
+    await page.wait_for_timeout(250)
+    got = await page.evaluate(f"[{T}.G.spin > 0, Math.abs({T}.camera().roll - {T}.G.roll) < 1e-9]")
+    check(got == [True, True], f"with reduced motion the cockpit view does not spin: {got}")
+    # a slow device: after two seconds below 40 frames per second the picture gets coarser, at most twice
+    w0 = await page.evaluate("document.getElementById('cv').width")
+    widths = []
+    for _ in range(3):
+        await page.evaluate(f"(() => {{ for (let i = 0; i < 70; i++) {T}.watchSpeed(0.05); }})()")
+        widths.append(await page.evaluate(f"[{T}.lowRes, document.getElementById('cv').width]"))
+    check([w[0] for w in widths] == [1, 2, 2], f"the resolution steps down twice, then stays: {widths}")
+    check(w0 > widths[0][1] > widths[1][1], f"each step makes the picture coarser: {w0}, {widths}")
+    await page.evaluate(f"(() => {{ for (let i = 0; i < 200; i++) {T}.watchSpeed(1 / 60); }})()")
+    check(await page.evaluate(f"{T}.lowRes") == 2, "a fast moment does not switch back")
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1431,6 +1452,7 @@ SCENARIOS = [
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
+    ("szigetrepulo", "Island Flyer: reduced motion keeps the cockpit still, a slow device gets a coarser picture", sc_island_calm, None),
 ]
 
 
