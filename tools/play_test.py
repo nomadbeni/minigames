@@ -1394,7 +1394,7 @@ async def sc_bomber(page):
     await page.evaluate(f"""(() => {{ const b = {B}, G = b.G; G.pw.fire = 3; G.map[b.idx(1, 4)] = 2;
         G.enemies = [{{t: 'potty', x: 3, y: 1, fx: 3, fy: 1, tx: 3, ty: 1, dx: 0, dy: 0, dying: 0, ph: 0}},
                      {{t: 'potty', x: 11, y: 13, fx: 11, fy: 13, tx: 11, ty: 13, dx: 0, dy: 0, dying: 0, ph: 0}}];
-        G.p.x = 1; G.p.y = 1; b.placeBomb(); b.explode(G.bombs[0]); }})()""")
+        G.p.x = G.p.tx = 1; G.p.y = G.p.ty = 1; b.placeBomb(); b.explode(G.bombs[0]); }})()""")
     check(await page.evaluate(f"{B}.G.burning.has({B}.idx(1, 4))"), "the flame sets the crate on fire")
     await wait_js(page, f"{B}.G.phase === 'dying'", timeout=2000)
     check(await page.evaluate(f"{B}.G.enemies[0].dying > 0"), "the flame catches the monster")
@@ -1411,12 +1411,26 @@ async def sc_bomber(page):
     await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
     await page.keyboard.press("Escape")
     check(await page.locator("#ov").is_hidden(), "Escape resumes the game")
-    # walking: the arrow key moves the player along the free corridor
+    # walking: one press is exactly one square, holding the key keeps walking square by square
     x0 = await page.evaluate(f"{B}.G.p.x")
-    await hold(page, "ArrowRight", 400)
-    check(await page.evaluate(f"{B}.G.p.x") > x0 + 0.5, "the arrow key moves the player")
+    await page.keyboard.press("ArrowRight")
+    await page.wait_for_timeout(600)
+    check(await page.evaluate(f"[{B}.G.p.x, {B}.G.p.y]") == [x0 + 1, 1], "one arrow press moves exactly one square")
+    await page.keyboard.press("ArrowLeft")
+    await page.keyboard.press("ArrowRight")
+    await page.wait_for_timeout(900)
+    check(await page.evaluate(f"{B}.G.p.x") == x0 + 1, "two quick presses are two squares, there and back")
+    await hold(page, "ArrowDown", 700)
+    await page.wait_for_timeout(500)
+    y1 = await page.evaluate(f"{B}.G.p.y")
+    check(y1 == 1, f"a wall stops the step and the player stays on a square: {y1}")
+    await page.evaluate(f"(() => {{ const G = {B}.G; G.p.x = G.p.tx = 1; G.p.y = G.p.ty = 1; }})()")
+    await hold(page, "ArrowRight", 500)
+    await page.wait_for_timeout(500)
+    x1 = await page.evaluate(f"{B}.G.p.x")
+    check(x1 >= 3 and x1 == int(x1), f"holding the key walks several squares and stops on a square: {x1}")
     # every monster gone, the player on the open exit: the level is cleared
-    await page.evaluate(f"""(() => {{ const b = {B}, G = b.G; G.enemies = []; G.p.x = Math.round(G.p.x); G.p.y = 1;
+    await page.evaluate(f"""(() => {{ const b = {B}, G = b.G; G.enemies = []; G.p.x = G.p.tx = Math.round(G.p.x); G.p.y = G.p.ty = 1;
         G.exit = b.idx(G.p.x, 1); G.map[G.exit] = 0; G.exitShown = true; }})()""")
     await wait_js(page, f"{B}.G.lv === 2 && {B}.G.phase !== 'clear'", timeout=5000)
     check(json.loads(await page.evaluate("localStorage.getItem('bombasz-save')"))["lv"] == 2, "the next level is saved")
@@ -1451,8 +1465,9 @@ async def sc_bomber_gamepad(page):
     check(await page.locator("#ov").is_hidden(), "the A button starts the game from the menu")
     await wait_js(page, "__bombasz.G.phase === 'play'", timeout=4000)
     x0 = await page.evaluate("__bombasz.G.p.x")
-    await pad(page, 15, 400)                             # d-pad right walks
-    check(await page.evaluate("__bombasz.G.p.x") > x0 + 0.5, "the d-pad moves the player")
+    await pad(page, 15, 60)                              # a short d-pad press is one square
+    await page.wait_for_timeout(500)
+    check(await page.evaluate("__bombasz.G.p.x") == x0 + 1, "one d-pad press moves exactly one square")
     await pad(page, 0)                                   # A drops a bomb
     check(await page.evaluate("__bombasz.G.bombs.length") == 1, "the A button drops a bomb")
     await pad(page, 9)                                   # Start pauses
@@ -1528,7 +1543,7 @@ SCENARIOS = [
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
-    ("bombasz", "Bomb Maze: a bomb burns a crate and a monster, costs a life, reload, pause, walking, exit, game over, New game", sc_bomber, None),
+    ("bombasz", "Bomb Maze: a bomb burns a crate and a monster, costs a life, reload, pause, one press one square, exit, game over, New game", sc_bomber, None),
     ("bombasz", "Bomb Maze: 600 generated levels pass the check", sc_bomber_levels, None),
     ("bombasz", "Bomb Maze: a game controller starts, walks, drops a bomb and pauses", sc_bomber_gamepad, None),
     ("szigetrepulo", "Island Flyer: reduced motion keeps the cockpit still, a slow device gets a coarser picture", sc_island_calm, None),

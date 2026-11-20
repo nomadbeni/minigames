@@ -253,7 +253,7 @@ function startLevel(){
   G.map=L.map;G.exit=L.exit;G.items=new Map();for(const [k,t] of L.items)G.items.set(k,{t,shown:false});
   G.exitShown=false;G.bombs=[];G.flames=new Map();G.burning=new Map();G.parts=[];G.floats=[];G.shake=0;
   G.enemies=L.enemies.map(e=>({t:e.t,x:e.x,y:e.y,fx:e.x,fy:e.y,tx:e.x,ty:e.y,dx:0,dy:0,dying:0,ph:Math.random()*6}));
-  G.p={x:1,y:1,face:[0,1],walk:0,dying:0};
+  G.p={x:1,y:1,tx:1,ty:1,face:[0,1],walk:0,dying:0};stepQ.length=0;
   G.time=LEVEL_TIME;G.phase='intro';G.phaseT=1.6;G.lvScore=G.score;
   held.length=0;touchDir=null;
   save();hud();
@@ -268,29 +268,23 @@ function enemyPass(e,x,y){
   return !bombAt(x,y);
 }
 function speedP(){return 3.1+G.pw.speed*0.55}
-// rácson mozgás sarok-segítséggel: ha kicsit mellé állsz, a figura becsúszik a folyosóba
-function movePlayer(dx,dy,dist){
-  const p=G.p;
-  if(dx){
-    const cy=Math.round(p.y),cx=Math.round(p.x),off=p.y-cy;
-    if(Math.abs(off)>0.01){
-      let lane=cy;
-      if(!playerPass(cx+dx,cy)){const c2=cy+Math.sign(off);if(Math.abs(off)>0.2&&playerPass(cx+dx,c2)&&playerPass(cx,c2))lane=c2;else return}
-      const d=lane-p.y,m=Math.min(dist,Math.abs(d));p.y+=Math.sign(d)*m;dist-=m;if(Math.abs(lane-p.y)>0.01)return;p.y=lane;
+// mezőről mezőre lépés: egy nyomás pontosan egy mezőt lép, nyomva tartva mezőnként továbbmegy
+function stepPlayer(dt){
+  const p=G.p;let dist=Math.min(.45,speedP()*dt);
+  for(let guard=0;guard<3;guard++){
+    const dx=p.tx-p.x,dy=p.ty-p.y,l=Math.abs(dx)+Math.abs(dy);
+    if(l>1e-6){
+      const m=Math.min(dist,l);p.x+=Math.sign(dx)*m;p.y+=Math.sign(dy)*m;dist-=m;p.walk+=m*6;
+      if(Math.abs(p.tx-p.x)+Math.abs(p.ty-p.y)>1e-6)return;
+      p.x=p.tx;p.y=p.ty;
     }
-    const x0=Math.round(p.x);let nx=p.x+dx*dist;
-    if(!playerPass(x0+dx,Math.round(p.y)))nx=dx>0?Math.min(nx,Math.max(p.x,x0)):Math.max(nx,Math.min(p.x,x0));
-    p.x=nx;
-  }else{
-    const cx=Math.round(p.x),cy=Math.round(p.y),off=p.x-cx;
-    if(Math.abs(off)>0.01){
-      let lane=cx;
-      if(!playerPass(cx,cy+dy)){const c2=cx+Math.sign(off);if(Math.abs(off)>0.2&&playerPass(c2,cy+dy)&&playerPass(c2,cy))lane=c2;else return}
-      const d=lane-p.x,m=Math.min(dist,Math.abs(d));p.x+=Math.sign(d)*m;dist-=m;if(Math.abs(lane-p.x)>0.01)return;p.x=lane;
-    }
-    const y0=Math.round(p.y);let ny=p.y+dy*dist;
-    if(!playerPass(Math.round(p.x),y0+dy))ny=dy>0?Math.min(ny,Math.max(p.y,y0)):Math.max(ny,Math.min(p.y,y0));
-    p.y=ny;
+    // mezőn áll: jön a következő lépés (előbb a lenyomott, utána a nyomva tartott irány)
+    const d=stepQ.length?stepQ.shift():curDir();
+    if(!d)return;
+    p.face=d;
+    if(!playerPass(p.x+d[0],p.y+d[1]))return;
+    p.tx=p.x+d[0];p.ty=p.y+d[1];
+    if(dist<=0)return;
   }
 }
 function placeBomb(){
@@ -384,8 +378,8 @@ function update(dt){
   if(ph==='dying'){G.p.dying-=dt;stepWorld(dt,false);if((G.phaseT-=dt)<=0)afterDeath();return}
   // play
   G.time-=dt;if(G.time<=0){G.time=0;die();return}
-  const d=curDir(),p=G.p;
-  if(d){const bx=p.x,by=p.y;movePlayer(d[0],d[1],Math.min(.45,speedP()*dt));p.face=d;if(bx!==p.x||by!==p.y)p.walk+=dt*10}
+  const p=G.p;
+  stepPlayer(dt);
   for(const b of G.bombs)if(b.pass&&(Math.abs(p.x-b.x)>=0.99||Math.abs(p.y-b.y)>=0.99))b.pass=false;
   const pk=idx(Math.round(p.x),Math.round(p.y));
   pickup(pk);
@@ -444,7 +438,7 @@ function chooseDir(e){
   }
   e.dx=pick[0];e.dy=pick[1];e.fx=x;e.fy=y;e.tx=x+pick[0];e.ty=y+pick[1];return true;
 }
-function pause(){if(!G||(G.phase!=='play'&&G.phase!=='intro'))return;G.prev=G.phase;G.phase='pause';held.length=0;touchDir=null;showPause()}
+function pause(){if(!G||(G.phase!=='play'&&G.phase!=='intro'))return;G.prev=G.phase;G.phase='pause';held.length=0;stepQ.length=0;touchDir=null;showPause()}
 function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase=G.prev||'play';last=0}
 function hud(){
   $('score').textContent=G?G.score.toLocaleString('hu-HU'):'0';
@@ -642,7 +636,8 @@ card.addEventListener('click',e=>{
 });
 
 // ---------- irányítás ----------
-const held=[];let touchDir=null;
+const held=[],stepQ=[];let touchDir=null;
+function press(d){if(!G||G.phase!=='play'&&G.phase!=='intro')return;if(stepQ.length<2)stepQ.push(d)}
 const KEYS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
 addEventListener('keydown',e=>{
   if(!ov.hidden){
@@ -650,14 +645,14 @@ addEventListener('keydown',e=>{
     return;
   }
   const m=KEYS[e.key];
-  if(m){e.preventDefault();const i=held.findIndex(h=>h[0]===m[0]&&h[1]===m[1]);if(i>=0)held.splice(i,1);held.push(m);return}
+  if(m){e.preventDefault();const i=held.findIndex(h=>h[0]===m[0]&&h[1]===m[1]);if(i>=0)held.splice(i,1);held.push(m);if(!e.repeat)press(m);return}
   if(e.repeat)return;
   if(e.key===' '||e.code==='Space'||e.key==='j'||e.key==='J'||e.key==='Enter'){e.preventDefault();placeBomb();return}
   if(e.key==='k'||e.key==='K'||e.key==='l'||e.key==='L'){e.preventDefault();detonate();return}
   if(e.key==='Escape'||e.key==='p'||e.key==='P'){e.preventDefault();pause()}
 });
 addEventListener('keyup',e=>{const m=KEYS[e.key];if(!m)return;const i=held.findIndex(h=>h[0]===m[0]&&h[1]===m[1]);if(i>=0)held.splice(i,1)});
-addEventListener('blur',()=>{held.length=0;touchDir=null;showDpad()});
+addEventListener('blur',()=>{held.length=0;stepQ.length=0;touchDir=null;showDpad()});
 const dpad=$('dpad');let dpadId=null;
 function dpadDir(e){
   const r=dpad.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);
@@ -666,8 +661,8 @@ function dpadDir(e){
 }
 function showDpad(){const d=touchDir;dpad.querySelectorAll('span').forEach(s=>{const c=s.className.replace(' on','');
   const on=d&&((c==='u'&&d[1]<0)||(c==='d'&&d[1]>0)||(c==='l'&&d[0]<0)||(c==='r'&&d[0]>0));s.className=c+(on?' on':'')})}
-dpad.addEventListener('pointerdown',e=>{e.preventDefault();dpadId=e.pointerId;try{dpad.setPointerCapture(e.pointerId)}catch(_){}touchDir=dpadDir(e);showDpad()});
-dpad.addEventListener('pointermove',e=>{if(e.pointerId!==dpadId)return;touchDir=dpadDir(e);showDpad()});
+dpad.addEventListener('pointerdown',e=>{e.preventDefault();dpadId=e.pointerId;try{dpad.setPointerCapture(e.pointerId)}catch(_){}touchDir=dpadDir(e);if(touchDir)press(touchDir);showDpad()});
+dpad.addEventListener('pointermove',e=>{if(e.pointerId!==dpadId)return;const d=dpadDir(e),o=touchDir;touchDir=d;if(d&&(!o||o[0]!==d[0]||o[1]!==d[1]))press(d);showDpad()});
 const dpadEnd=e=>{if(e.pointerId!==dpadId)return;dpadId=null;touchDir=null;showDpad()};
 dpad.addEventListener('pointerup',dpadEnd);dpad.addEventListener('pointercancel',dpadEnd);
 $('bombBtn').addEventListener('pointerdown',e=>{e.preventDefault();placeBomb()});
