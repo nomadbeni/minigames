@@ -7,7 +7,7 @@
                 localStorage, and the game must still start and play without an error
   scenarios     short real play-throughs that check the outcome
                 (paid, delivered, quest taken, level cleared, death counted, save written)
-  generators    the Gyémántbánya and Kincsvadász level generators (and the E-Útvesztő maze generator), taken from the published pages,
+  generators    the Gyémántbánya and Kincsvadász level generators (and the E-Útvesztő maze generator, the Mahjong boards), taken from the published pages,
                 make hundreds of levels; each must be found, be a valid puzzle and have exactly one
                 solution (checked by an independent solver)
   sokoban       every Dobozmester level is proven solvable by a push-level breadth-first search with
@@ -146,7 +146,7 @@ KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", 
               "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save",
               "kozapor-save", "kozapor-best", "urflotta-save", "urflotta-best", "szarnycsapas-best", "duplazo-save",
               "duplazo-best", "kardvihar-save", "kardvihar-best", "bombasz-save", "bombasz-best", "bombasz-sound",
-              "szigetrepulo-save", "szigetrepulo-best", "szigetrepulo-set"]
+              "szigetrepulo-save", "szigetrepulo-best", "szigetrepulo-set", "mahjong-save"]
 BROKEN = {
     "not JSON": '{"half":',
     "a string": '"szöveg"',
@@ -1474,6 +1474,124 @@ async def sc_bomber_gamepad(page):
     await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
 
 
+
+# ---------------------------------------------------------------- Mahjong
+
+def mj_save(page):
+    return page.evaluate("JSON.parse(localStorage.getItem('mahjong-save'))")
+
+
+async def mj_tap(page, i, touch=False):
+    x, y = await page.evaluate(
+        "i => { const R = __mahjong.tileRect(i), c = document.getElementById('cv').getBoundingClientRect(); "
+        "return [c.left + R.x + R.w / 2, c.top + R.y + R.h / 2]; }", i)
+    await (page.touchscreen.tap(x, y) if touch else page.mouse.click(x, y))
+
+
+async def mj_play(page, touch=False, limit=300):
+    """Takes the first pair the game offers until a window comes; the stuck window is answered with a shuffle."""
+    for _ in range(limit):
+        if await page.locator("#ov").is_visible():
+            t = await page.locator("#ovc").inner_text()
+            if "Elakadtál" in t:
+                await page.locator('#ovc [data-a="mix"]').click()
+                continue
+            return t
+        pairs = await page.evaluate("__mahjong.pairsNow()")
+        if not pairs:
+            await page.wait_for_timeout(450)
+            continue
+        a, b = pairs[0]
+        await mj_tap(page, a, touch)
+        await mj_tap(page, b, touch)
+    return ""
+
+
+async def sc_mahjong(page):
+    await page.locator('#ovc [data-m="c"]').click()
+    await page.locator('#ovc [data-l="kicsi"]').click()
+    check(await page.locator("#ov").is_hidden(), "the Small Tower layout starts")
+    blocked = await page.evaluate("(() => { const G = __mahjong.G; for (let i = 0; i < G.T.n; i++) "
+                                  "if (G.on[i] && !__mahjong.isFree(G.T, G.on, i) && !G.T.A[i].some(j => G.on[j])) return i; return -1; })()")
+    check(blocked >= 0, "the layout has a tile closed in from both sides")
+    await mj_tap(page, blocked)
+    check("be van zárva" in await page.locator("#msg").inner_text(), "a closed-in tile is refused with a message")
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    check(len((await mj_save(page))["game"]["h"]) == 1, "two matching free tiles go away and the move is saved")
+    await page.locator("#undo").click()
+    check(len((await mj_save(page))["game"]["h"]) == 0, "undo puts them back")
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    await page.reload()
+    await page.wait_for_timeout(400)
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.h.length") == 1, "the game comes back after a reload")
+    await page.locator("#hint").click()
+    check(await page.evaluate("!!__mahjong.G.hint"), "the hint marks a pair")
+    t = await mj_play(page)
+    check("Kiraktad" in t, f"clearing the board brings the win window: {t[:40]!r}")
+    s = await mj_save(page)
+    check(s["game"] is None and s["stats"]["c-kicsi"]["w"] == 1, f"the win is counted: {s['stats']}")
+    await page.locator('#ovc [data-a="again"]').click()
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.h.length") == 0, "New game deals again")
+
+
+async def sc_mahjong_time(page):
+    await page.locator('#ovc [data-m="t"]').click()
+    await page.locator('#ovc [data-l="piramis"]').click()
+    tl = await page.evaluate("__mahjong.G.tl")
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    check(await page.evaluate("__mahjong.G.tl") == tl + 3, "a pair gives three seconds")
+    await page.evaluate("__mahjong.G.tl = 2")
+    await page.locator("#ovc", has_text="Lejárt az idő").wait_for(timeout=5000)
+    check((await mj_save(page))["game"] is None, "running out of time ends the game")
+    await page.locator('#ovc [data-a="again"]').click()
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.m") == "t", "New game starts another time rush")
+
+
+async def sc_mahjong_connect(page):
+    await page.locator('#ovc [data-m="k"]').click()
+    await page.locator('#ovc [data-l="e"]').click()
+    g = await page.evaluate("__mahjong.G")
+    far = await page.evaluate("(() => { const G = __mahjong.G; for (let i = 0; i < G.g.length; i++) for (let j = i + 1; j < G.g.length; j++) "
+                              "if (G.g[i] === G.g[j] && !__mahjong.connPath(G.g, G.W, G.H, i, j)) return [i, j]; return null; })()")
+    if far:
+        await mj_tap(page, far[0])
+        await mj_tap(page, far[1])
+        check("összekötni" in await page.locator("#msg").inner_text() and await page.evaluate("__mahjong.G.h.length") == 0,
+              "two matching tiles that cannot be linked stay")
+    t = await mj_play(page)
+    check("Kiraktad" in t, f"Connect: clearing the board wins: {t[:40]!r}")
+    check((await mj_save(page))["stats"]["k-e"]["w"] == 1, "the Connect win is counted")
+
+
+async def sc_mahjong_keys(page):
+    await page.locator('#ovc [data-m="d"]').click()
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.m") == "d", "the daily puzzle starts")
+    for k in ["ArrowRight", "ArrowDown", "ArrowLeft"]:
+        await page.keyboard.press(k)
+    cur = await page.evaluate("__mahjong.G.cur")
+    await page.keyboard.press("Space")
+    sel = await page.evaluate("__mahjong.G.sel")
+    check(sel == cur or await page.locator("#msg.warn").count() == 1, "Space picks the tile under the cursor")
+    await page.keyboard.press("k")
+    check(await page.evaluate("__mahjong.G.sh") == 1, "K shuffles")
+    await page.keyboard.press("j")
+    check(await page.evaluate("__mahjong.G.hi") == 1, "J gives a hint")
+    await page.keyboard.press("Escape")
+    await page.locator("#ovc", has_text="Folytatás").wait_for(timeout=2000)
+    await page.keyboard.press("Escape")
+    check(await page.locator("#ov").is_hidden(), "Escape opens and closes the menu")
+
+
+async def sc_mahjong_broken(page):
+    check(await page.locator("#ovc", has_text="Klasszikus").is_visible(), "a broken save starts at the menu")
+    check(await page.evaluate("({}).polluted") is None, "the broken save did not reach the object prototype")
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1547,6 +1665,12 @@ SCENARIOS = [
     ("bombasz", "Bomb Maze: 600 generated levels pass the check", sc_bomber_levels, None),
     ("bombasz", "Bomb Maze: a game controller starts, walks, drops a bomb and pauses", sc_bomber_gamepad, None),
     ("szigetrepulo", "Island Flyer: reduced motion keeps the cockpit still, a slow device gets a coarser picture", sc_island_calm, None),
+    ("mahjong", "Mahjong: a closed tile is refused, a pair, undo, reload, hint, clearing wins, New game", sc_mahjong, None),
+    ("mahjong", "Mahjong: Time Rush adds time for a pair, running out ends it, New game", sc_mahjong_time, None),
+    ("mahjong", "Mahjong: Connect refuses a pair that cannot be linked and is cleared", sc_mahjong_connect, None),
+    ("mahjong", "Mahjong: the daily puzzle with the keyboard: cursor, pick, shuffle, hint, Escape", sc_mahjong_keys, None),
+    ("mahjong", "Mahjong: a broken save starts at the menu", sc_mahjong_broken,
+     {"mahjong-save": '{"game":{"m":"c","lay":"__proto__","f":[1],"h":[[0,0]],"lk":0},"stats":{"__proto__":{"polluted":1}}}'}),
 ]
 
 
@@ -1737,6 +1861,67 @@ async def test_card_deals(browser, quick):
         else:
             print(f"     pasziansz {vid}: {k} deals won by the solver, average {res['avg']:.0f} ms, slowest {res['slowest']:.0f} ms, "
                   f"{res['tries']:.1f} deals tried each")
+    await page.close()
+    return problems
+
+
+MJ_CHECK = r"""
+({kind, id, runs}) => {
+  let total = 0, slowest = 0, tries = 0;
+  for (let k = 0; k < runs; k++) {
+    const t0 = performance.now(), seed = 1 + k * 7919;
+    if (kind === 's') {
+      const d = dealSolitaire(id, k % 2, seed), ms = performance.now() - t0;
+      total += ms; slowest = Math.max(slowest, ms); tries += d.tries;
+      if (!d.ver) return {error: `deal ${k+1}: no checked deal within the time budget`};
+      const on = new Uint8Array(d.P.length).fill(1);
+      for (const [a, b] of d.order) {
+        if (!on[a] || !on[b] || !isFree(d.T, on, a) || !isFree(d.T, on, b) || !same(d.f[a], d.f[b])) return {error: `deal ${k+1}: the solution breaks`};
+        on[a] = on[b] = 0;
+        if (k === 0 && on.some(v => v) && on.reduce((s, v) => s + v, 0) === Math.floor(d.P.length / 2)) {
+          const r = reshuffle(d.T, on, d.f, seed + 1), on2 = on.slice();
+          if (!r.ver) return {error: 'a shuffle half way gave no checked deal'};
+          for (const [x, y] of r.order) { if (!isFree(d.T, on2, x) || !isFree(d.T, on2, y) || !same(r.f[x], r.f[y])) return {error: 'the shuffled deal breaks'}; on2[x] = on2[y] = 0; }
+        }
+      }
+      if (on.some(v => v)) return {error: `deal ${k+1}: tiles left`};
+    } else {
+      const d = dealConnect(id, seed), ms = performance.now() - t0;
+      total += ms; slowest = Math.max(slowest, ms); tries += d.tries;
+      if (!d.ver) return {error: `board ${k+1}: no checked board within the time budget`};
+      const {W, H} = CONNECT[id], g = d.g.slice();
+      let left = g.length;
+      while (left) { const p = connPairs(g, W, H); if (!p.length) break; const [a, b] = p[0]; g[a] = g[b] = -1; left -= 2; }
+      if (left && !connSolvable(d.g, W, H, mkRng(seed), 30)) return {error: `board ${k+1}: could not be cleared`};
+    }
+  }
+  return {avg: total / runs, slowest, tries: tries / runs};
+}
+"""
+
+
+async def test_mahjong_deals(browser, quick):
+    problems = []
+    page = await browser.new_page()
+    html = (ROOT / "mahjong" / "index.html").read_text(encoding="utf-8")
+    start = html.find("// ---------- Pályagenerátor ----------")
+    if start < 0:
+        return ["mahjong: generator section not found"]
+    src = html[start:html.find("// ----------", start + 10)]
+    budget = int(re.search(r"GEN_BUDGET_MS=(\d+)", src).group(1))
+    await page.set_content("<!doctype html><title>gen</title>")
+    await page.add_script_tag(content=src + "\nwindow.__mj = 1;")
+    jobs = [("s", lid) for lid in ["kicsi", "piramis", "kereszt", "var", "teknos"]] + [("k", lv) for lv in ["e", "m", "h"]]
+    for kind, lid in jobs:
+        k = 8 if quick else 60
+        res = await page.evaluate(MJ_CHECK, {"kind": kind, "id": lid, "runs": k})
+        if "error" in res:
+            problems.append(f"mahjong {lid}: {res['error']}")
+        elif res["avg"] > budget / 4:
+            problems.append(f"mahjong {lid}: average {res['avg']:.0f} ms is too close to the {budget} ms budget")
+        else:
+            print(f"     mahjong {lid}: {k} boards checked, average {res['avg']:.0f} ms, slowest {res['slowest']:.0f} ms, "
+                  f"{res['tries']:.1f} tried each")
     await page.close()
     return problems
 
@@ -1947,6 +2132,9 @@ async def main():
         if only in (None, "generators") and (not args or "pasziansz" in args):
             print("== solitaire deals (solver)")
             report("solitaire deals", await test_card_deals(browser, quick))
+        if only in (None, "generators") and (not args or "mahjong" in args):
+            print("== Mahjong boards (every one can be cleared)")
+            report("mahjong boards", await test_mahjong_deals(browser, quick))
         if only in (None, "generators") and (not args or "nyilak" in args):
             print("== arrow levels (every one can be cleared)")
             report("arrow levels", await test_arrow_levels(browser, quick))

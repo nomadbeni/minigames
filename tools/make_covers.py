@@ -75,6 +75,7 @@ SHOTS = {
                      "js": "(() => { const T = __szigetrepulo, G = T.G; T.S.view = 1; G.inv = 0; G.alt = Math.max(G.alt, 70); G.roll = 0.35; "
                            "G.rings.push({x: (G.x + Math.cos(G.yaw) * 90 + 1024) % 1024, y: (G.y + Math.sin(G.yaw) * 90 + 1024) % 1024, alt: G.alt + 4, ang: G.yaw}); "
                            "T.K.boost = 1; })()"},
+    "mahjong": {"poke": False, "clicks": ['[data-m="c"]', '[data-l="piramis"]'], "area": "#board", "wait": 600},
     "pasziansz": {"poke": False, "clicks": ['[data-v="k1"]'], "area": "#board", "align": "top", "wait": 2500},
     **{g: PLAN for g in ["coloptorony", "feketevar-lovagerod", "hegyormi-var", "kokastely-arokkal", "rejtekhaz",
                          "sasfeszek-sziklavar", "tundervar"]},
