@@ -145,7 +145,7 @@ KNOWN_KEYS = ["olvaso:xp", "olvaso:mastery", "olvaso:settings", "olvaso:sound", 
               "kalandor:save", "kertvedo:save", "kocka-kert:save", "dobozmester:save", "tankorseg:save", "kokori-kaland:save",
               "pasziansz:save", "kigyo-save", "kigyo-best", "nyilak-save", "nyilak-prog", "pici-gyumolcsvago-save",
               "kozapor-save", "kozapor-best", "urflotta-save", "urflotta-best", "szarnycsapas-best", "duplazo-save",
-              "duplazo-best", "kardvihar-save", "kardvihar-best",
+              "duplazo-best", "kardvihar-save", "kardvihar-best", "bombasz-save", "bombasz-best", "bombasz-sound",
               "szigetrepulo-save", "szigetrepulo-best", "szigetrepulo-set"]
 BROKEN = {
     "not JSON": '{"half":',
@@ -1385,6 +1385,80 @@ async def sc_island_calm(page):
     check(await page.evaluate(f"{T}.lowRes") == 2, "a fast moment does not switch back")
 
 
+async def sc_bomber(page):
+    B = "__bombasz"
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the menu")
+    await wait_js(page, f"{B}.G.phase === 'play'", timeout=4000)
+    # own bomb with a bigger flame: it burns a crate, catches a monster and the player standing on it
+    await page.evaluate(f"""(() => {{ const b = {B}, G = b.G; G.pw.fire = 3; G.map[b.idx(1, 4)] = 2;
+        G.enemies = [{{t: 'potty', x: 3, y: 1, fx: 3, fy: 1, tx: 3, ty: 1, dx: 0, dy: 0, dying: 0, ph: 0}},
+                     {{t: 'potty', x: 11, y: 13, fx: 11, fy: 13, tx: 11, ty: 13, dx: 0, dy: 0, dying: 0, ph: 0}}];
+        G.p.x = 1; G.p.y = 1; b.placeBomb(); b.explode(G.bombs[0]); }})()""")
+    check(await page.evaluate(f"{B}.G.burning.has({B}.idx(1, 4))"), "the flame sets the crate on fire")
+    await wait_js(page, f"{B}.G.phase === 'dying'", timeout=2000)
+    check(await page.evaluate(f"{B}.G.enemies[0].dying > 0"), "the flame catches the monster")
+    await wait_js(page, f"{B}.G.lives === 2 && {B}.G.phase !== 'dying'", timeout=4000)
+    check(await txt(page, "#lives") == "♥♥", "the lives counter shows two hearts")
+    saved = json.loads(await page.evaluate("localStorage.getItem('bombasz-save')"))
+    check(saved and saved["lives"] == 2 and saved["lv"] == 1 and saved["fire"] == 3, f"the level restart is saved: {saved}")
+    await page.reload()
+    await page.locator('#card button[data-act="cont"]').click()
+    check(await page.evaluate(f"[{B}.G.lv, {B}.G.lives, {B}.G.pw.fire]") == [1, 2, 3], "the game continues after a reload")
+    # pause and resume with Escape
+    await wait_js(page, f"{B}.G.phase === 'play'", timeout=4000)
+    await page.keyboard.press("Escape")
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    await page.keyboard.press("Escape")
+    check(await page.locator("#ov").is_hidden(), "Escape resumes the game")
+    # walking: the arrow key moves the player along the free corridor
+    x0 = await page.evaluate(f"{B}.G.p.x")
+    await hold(page, "ArrowRight", 400)
+    check(await page.evaluate(f"{B}.G.p.x") > x0 + 0.5, "the arrow key moves the player")
+    # every monster gone, the player on the open exit: the level is cleared
+    await page.evaluate(f"""(() => {{ const b = {B}, G = b.G; G.enemies = []; G.p.x = Math.round(G.p.x); G.p.y = 1;
+        G.exit = b.idx(G.p.x, 1); G.map[G.exit] = 0; G.exitShown = true; }})()""")
+    await wait_js(page, f"{B}.G.lv === 2 && {B}.G.phase !== 'clear'", timeout=5000)
+    check(json.loads(await page.evaluate("localStorage.getItem('bombasz-save')"))["lv"] == 2, "the next level is saved")
+    # the last life ends the game
+    await wait_js(page, f"{B}.G.phase === 'play'", timeout=4000)
+    await page.evaluate(f"""(() => {{ const G = {B}.G; G.lives = 1;
+        G.enemies.push({{t: 'potty', x: G.p.x, y: G.p.y, fx: 1, fy: 1, tx: 1, ty: 1, dx: 0, dy: 0, dying: 0, ph: 0}}); }})()""")
+    await page.locator("#ov h2", has_text="Vége").wait_for(timeout=5000)
+    check(await page.evaluate("localStorage.getItem('bombasz-save')") is None, "the save is cleared at game over")
+    check(json.loads(await page.evaluate("localStorage.getItem('bombasz-best')"))["score"] > 0, "the record is saved")
+    await page.locator('#card button[data-act="new"]').click()
+    check(await page.locator("#ov").is_hidden(), "New game closes the end window")
+    check(await page.evaluate(f"[{B}.G.lv, {B}.G.lives, {B}.G.score, {B}.G.pw.bombs]") == [1, 3, 0, 1], "a new game starts from zero")
+
+
+async def sc_bomber_levels(page):
+    res = await page.evaluate("""(() => { const b = __bombasz, bad = []; let slow = 0;
+        for (let lv = 1; lv <= 60; lv++) for (let s = 1; s <= 10; s++) {
+            const t = performance.now(), L = b.genLevel(lv, s * 7919 + lv); slow = Math.max(slow, performance.now() - t);
+            const e = L ? b.checkLevel(L) : 'no level'; if (e) bad.push(lv + '/' + s + ': ' + e); }
+        return {bad: bad.slice(0, 5), slow}; })()""")
+    check(not res["bad"], f"every generated level passes the check: {res['bad']}")
+    check(res["slow"] < 250, f"one level is generated quickly: {res['slow']:.0f} ms")
+
+
+async def sc_bomber_gamepad(page):
+    await page.add_init_script(PAD)
+    await page.reload()
+    await page.evaluate("dispatchEvent(new Event('gamepadconnected'))")
+    await page.wait_for_timeout(200)
+    await pad(page, 0)                                   # A in the menu presses the highlighted button
+    check(await page.locator("#ov").is_hidden(), "the A button starts the game from the menu")
+    await wait_js(page, "__bombasz.G.phase === 'play'", timeout=4000)
+    x0 = await page.evaluate("__bombasz.G.p.x")
+    await pad(page, 15, 400)                             # d-pad right walks
+    check(await page.evaluate("__bombasz.G.p.x") > x0 + 0.5, "the d-pad moves the player")
+    await pad(page, 0)                                   # A drops a bomb
+    check(await page.evaluate("__bombasz.G.bombs.length") == 1, "the A button drops a bomb")
+    await pad(page, 9)                                   # Start pauses
+    await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1454,6 +1528,9 @@ SCENARIOS = [
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
+    ("bombasz", "Bomb Maze: a bomb burns a crate and a monster, costs a life, reload, pause, walking, exit, game over, New game", sc_bomber, None),
+    ("bombasz", "Bomb Maze: 600 generated levels pass the check", sc_bomber_levels, None),
+    ("bombasz", "Bomb Maze: a game controller starts, walks, drops a bomb and pauses", sc_bomber_gamepad, None),
     ("szigetrepulo", "Island Flyer: reduced motion keeps the cockpit still, a slow device gets a coarser picture", sc_island_calm, None),
 ]
 

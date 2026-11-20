@@ -38,6 +38,8 @@ AREA = "canvas, #board, #field, #stage, #game, .board, .grid, main"
 PLAN = {"poke": False, "area": "#isocv",
         "js": "(() => { const b = document.querySelector('#next'); for (let i = 0; i < 99 && b && !b.disabled; i++) b.click(); })()"}
 SHOTS = {
+    "bombasz": {"poke": False, "clicks": ['#card button[data-act="new"]'], "area": "#cv", "wait": 150,
+                "js": "(() => { const b = __bombasz, G = b.G; G.phase = 'play'; [[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[7,6],[7,8],[3,8],[3,9]].forEach(([x,y]) => { if (G.map[b.idx(x,y)] === 2) G.map[b.idx(x,y)] = 0; }); G.p.x = 3; G.p.y = 7; G.p.face = [0, 1]; G.pw.fire = 2; G.bombs.push({x: 3, y: 9, t: 9, age: 0, range: 2, pass: false}); const e = {x: 7, y: 7, t: 9, age: 0, range: 2, pass: false}; G.bombs.push(e); b.explode(e); b.draw(); })()"},
     "falbonto": {"align": "top", "wait": 300},
     "flipper": {"poke": False, "clicks": ['#card button[data-act="new"]', '#card button[data-act="go"]'], "align": "top",
                 "js": "__flipper.G.ball.state = 'play'; __flipper.G.ball.x = 200; __flipper.G.ball.y = 180; __flipper.G.ball.vy = 300", "wait": 400},
