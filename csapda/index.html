@@ -287,7 +287,7 @@ button:not(:disabled):active{translate:0 1px}
       var avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
       Q.bad=(avg>24||Q.hot)?Q.bad+1:0;Q.good=(avg<18&&!Q.hot)?Q.good+1:0;
       if(t-Q.changed>4000){
-        if(Q.bad>=2&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}
+        if(Q.bad>=3&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}   /* 3 lassú másodperc egymás után: egy rövid akadás nem számít */
         else if(Q.good>=15&&Q.lvl<2&&Q.ups<2){Q.lvl++;Q.ups++;Q.changed=t;Q.good=0}   /* ritkán, és csak kétszer lép vissza */
       }
     }

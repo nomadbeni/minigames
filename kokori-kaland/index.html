@@ -269,7 +269,7 @@ button:not(:disabled):active{translate:0 1px}
       var avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
       Q.bad=(avg>24||Q.hot)?Q.bad+1:0;Q.good=(avg<18&&!Q.hot)?Q.good+1:0;
       if(t-Q.changed>4000){
-        if(Q.bad>=2&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}
+        if(Q.bad>=3&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}   /* 3 lassú másodperc egymás után: egy rövid akadás nem számít */
         else if(Q.good>=15&&Q.lvl<2&&Q.ups<2){Q.lvl++;Q.ups++;Q.changed=t;Q.good=0}   /* ritkán, és csak kétszer lép vissza */
       }
     }
@@ -839,7 +839,8 @@ function stepItems(){
 /* Csökkentett mozgás: nincs képernyőrázás, kevesebb részecske. */
 function calm(){try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}}
 function shk(n){return calm()?0:n}
-function burst(x,y,col,n){if(calm())n=Math.ceil(n/3);for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=.6+Math.random()*1.8;S.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.6,t:22+Math.random()*14,col})}}
+let QL=2;   // díszítő grafika szintje (Kepesseg.quality): 2 teljes, 1 kevesebb, 0 legkevesebb; a játékmenetre nincs hatása
+function burst(x,y,col,n){if(calm())n=Math.ceil(n/3);n=Math.ceil(n*[.35,.6,1][QL]);for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=.6+Math.random()*1.8;S.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.6,t:22+Math.random()*14,col})}}
 function stepFx(){
   for(const q of S.parts){q.x+=q.vx;q.y+=q.vy;q.vy+=.08;q.t--}
   S.parts=S.parts.filter(q=>q.t>0);
@@ -899,7 +900,8 @@ function drawLevel(th){
 }
 function hills(off,col,base,amp,freq,seed){
   ctx.fillStyle=col;
-  for(let x=0;x<VW;x+=4){const wx=x+off;const h=base-amp*(Math.sin(wx*freq+seed)*.6+Math.sin(wx*freq*2.3+seed*2)*.4);ctx.fillRect(x,Math.round(h),4,VH-h)}
+  const st=QL===2?4:QL===1?6:8;   // gyengébb gépen szélesebb oszlopokból rajzolt domb
+  for(let x=0;x<VW;x+=st){const wx=x+off;const h=base-amp*(Math.sin(wx*freq+seed)*.6+Math.sin(wx*freq*2.3+seed*2)*.4);ctx.fillRect(x,Math.round(h),st,VH-h)}
 }
 function drawTorch(c){
   ctx.fillStyle='#6a4520';ctx.fillRect(c.x+5,c.y+6,3,18);ctx.fillStyle='#3a2410';ctx.fillRect(c.x+3,c.y+4,7,3);
@@ -1006,6 +1008,7 @@ addEventListener('resize',fit);
 if(window.ResizeObserver)new ResizeObserver(fit).observe($('stage'));
 let last=performance.now(),acc=0;
 function frame(now){
+  if(S.mode==='play')QL=Kepesseg.quality(now);   // csak játék közben mér
   acc+=Math.min(100,now-last);last=now;
   let n=0;while(acc>=1000/60&&n<5){step();acc-=1000/60;n++}
   if(n===5)acc=0;

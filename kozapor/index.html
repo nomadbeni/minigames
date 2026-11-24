@@ -277,7 +277,7 @@ button:not(:disabled):active{translate:0 1px}
       var avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
       Q.bad=(avg>24||Q.hot)?Q.bad+1:0;Q.good=(avg<18&&!Q.hot)?Q.good+1:0;
       if(t-Q.changed>4000){
-        if(Q.bad>=2&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}
+        if(Q.bad>=3&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}   /* 3 lassú másodperc egymás után: egy rövid akadás nem számít */
         else if(Q.good>=15&&Q.lvl<2&&Q.ups<2){Q.lvl++;Q.ups++;Q.changed=t;Q.good=0}   /* ritkán, és csak kétszer lép vissza */
       }
     }
@@ -301,6 +301,8 @@ const ROT=4.4,THRUST=250,MAXV=290,BUL_V=430,BUL_LIFE=.85;
 const SIZES=[null,{r:12,pts:100},{r:22,pts:50},{r:38,pts:20}];   // 3 = nagy kő, 2 = közepes, 1 = kicsi
 const BONUS=10000;                             // ennyi pontonként jár egy új élet
 let H=560,sc=1,dpr=1,cw=0,ch=0,stars=[];
+let QL=2;                                      // díszítő grafika szintje (Kepesseg.quality): 2 teljes, 1 kevesebb, 0 legkevesebb; a játékmenetre nincs hatása
+const PQ=[.35,.6,1];                           // részecskék aránya szintenként
 let G=null,last=0,actx=null,hudKey='';
 const keys={left:false,right:false,thrust:false,fire:false};
 
@@ -377,6 +379,7 @@ function startWave(n){
   save();hud();
 }
 function addParts(x,y,n,col,sp=120){
+  n=Math.ceil(n*PQ[QL]);
   for(let i=0;i<n;i++){const a=rnd(0,7),v=rnd(sp*.3,sp);G.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:rnd(.35,.8),col})}
 }
 function addScore(p){
@@ -415,7 +418,7 @@ function update(dt){
   if(s.alive){
     if(keys.left)s.a-=ROT*dt;
     if(keys.right)s.a+=ROT*dt;
-    if(keys.thrust){s.vx+=Math.cos(s.a)*THRUST*dt;s.vy+=Math.sin(s.a)*THRUST*dt;if(Math.random()<.6)G.parts.push({x:s.x-Math.cos(s.a)*12,y:s.y-Math.sin(s.a)*12,vx:-Math.cos(s.a+rnd(-.4,.4))*120+s.vx,vy:-Math.sin(s.a+rnd(-.4,.4))*120+s.vy,t:rnd(.15,.3),col:'#ffcf6b'})}
+    if(keys.thrust){s.vx+=Math.cos(s.a)*THRUST*dt;s.vy+=Math.sin(s.a)*THRUST*dt;if(Math.random()<(QL?.6:.25))G.parts.push({x:s.x-Math.cos(s.a)*12,y:s.y-Math.sin(s.a)*12,vx:-Math.cos(s.a+rnd(-.4,.4))*120+s.vx,vy:-Math.sin(s.a+rnd(-.4,.4))*120+s.vy,t:rnd(.15,.3),col:'#ffcf6b'})}
     const f=Math.exp(-.55*dt);s.vx*=f;s.vy*=f;
     const v=Math.hypot(s.vx,s.vy);if(v>MAXV){s.vx*=MAXV/v;s.vy*=MAXV/v}
     s.x+=s.vx*dt;s.y+=s.vy*dt;wrap(s);
@@ -552,7 +555,8 @@ function draw(){
   if(!cw)return;
   ctx.setTransform(dpr*sc,0,0,dpr*sc,0,0);
   ctx.fillStyle='#05070f';ctx.fillRect(0,0,W,H);
-  for(const s of stars){ctx.globalAlpha=s[3];ctx.fillStyle='#fff';ctx.fillRect(s[0],s[1],s[2],s[2])}
+  ctx.fillStyle='#fff';const ns=QL===2?stars.length:QL===1?45:20;   // gyengébb gépen kevesebb csillag
+  for(let i=0;i<ns;i++){const s=stars[i];ctx.globalAlpha=s[3];ctx.fillRect(s[0],s[1],s[2],s[2])}
   ctx.globalAlpha=1;
   if(!G)return;
   for(const r of G.rocks)drawRock(r);
@@ -585,7 +589,7 @@ function draw(){
 function frame(t){
   requestAnimationFrame(frame);
   const dt=Math.min(.05,Math.max(0,(t-last)/1000));last=t;
-  if(G&&G.phase==='play')update(dt);
+  if(G&&G.phase==='play'){QL=Kepesseg.quality(t);update(dt)}   // csak játék közben mér
   draw();
 }
 

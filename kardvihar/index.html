@@ -278,7 +278,7 @@ button:not(:disabled):active{translate:0 1px}
       var avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
       Q.bad=(avg>24||Q.hot)?Q.bad+1:0;Q.good=(avg<18&&!Q.hot)?Q.good+1:0;
       if(t-Q.changed>4000){
-        if(Q.bad>=2&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}
+        if(Q.bad>=3&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}   /* 3 lassú másodperc egymás után: egy rövid akadás nem számít */
         else if(Q.good>=15&&Q.lvl<2&&Q.ups<2){Q.lvl++;Q.ups++;Q.changed=t;Q.good=0}   /* ritkán, és csak kétszer lép vissza */
       }
     }
@@ -319,6 +319,8 @@ const PERKS=[
   ['charge','Viharszív','gyorsabban töltődik a forgó csapás',3],
 ];
 let H=560,sc=1,dpr=1,cw=0,ch=0,deco=[];
+let QL=2;                                     // díszítő grafika szintje (Kepesseg.quality): 2 teljes, 1 kevesebb, 0 legkevesebb; a játékmenetre nincs hatása
+const PQ=[.35,.6,1];                           // részecskék aránya szintenként
 let G=null,last=0,actx=null,hudKey='';
 const keys={up:false,down:false,left:false,right:false};
 let joy=null;                                 // érintős botkormány: {id,x0,y0,x,y}
@@ -415,6 +417,7 @@ function spawn(k){
   addParts(x,y,10,'#e8e2d0',60);
 }
 function addParts(x,y,n,col,sp=120,life=.6){
+  n=Math.ceil(n*PQ[QL]);
   for(let i=0;i<n;i++){const a=rnd(0,7),v=rnd(sp*.3,sp);G.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:rnd(life*.5,life),col,s:rnd(2,4)})}
 }
 function nearest(maxD){
@@ -501,7 +504,7 @@ function update(dt){
   if(p.atkT>0)p.atkT-=dt;if(p.comboT>0)p.comboT-=dt;if(p.inv>0)p.inv-=dt;if(p.dashCd>0)p.dashCd-=dt;if(p.spin>0)p.spin-=dt;
   const [mx,my]=moveVec();
   let vx,vy;
-  if(p.dash>0){p.dash-=dt;vx=p.dx*S.speed*3.4;vy=p.dy*S.speed*3.4;if(Math.random()<.7)G.parts.push({x:p.x,y:p.y,vx:0,vy:0,t:.25,col:'#c9d6ff',s:3})}
+  if(p.dash>0){p.dash-=dt;vx=p.dx*S.speed*3.4;vy=p.dy*S.speed*3.4;if(QL>0&&Math.random()<.7)G.parts.push({x:p.x,y:p.y,vx:0,vy:0,t:.25,col:'#c9d6ff',s:3})}
   else{
     const slow=p.atkT>0?.45:1;vx=mx*S.speed*slow;vy=my*S.speed*slow;
     if(Math.hypot(mx,my)>.2&&p.atkT<=0)p.face=Math.atan2(my,mx);
@@ -680,7 +683,7 @@ function draw(){
   let sx=0,sy=0;if(G&&G.shake>0&&!reduced.matches){sx=rnd(-3,3);sy=rnd(-3,3)}
   ctx.setTransform(dpr*sc,0,0,dpr*sc,dpr*sx,dpr*sy);
   ctx.fillStyle='#2d4a2a';ctx.fillRect(-5,-5,W+10,H+10);
-  for(const d of deco){if(d[2]==='g'){ctx.strokeStyle='#3e6339';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(d[0]-3,d[1]);ctx.lineTo(d[0]-1,d[1]-5*d[3]);ctx.moveTo(d[0]+1,d[1]);ctx.lineTo(d[0]+3,d[1]-6*d[3]);ctx.stroke()}
+  if(QL>0)for(const d of deco){if(d[2]==='g'){ctx.strokeStyle='#3e6339';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(d[0]-3,d[1]);ctx.lineTo(d[0]-1,d[1]-5*d[3]);ctx.moveTo(d[0]+1,d[1]);ctx.lineTo(d[0]+3,d[1]-6*d[3]);ctx.stroke()}
     else{ctx.fillStyle='#4f5d48';ctx.beginPath();ctx.ellipse(d[0],d[1],4*d[3],3*d[3],0,0,7);ctx.fill()}}
   ctx.strokeStyle='#1e331c';ctx.lineWidth=6;ctx.strokeRect(0,0,W,H);
   if(!G)return;
@@ -694,7 +697,8 @@ function draw(){
     ctx.beginPath();ctx.arc(s.x,s.y,s.r*.85,s.a-s.arc/2,s.a+s.arc/2);ctx.stroke();
   }
   for(const s of G.shots){ctx.fillStyle='#ff6fa8';ctx.beginPath();ctx.arc(s.x,s.y,5,0,7);ctx.fill();ctx.fillStyle='#ffe0ef';ctx.beginPath();ctx.arc(s.x,s.y,2.2,0,7);ctx.fill()}
-  for(const q of G.parts){ctx.globalAlpha=Math.min(1,q.t*2.5);ctx.fillStyle=q.col;ctx.beginPath();ctx.arc(q.x,q.y,q.s,0,7);ctx.fill()}
+  for(const q of G.parts){ctx.globalAlpha=Math.min(1,q.t*2.5);ctx.fillStyle=q.col;
+    if(QL<2)ctx.fillRect(q.x-q.s,q.y-q.s,q.s*2,q.s*2);else{ctx.beginPath();ctx.arc(q.x,q.y,q.s,0,7);ctx.fill()}}
   ctx.globalAlpha=1;
   // szívek, forgó-töltés, xp
   for(let i=0;i<G.maxhp;i++)heart(10+i*19,8,15,i<G.hp);
@@ -716,7 +720,7 @@ function draw(){
 function frame(t){
   requestAnimationFrame(frame);
   const dt=Math.min(.04,Math.max(0,(t-last)/1000));last=t;
-  if(G&&G.phase==='play')update(dt);
+  if(G&&G.phase==='play'){QL=Kepesseg.quality(t);update(dt)}   // csak játék közben mér
   draw();
 }
 

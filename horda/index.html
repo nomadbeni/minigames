@@ -270,7 +270,7 @@ button:not(:disabled):active{translate:0 1px}
       var avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
       Q.bad=(avg>24||Q.hot)?Q.bad+1:0;Q.good=(avg<18&&!Q.hot)?Q.good+1:0;
       if(t-Q.changed>4000){
-        if(Q.bad>=2&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}
+        if(Q.bad>=3&&Q.lvl>0){Q.lvl--;Q.changed=t;Q.bad=Q.good=0}   /* 3 lassú másodperc egymás után: egy rövid akadás nem számít */
         else if(Q.good>=15&&Q.lvl<2&&Q.ups<2){Q.lvl++;Q.ups++;Q.changed=t;Q.good=0}   /* ritkán, és csak kétszer lép vissza */
       }
     }
@@ -496,7 +496,8 @@ function spawnGate(){
 }
 function spawnBoss(){const hp=300+G.wave*90;G.boss={x:LW/2,y:-60,hp,max:hp,vy:12,t:0};G.banner='ÓRIÁSZOMBI';G.bannerT=2.2;K.beep(70,.8,'sawtooth',.09,-20)}
 /* ---------- loop ---------- */
-function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;if(!paused&&G&&!G.over)update(dt);draw();if(G&&!G.over)raf=requestAnimationFrame(loop)}
+let QL=2;   // díszítő grafika szintje (Kepesseg.quality): 2 teljes, 1 kevesebb, 0 legkevesebb; a játékmenetre nincs hatása
+function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;if(!paused&&G&&!G.over){QL=Kepesseg.quality(now);update(dt)}draw();if(G&&!G.over)raf=requestAnimationFrame(loop)}
 function update(dt){
   G.t+=dt;G.scroll+=dt*40;if(G.bannerT>0)G.bannerT-=dt;
   if(keys.arrowleft||keys.a)G.tx=Math.max(24,G.tx-260*dt);if(keys.arrowright||keys.d)G.tx=Math.min(LW-24,G.tx+260*dt);
@@ -613,7 +614,8 @@ function draw(){
   /* crates */
   for(const c of G.crates){K.draw(ctx,CRATE,c.x,c.y,30);ctx.fillStyle='#000';ctx.fillRect(c.x-16,c.y-22,32,4);ctx.fillStyle='#ffcf3f';ctx.fillRect(c.x-16,c.y-22,32*Math.max(0,c.hp/c.max),4)}
   /* zombies */
-  for(const z of G.zs){const bob=Math.sin(z.wob*6)*1.5;K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);if(flashOn(z)){ctx.save();ctx.filter='brightness(4)';K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);ctx.restore()}
+  for(const z of G.zs){const bob=QL?Math.sin(z.wob*6)*1.5:0;K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);if(flashOn(z)){ctx.save();if(QL===2)ctx.filter='brightness(4)';else{ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.8}   /* a szűrő drága: gyengébb gépen olcsóbb villanás */
+    K.draw(ctx,z.tough?Z2:Z1,z.x,z.y+bob,z.tough?30:22);ctx.restore()}
     if(z.hp<z.max){ctx.fillStyle='#000';ctx.fillRect(z.x-11,z.y-17,22,3);ctx.fillStyle='#ff4d5a';ctx.fillRect(z.x-11,z.y-17,22*Math.max(0,z.hp/z.max),3)}}
   if(G.boss){const b=G.boss;K.draw(ctx,Z2,b.x,b.y+Math.sin(b.t*3)*2,90);ctx.fillStyle='#000';ctx.fillRect(40,14,LW-80,10);ctx.fillStyle='#ff4d5a';ctx.fillRect(40,14,(LW-80)*Math.max(0,b.hp/b.max),10);
     ctx.font='700 12px "Chakra Petch", sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText('ÓRIÁSZOMBI',LW/2,34);ctx.textAlign='left'}

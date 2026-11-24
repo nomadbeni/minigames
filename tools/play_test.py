@@ -1663,6 +1663,22 @@ async def sc_mahjong_broken(page):
     check(await page.evaluate("({}).polluted") is None, "the broken save did not reach the object prototype")
 
 
+# Forces the lowest decorative quality from the first line of the page on (also after a reload).
+LOW_QUALITY = ("Object.defineProperty(window, 'Kepesseg', {configurable: true, get() { return this.__k; },"
+               " set(v) { v.setQuality(0); this.__k = v; }})")
+
+
+def low_quality(fn):
+    """The same play-through with the fewest effects: the game logic must not depend on the visual quality."""
+    async def run(page):
+        await page.add_init_script(LOW_QUALITY)
+        await page.reload()
+        check(await page.evaluate("Kepesseg.quality()") == 0, "the lowest quality is in effect")
+        await fn(page)
+        check(await page.evaluate("Kepesseg.quality()") == 0, "the lowest quality stayed in effect")
+    return run
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1730,6 +1746,10 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    ("kardvihar", "Blade Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_blade), None),
+    ("kozapor", "Rock Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_rocks), None),
+    ("kokori-kaland", "Stone Age Quest, fewest effects (adaptive quality 0): walking and saving work", low_quality(sc_caveman), None),
+    ("horda", "Horde, fewest effects (adaptive quality 0): the squad fights, pause works", low_quality(sc_horde), None),
     ("kardvihar", "Blade Storm: the screen stays on only while playing (pause, hidden tab, game over)", sc_blade_wakelock, None),
     ("kardvihar", "Blade Storm: a hit rumbles the controller, the switch turns it off and is remembered", sc_blade_haptics, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
@@ -1899,8 +1919,9 @@ async def caps_case(browser, base, mode, reduced=False):
                 # quality: slow frames step down, fast frames step back up slowly, a forced level wins
                 await ev("window.__qt = 1000")
                 check(await ev(FEED, [16, 3000]) == 2, "smooth frames keep full quality")
+                check(await ev(FEED, [40, 1500]) == 2, "a short slow spell (1.5 s) changes nothing")
                 slow = await ev(FEED, [40, 3000])
-                check(slow == 1, f"slow frames (25 fps) lower the quality one step: {slow}")
+                check(slow == 1, f"slow frames (25 fps) for a few seconds lower the quality one step: {slow}")
                 check(await ev(FEED, [40, 2000]) == 1, "no second step down within the cooldown")
                 check(await ev(FEED, [40, 4000]) == 0, "still slow after the cooldown: one more step")
                 check(await ev(FEED, [16, 8000]) == 0, "a short good spell does not raise it (no flicker)")
