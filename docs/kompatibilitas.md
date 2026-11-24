@@ -83,3 +83,5 @@ Minden sorban: a játék elindul, végigjátszható, nincs hibaüzenet; utána a
 - [ ] Ismert, korábbi viselkedés: 640×480-as érintőképernyős konzolon az álló játékok a „Fordítsd el a
       telefont” jelzést mutatják (a kijelző fekvő és 500 px-nél alacsonyabb). Ez nem új, de érdemes külön
       eldönteni, hogy kontrollerrel ott is játszhatók legyenek-e.
+
+WebGPU és WebAssembly: lásd a döntési feljegyzést, [webgpu-wasm.md](webgpu-wasm.md).
