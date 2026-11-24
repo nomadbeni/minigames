@@ -20,6 +20,8 @@ Usage:
   python3 tools/play_test.py --quick         # fewer generated levels
   python3 tools/play_test.py horda csapda    # only these games (and their scenarios)
   python3 tools/play_test.py --only generators
+  python3 tools/play_test.py --only capabilities   # the shared browser-capability module with mocked APIs
+  python3 tools/play_test.py --only compat         # screen sizes (phone, handheld, desktop) and offline play
 """
 import asyncio
 import json
@@ -52,8 +54,8 @@ class QuietServer(ThreadingHTTPServer):
         pass   # the browser closing a connection early is not a test failure
 
 
-def start_server():
-    httpd = QuietServer(("127.0.0.1", 0), partial(Quiet, directory=str(ROOT)))
+def start_server(directory=ROOT):
+    httpd = QuietServer(("127.0.0.1", 0), partial(Quiet, directory=str(directory)))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -1679,6 +1681,21 @@ def low_quality(fn):
     return run
 
 
+def with_caps(mode, fn):
+    """The same play-through while the modern APIs are missing, refuse, or throw (see CAPS_MOCK)."""
+    async def run(page):
+        await page.add_init_script(CAPS_MOCK + f"({json.dumps(mode)})")
+        await page.reload()
+        await fn(page)
+    return run
+
+
+CAPS_GAMES = [("kardvihar", "Blade Storm", sc_blade), ("tankorseg", "Tank Guard", sc_tank_over),
+              ("flipper", "Pinball", sc_pinball), ("horda", "Horde", sc_horde),
+              ("mahjong", "Mahjong", sc_mahjong), ("gyemantbanya", "Diamond Mine", sc_gems)]
+CAPS_MODES = {"missing": "missing", "reject": "refused", "throw": "throwing"}
+
+
 SCENARIOS = [
     ("horda", "reading kit repairs broken shared saves and splits long words", sc_kit,
      save(**{"olvaso:xp": -50, "olvaso:settings": {"split": "<img src=x>"}, "olvaso:sound": "igen",
@@ -1746,6 +1763,8 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    *[(g, f"{name}: plays the same with {word} browser APIs (vibration, Wake Lock, View Transitions, orientation)",
+       with_caps(mode, fn), None) for g, name, fn in CAPS_GAMES for mode, word in CAPS_MODES.items()],
     ("kardvihar", "Blade Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_blade), None),
     ("kozapor", "Rock Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_rocks), None),
     ("kokori-kaland", "Stone Age Quest, fewest effects (adaptive quality 0): walking and saving work", low_quality(sc_caveman), None),
@@ -1939,6 +1958,94 @@ async def test_capabilities(browser, base):
     problems = []
     for mode, reduced in [("ok", False), ("ok", True), ("missing", False), ("reject", False), ("throw", False)]:
         problems += await caps_case(browser, base, mode, reduced)
+    return problems
+
+
+
+# ---------------------------------------------------------------- compatibility (issue #53)
+
+# name, width, height, touch screen
+DEVICES = [("phone upright", 390, 780, True), ("phone on its side", 780, 390, True),
+           ("640×480 handheld (Anbernic-like)", 640, 480, True), ("720×720 square handheld", 720, 720, True),
+           ("desktop", 1280, 800, False)]
+DEVICE_GAMES = ["kardvihar", "horda", "flipper", "tankorseg", "mahjong", "pasziansz"]
+DEVICE_CHECK = """() => {
+  const vw = innerWidth, vh = innerHeight, out = [];
+  if (document.documentElement.scrollWidth > vw + 1) out.push('sideways scrolling');
+  for (const b of document.querySelectorAll('.top-bar a, .top-bar button')) {
+    const r = b.getBoundingClientRect();
+    if (r.width && getComputedStyle(b).display !== 'none' && (r.left < -1 || r.right > vw + 1 || r.top < -1 || r.bottom > vh + 1))
+      out.push('top bar button off screen: ' + (b.getAttribute('aria-label') || b.textContent).trim());
+  }
+  const h = document.querySelector('.rotate-hint'), meta = document.querySelector('meta[name="games:orientation"]');
+  return {problems: out, hint: !!h && !h.hidden, portrait: !!meta && meta.content === 'portrait',
+          type: screen.orientation ? screen.orientation.type : ''};
+}"""
+
+
+async def test_devices(browser, base):
+    problems = []
+    for game in DEVICE_GAMES:
+        for name, w, h, touch in DEVICES:
+            ctx = await browser.new_context(viewport={"width": w, "height": h}, screen={"width": w, "height": h},
+                                            has_touch=touch, is_mobile=touch)
+            await ctx.add_init_script(CAPS_MOCK + "('ok')")
+            page, errors = await ctx.new_page(), []
+            page.on("pageerror", lambda e: errors.append(f"JS error: {e}"))
+            try:
+                await page.goto(f"{base}/{game}/index.html", wait_until="load", timeout=20000)
+                await page.wait_for_timeout(300)
+                r = await page.evaluate(DEVICE_CHECK)
+                bad = list(r["problems"])
+                want_hint = r["portrait"] and touch and w > h and h <= 500
+                if r["hint"] != want_hint:
+                    bad.append(f"turn-the-phone hint {'shows' if r['hint'] else 'missing'} (portrait game: {r['portrait']})")
+                await page.evaluate("__fs(true); __fs(false)")       # into fullscreen and out again
+                lock = await page.evaluate("__caps.lock")
+                want = ["portrait"] if r["portrait"] and r["type"].startswith("portrait") else []
+                if lock != want:
+                    bad.append(f"orientation lock {lock}, expected {want} (screen: {r['type']})")
+                problems += [f"{game} on {name}: {x}" for x in bad + errors]
+            except Exception as e:
+                problems.append(f"{game} on {name}: {type(e).__name__}: {str(e).splitlines()[0]}")
+            await ctx.close()
+    return problems
+
+
+async def test_offline(browser):
+    """Builds the published site, lets the offline cache fill, then plays a game with the network off."""
+    import subprocess
+    out = subprocess.run([sys.executable, str(ROOT / "tools" / "build_site.py"), "--out", "_site"],
+                         cwd=ROOT, capture_output=True, text=True)
+    if out.returncode:
+        return ["building _site failed: " + (out.stdout + out.stderr).strip().splitlines()[-1]]
+    httpd, base = start_server(ROOT / "_site")
+    ctx = await browser.new_context(viewport={"width": 390, "height": 780}, has_touch=True, is_mobile=True)
+    page, problems = await ctx.new_page(), []
+    page.on("pageerror", lambda e: problems.append(f"JS error: {e}"))
+    try:
+        await page.goto(f"{base}/index.html", wait_until="load")
+        await page.wait_for_function("""async () => { for (const k of await caches.keys()) {
+            const c = await caches.open(k); if (await c.match('kardvihar/index.html') && await c.match('mahjong/index.html')) return true; }
+            return false; }""", timeout=60000, polling=500)
+        await page.evaluate("navigator.serviceWorker.ready.then(r => new Promise(ok => { const w = r.active;"
+                            " if (w.state === 'activated') ok(); else w.addEventListener('statechange', () => w.state === 'activated' && ok()); }))")
+        await ctx.set_offline(True)
+        await page.goto(f"{base}/kardvihar/index.html", wait_until="load")
+        await page.locator('#card button[data-act="new"]').click()
+        await page.wait_for_timeout(800)
+        ok = await page.evaluate("typeof Kepesseg === 'object' && (Kepesseg.haptic('hit'), Kepesseg.wakeLock(false), true)")
+        check(ok, "offline: the game runs and the capability module answers")
+        await page.goto(f"{base}/mahjong/index.html", wait_until="load")
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(300)
+        check(await page.locator("#ov").is_visible(), "offline: Mahjong opens with its menu")
+    except Fail as e:
+        problems.append(str(e))
+    except Exception as e:
+        problems.append(f"{type(e).__name__}: {str(e).splitlines()[0]}")
+    await ctx.close()
+    httpd.shutdown()
     return problems
 
 
@@ -2382,6 +2489,10 @@ async def main():
         if only in (None, "capabilities") and not args:
             print("== browser capabilities (tools/shared/kepesseg.js)")
             report("capabilities", await test_capabilities(browser, base))
+        if only in (None, "compat") and not args:
+            print("== compatibility: phone, handheld and desktop screens; offline")
+            report("screens", await test_devices(browser, base))
+            report("offline", await test_offline(browser))
         if only in (None, "generators") and (not args or {"gyemantbanya", "kincsvadasz"} & set(args)):
             print("== level generators")
             report("generators", await test_generators(browser, quick))
