@@ -702,6 +702,7 @@ function tableButtons(){
 }
 const LEGEND='<div class="legend"><b>Bal oldal / ←</b><span>bal ütő</span><b>Jobb oldal / →</b><span>jobb ütő</span><b>Szóköz</b><span>kilövés (nyomva tartva), utána mindkét ütő</span><b>Esc</b><span>szünet</span></div>';
 function showCard(kind,rec){
+  Kepesseg.wakeLock(false);   // menüben, szünetben, a végén a kijelző elalhat
   const c=$('card');let h='';
   if(kind==='menu'){
     const sv=loadSave();
@@ -739,11 +740,11 @@ $('card').addEventListener('click',e=>{
   else if(a==='table'){const i=+btn.dataset.i;if(i<=unlocked)start(i)}
   else if(a==='cont'){const sv=loadSave();if(!sv){start(0);return}
     newGame(sv.table);Object.assign(G,{score:sv.score,balls:sv.balls,loop:sv.loop,prog:sv.prog});enterTable();G.phase='menu';showCard('intro')}
-  else if(a==='go'){if(!T||T.i!==G.table)enterTable();G.phase='play';hideCard();hud()}
-  else if(a==='resume'){G.phase=G.prev||'play';hideCard()}
+  else if(a==='go'){if(!T||T.i!==G.table)enterTable();G.phase='play';hideCard();hud();Kepesseg.wakeLock(true);}
+  else if(a==='resume'){G.phase=G.prev||'play';hideCard();Kepesseg.wakeLock(true);}
   else if(a==='menu'){if(G&&G.phase!=='over')save();G=null;T=null;hud();showCard('menu')}
 });
-$('pauseBtn').addEventListener('click',()=>{if(G&&G.phase==='pause'){G.phase=G.prev||'play';hideCard()}else pause()});
+$('pauseBtn').addEventListener('click',()=>{if(G&&G.phase==='pause'){G.phase=G.prev||'play';hideCard();Kepesseg.wakeLock(true);}else pause()});
 const SND_ON='<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z"/>';
 const SND_OFF='<path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/>';
 function sndIcon(){$('sndIcon').innerHTML=sound?SND_ON:SND_OFF;$('snd').setAttribute('aria-pressed',String(sound))}

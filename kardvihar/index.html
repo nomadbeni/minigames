@@ -377,6 +377,7 @@ const xpNeed=l=>8+l*5;
 
 // ---------- játék ----------
 function newGame(from){
+  Kepesseg.wakeLock(true);   // amíg tart a játék, a kijelző ne aludjon el
   G={phase:'play',wave:1,score:0,hp:5,maxhp:5,lvl:1,xp:0,P:noPerks(),
      pl:{x:W/2,y:H/2,face:-Math.PI/2,inv:1,dash:0,dashCd:0,dx:0,dy:0,atkT:0,combo:-1,comboT:0,spin:0,charge:0,kx:0,ky:0},
      en:[],shots:[],parts:[],drops:[],slashes:[],rings:[],toSpawn:[],spawnT:0,waveT:0,banner:null,kills:0,vampK:0,shake:0,rec:false,perkQ:0};
@@ -566,6 +567,7 @@ function update(dt){
   hud();
 }
 function over(){
+  Kepesseg.wakeLock(false);
   G.phase='over';lsDel('kardvihar-save');Kepesseg.haptic('over');
   G.rec=G.score>best.score;
   if(G.rec||G.wave>best.wave){best={score:Math.max(best.score,G.score),wave:Math.max(best.wave,G.wave)};lsSet('kardvihar-best',JSON.stringify(best))}
@@ -573,8 +575,8 @@ function over(){
   hud();
   setTimeout(()=>{if(G&&G.phase==='over')showOver()},700);
 }
-function pause(){if(!G||G.phase!=='play')return;G.phase='pause';joy=null;save();showPause()}
-function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase='play';last=performance.now()}
+function pause(){if(!G||G.phase!=='play')return;G.phase='pause';Kepesseg.wakeLock(false);joy=null;save();showPause()}
+function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase='play';Kepesseg.wakeLock(true);last=performance.now()}
 function hud(){
   const k=G?[G.score,G.wave,G.lvl].join():'';
   if(k===hudKey)return;hudKey=k;
@@ -719,6 +721,7 @@ function legend(){
     {slime:'ugrál feléd',bat:'cikázva repül',boar:'megremeg, aztán nekiront: gurulj el!',shroom:'varázsgolyót lő, a kard szétvágja',golem:'minden 5. hullámban, földrengést üt'}[k]}</span>`).join('')}</div>`;
 }
 function showMenu(){
+  Kepesseg.wakeLock(false);
   const s=loadSave(),touch=matchMedia('(pointer:coarse)').matches;
   showOv(`<h2>Kardvihar</h2><p>Vagdosd szét a szörnyhullámokat! Három gyors csapás egymás után kombó, a harmadik nagyot üt. Gurulás közben semmi nem talál el. Ha megtelt a kék csík, jöhet a <b>forgó csapás</b>.</p>${legend()}
   <p>${touch?'Húzd az ujjad a pályán a mozgáshoz, jobb lent a harci gombok.':'Nyilak/WASD · szóköz: kard · K: gurulás · L: forgó'}</p>

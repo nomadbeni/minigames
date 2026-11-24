@@ -463,6 +463,7 @@ function enemyList(n){
 function newTank(x,y,dir,enemy,type){return {x,y,dir,enemy,type:type||'player',hp:enemy?TYPES[type].hp:1,cd:0,f:0,moving:false,slide:0,
   shield:0,spawn:enemy?56:0,think:30,lv:0,bonus:false,flash:0,shotWait:60+Math.random()*60}}
 function startStage(n,fresh){
+  Kepesseg.wakeLock(true);   // amíg tart a csata, a kijelző ne aludjon el
   S.stage=n;buildStage(n);
   if(fresh){S.score=0;S.lives=3;S.nextLife=10000;S.shots=0}
   const lv=S.player&&!fresh?S.player.lv:0;
@@ -689,6 +690,7 @@ function step(){
   if(S.mode==='ending'){S.endT--;if(S.endT<=0)finish()}
 }
 function finish(){
+  Kepesseg.wakeLock(false);
   engineSet(false);KEY.fire=false;
   const won=S.won&&!S.baseDead&&S.lives>0;S.won=false;
   SAVE.best=Math.max(SAVE.best,S.score);
@@ -776,6 +778,7 @@ function hud(){
 function showOv(html){$('ovc').innerHTML=html;$('ov').hidden=false;const h=$('ovc').querySelector('.btn.hot');if(h)try{h.focus({preventScroll:true})}catch(e){}}
 function closeOv(){$('ov').hidden=true}
 function menu(){
+  Kepesseg.wakeLock(false);
   S.mode='menu';engineSet(false);KEY.fire=false;
   let lv='';for(let i=1;i<=Math.min(12,Math.max(6,SAVE.reached));i++)lv+=`<button data-s="${i}" ${i<=SAVE.reached?'':'disabled'} aria-label="${i}. pálya">${i}</button>`;
   const bon=BONUS.map(k=>`<canvas data-b="${k}" width="12" height="12"></canvas><span>${BONUS_TXT[k].replace(/^([^:]+):/,'<b>$1:</b>')}</span>`).join('');
@@ -791,11 +794,11 @@ function menu(){
   document.querySelectorAll('.bon canvas').forEach(c=>{const x=c.getContext('2d');x.drawImage(BONUSSPR[c.dataset.b],0,0)});
 }
 function pause(){
-  if(S.mode!=='play')return;S.mode='pause';engineSet(false);KEY.fire=false;
+  if(S.mode!=='play')return;S.mode='pause';engineSet(false);Kepesseg.wakeLock(false);KEY.fire=false;
   showOv(`<h2>SZÜNET</h2><div class="btns"><button class="btn hot" id="ovRes">Folytatás</button><button class="btn" id="ovMenu">Menü</button></div>`);
   $('ovRes').onclick=resume;$('ovMenu').onclick=menu;
 }
-function resume(){if(S.mode!=='pause')return;audio();S.mode='play';closeOv()}
+function resume(){if(S.mode!=='pause')return;audio();S.mode='play';Kepesseg.wakeLock(true);closeOv()}
 
 /* ---------------------------------------------------------------- input: the newest held direction wins */
 function dirDown(d){KEY.stack=KEY.stack.filter(x=>x!==d);KEY.stack.push(d);KEY.d=d}

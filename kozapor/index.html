@@ -351,6 +351,7 @@ function rock(size,x,y,speed){
 }
 function newShip(){return {x:W/2,y:H/2,vx:0,vy:0,a:-Math.PI/2,alive:true,inv:2.5}}
 function newGame(from){
+  Kepesseg.wakeLock(true);   // amíg tart a játék, a kijelző ne aludjon el
   G={phase:'play',score:0,lives:3,wave:1,bonus:BONUS,ship:newShip(),rocks:[],bullets:[],eb:[],parts:[],pickups:[],
      saucer:null,saucerT:rnd(14,20),banner:null,cool:0,shield:0,triple:0,respawn:0,waveT:0,rec:false};
   if(from){G.score=from.score;G.lives=from.lives;G.wave=from.wave;G.bonus=from.bonus}
@@ -480,14 +481,15 @@ function update(dt){
   hud();
 }
 function over(){
+  Kepesseg.wakeLock(false);
   G.phase='over';lsDel('kozapor-save');Kepesseg.haptic('over');
   G.rec=G.score>best;if(G.rec){best=G.score;lsSet('kozapor-best',String(best))}
   keys.left=keys.right=keys.thrust=keys.fire=false;
   hud();
   setTimeout(()=>{if(G&&G.phase==='over')showOver()},500);
 }
-function pause(){if(!G||G.phase!=='play')return;G.phase='pause';save();showPause()}
-function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase='play';last=performance.now()}
+function pause(){if(!G||G.phase!=='play')return;G.phase='pause';Kepesseg.wakeLock(false);save();showPause()}
+function resume(){if(!G||G.phase!=='pause')return;hideOv();G.phase='play';Kepesseg.wakeLock(true);last=performance.now()}
 function hud(){
   const k=G?[G.score,G.lives,G.wave].join():'';
   if(k===hudKey)return;hudKey=k;
@@ -585,6 +587,7 @@ function showOv(html){card.innerHTML=html;ov.hidden=false;const h=card.querySele
 function hideOv(){ov.hidden=true;if(document.activeElement&&ov.contains(document.activeElement))document.activeElement.blur()}
 const LEGEND=`<div class="legend"><i style="background:#5ee6ff">S</i><span><b>Pajzs:</b> 7 mp-ig nem árt semmi</span><i style="background:#ffb347">3</i><span><b>Hármas lövés:</b> 9 mp-ig</span></div>`;
 function showMenu(){
+  Kepesseg.wakeLock(false);
   const s=loadSave();
   showOv(`<h2>Kőzápor</h2><p>Forgasd a hajót, gyorsíts, és lődd szét a köveket! A nagy kő kettéhasad, a kicsi elporlad. A 2. hullámtól <b>csészealj</b> is vadászik rád.</p>${LEGEND}
   <p>${matchMedia('(pointer:coarse)').matches?'Bal oldalt forgás, jobb oldalt gáz és lövés. Tartsd nyomva a lövést!':'← → forgás · ↑ gáz · szóköz: lövés'}</p>

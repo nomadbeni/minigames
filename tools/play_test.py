@@ -1252,6 +1252,34 @@ async def sc_blade_haptics(page):
     c = await page.evaluate(hit)
     check(c["rumble"] == [], f"the switch is remembered after a reload: {c}")
 
+
+async def sc_blade_wakelock(page):
+    await page.add_init_script(CAPS_MOCK + "('ok')")
+    await page.reload()
+    held = lambda: page.evaluate("Kepesseg.wakeLockHeld()")
+    await page.wait_for_timeout(200)
+    check((await page.evaluate("__caps"))["wlRequest"] == 0, "the menu does not ask to keep the screen on")
+    await page.locator('#card button[data-act="new"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "a started game keeps the screen on")
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(100)
+    check(not await held(), "pause lets the screen sleep")
+    await page.locator('#card button[data-act="resume"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "going on keeps it on again")
+    await page.evaluate("__visible(false)")
+    check(not await held(), "a hidden tab gives the lock back (and the game pauses)")
+    await page.evaluate("__visible(true)")
+    await page.wait_for_timeout(100)
+    check(not await held(), "back to a paused game: no lock until the player goes on")
+    await page.locator('#card button[data-act="resume"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "going on after the tab came back: locked again")
+    await page.evaluate("(() => { const G = __kardvihar.G; G.pl.inv = 0; G.pl.dash = 0; G.pl.spin = 0; G.hp = 1; __kardvihar.hurtPlayer(1, 0, 0); })()")
+    await page.wait_for_timeout(100)
+    check(await page.evaluate("__kardvihar.G.phase") == "over" and not await held(), "game over lets the screen sleep")
+
 async def sc_blade(page):
     await page.locator('#card button[data-act="new"]').click()
     check(await page.locator("#ov").is_hidden(), "New game closes the menu")
@@ -1677,6 +1705,7 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    ("kardvihar", "Blade Storm: the screen stays on only while playing (pause, hidden tab, game over)", sc_blade_wakelock, None),
     ("kardvihar", "Blade Storm: a hit rumbles the controller, the switch turns it off and is remembered", sc_blade_haptics, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
