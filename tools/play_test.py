@@ -1686,6 +1686,164 @@ async def run_scenario(browser, base, game, fn, seed):
         return r.errors
 
 
+# ---------------------------------------------------------------- browser capabilities (tools/shared/kepesseg.js)
+
+# Mocks for the modern browser APIs, one mode per page: 'ok' (works), 'missing' (the browser does not have it),
+# 'reject' (the promise is refused) and 'throw' (the call throws). Everything the module asks for is logged in
+# window.__caps. __fs(on) and __visible(on) fake entering fullscreen and hiding the tab.
+CAPS_MOCK = r"""
+(mode => {
+  const log = window.__caps = {vibrate: [], rumble: [], wlRequest: 0, wlRelease: 0, vt: 0, lock: [], unlock: 0};
+  const def = (o, k, v) => { try { Object.defineProperty(o, k, {value: v, configurable: true, writable: true}); } catch (e) {} };
+  const fail = what => { if (mode === 'throw') throw new Error(what + ' throws');
+    return Promise.reject(new DOMException(what + ' refused', 'NotAllowedError')); };
+  window.__fs = on => { def(document, 'fullscreenElement', on ? document.documentElement : null);
+    document.dispatchEvent(new Event('fullscreenchange')); };
+  window.__visible = on => { def(document, 'visibilityState', on ? 'visible' : 'hidden'); def(document, 'hidden', !on);
+    if (!on && window.__sentinel) window.__sentinel.release();
+    document.dispatchEvent(new Event('visibilitychange')); };
+  if (mode === 'missing') {
+    def(navigator, 'vibrate', undefined); def(navigator, 'wakeLock', undefined); def(document, 'startViewTransition', undefined);
+    if (screen.orientation) { def(screen.orientation, 'lock', undefined); def(screen.orientation, 'unlock', undefined); }
+    def(window, 'PressureObserver', undefined);
+    return;
+  }
+  def(navigator, 'vibrate', p => { if (mode === 'throw') throw new Error('vibrate throws'); log.vibrate.push(p); return mode === 'ok'; });
+  const actuator = {effects: ['dual-rumble'], reset: () => Promise.resolve('complete'),
+    playEffect: (t, o) => { log.rumble.push(o.duration); return mode === 'ok' ? Promise.resolve('complete') : fail('playEffect'); }};
+  window.__pad = {id: 'test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+    buttons: Array.from({length: 17}, () => ({pressed: false, value: 0})), vibrationActuator: actuator};
+  def(navigator, 'getGamepads', () => [window.__pad]);
+  def(navigator, 'wakeLock', {request: () => { log.wlRequest++; if (mode !== 'ok') return fail('wakeLock');
+    const s = new EventTarget(); s.released = false;
+    s.release = () => { if (!s.released) { s.released = true; log.wlRelease++; s.dispatchEvent(new Event('release')); } return Promise.resolve(); };
+    window.__sentinel = s; return Promise.resolve(s); }});
+  def(document, 'startViewTransition', cb => { log.vt++; if (mode === 'throw') throw new Error('startViewTransition throws');
+    const done = new Promise(r => requestAnimationFrame(() => { cb(); r(); }));
+    const no = () => Promise.reject(new DOMException('skipped', 'AbortError'));
+    return {ready: mode === 'ok' ? done : no(), updateCallbackDone: done, finished: mode === 'ok' ? done : no(), skipTransition() {}}; });
+  if (screen.orientation) {
+    def(screen.orientation, 'lock', o => { log.lock.push(o); return mode === 'ok' ? Promise.resolve() : fail('lock'); });
+    def(screen.orientation, 'unlock', () => { log.unlock++; if (mode === 'throw') throw new Error('unlock throws'); });
+  }
+  def(window, 'PressureObserver', mode === 'throw' ? function () { throw new Error('PressureObserver throws'); }
+    : function (cb) { this.observe = () => { window.__pressure = cb; return mode === 'ok' ? Promise.resolve() : Promise.reject(new Error('no')); }; });
+})"""
+
+CAPS_PAGE = ('<!doctype html><html lang="hu"><head><meta charset="utf-8">'
+             '<meta name="games:orientation" content="portrait"></head><body>'
+             '<div class="top-bar"><button type="button" class="hap-btn" style="display:none">R</button></div>'
+             '<p id="screen">menu</p><script>{module}</script>'
+             '<script>window.__early = Kepesseg.haptic("hurt")</script></body></html>')
+
+# Feeds the quality meter fake frame times: ms per frame, for how long.
+FEED = "([ms, total]) => { let l; for (let t = 0; t < total; t += ms) l = Kepesseg.quality(window.__qt = (window.__qt || 1000) + ms); return l; }"
+
+
+async def caps_case(browser, base, mode, reduced=False):
+    module = (ROOT / "tools" / "shared" / "kepesseg.js").read_text(encoding="utf-8")
+    async with Run(browser, base, mobile=True, hooks=False) as r:
+        await r.ctx.add_init_script(CAPS_MOCK + f"({json.dumps(mode)})")
+        await r.ctx.route(f"{base}/__caps.html", lambda rt: rt.fulfill(
+            status=200, content_type="text/html", body=CAPS_PAGE.replace("{module}", module)))
+        if reduced:
+            await r.page.emulate_media(reduced_motion="reduce")
+        await r.goto("__caps.html")
+        p, ev = r.page, r.page.evaluate
+        log = lambda: ev("window.__caps")
+        try:
+            check(await ev("window.__early") is False, "no vibration before the first tap (page load)")
+            await p.touchscreen.tap(50, 200)                      # the first user gesture
+            shown = await ev("getComputedStyle(document.querySelector('.hap-btn')).display")
+            n = await ev("(async () => { let n = 0; Kepesseg.transition(() => n++); const now = n;"
+                         " await new Promise(r => setTimeout(r, 120)); return [now, n]; })()")
+            await ev("Kepesseg.wakeLock(true)")
+            await p.wait_for_timeout(50)
+            await ev("__fs(true)")
+            await ev("__fs(false)")
+            hit = await ev("Kepesseg.haptic('hurt')")
+            check(await ev("Kepesseg.haptic('nonsense') === false && Kepesseg.haptic(-5) === false"),
+                  "an unknown or negative pattern is ignored")
+            check(await ev(FEED, [16, 2000]) in (0, 1, 2), "the quality meter answers")
+            if mode == "missing":
+                check(shown == "none" and not hit, f"missing APIs: no vibration button, nothing vibrates ({shown}, {hit})")
+                check(n == [1, 1], f"missing View Transitions: the screen changes at once, once: {n}")
+                check(not await ev("Kepesseg.wakeLockHeld()"), "missing Wake Lock: nothing is held")
+            elif mode in ("reject", "throw"):
+                check(n[1] == 1, f"{mode}: the screen change still happens exactly once: {n}")
+                check(not await ev("Kepesseg.wakeLockHeld()"), f"{mode}: a refused Wake Lock is not counted as held")
+                c = await log()
+                check(c["wlRequest"] == 1, f"{mode}: Wake Lock was asked once: {c}")
+            elif reduced:
+                c = await log()
+                check(n == [1, 1] and c["vt"] == 0, f"reduced motion: no View Transition, instant change: {n} {c}")
+                check(await ev("Kepesseg.quality()") <= 1, "reduced motion: decorative effects are cut")
+            else:
+                c = await log()
+                check(n == [0, 1] and c["vt"] == 1, f"View Transition is used, the change runs once: {n} {c}")
+                check(c["lock"] == ["portrait"] and c["unlock"] == 1, f"orientation locks in fullscreen, unlocks after: {c}")
+                check(c["vibrate"] == [45] and c["rumble"] == [45], f"'hurt' vibrates the phone and the pad: {c}")
+                check(shown == "inline-flex", f"the vibration button shows on a touch screen: {shown}")
+                await p.wait_for_timeout(150)
+                many = await ev("[...Array(10)].map(() => Kepesseg.haptic('hit')).filter(Boolean).length")
+                check(many == 1, f"ten quick hits vibrate once: {many}")
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; __caps.rumble = []; Kepesseg.haptic('reward')")
+                await p.wait_for_timeout(200)
+                c = await log()
+                check(c["vibrate"] == [[25, 50, 25]] and c["rumble"] == [25, 25], f"a pattern reaches both outputs: {c}")
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; Kepesseg.haptic([5000])")
+                check((await log())["vibrate"] == [200], "a long pattern is cut to 200 ms")
+                # the switch: off stops everything and is remembered
+                await p.locator(".hap-btn").click()
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; __caps.rumble = []")
+                check(await ev("Kepesseg.haptic('boom')") is False, "switched off: nothing vibrates")
+                c = await log()
+                check(c["vibrate"] == [] and c["rumble"] == [], f"switched off: neither output is used: {c}")
+                check(await ev("localStorage.getItem('kepesseg:rezges')") == "0", "the switch is saved")
+                check(await p.locator(".hap-btn").get_attribute("aria-pressed") == "false", "the button shows off")
+                await ev("localStorage.setItem('kepesseg:rezges', '1')")
+                # Wake Lock: held while playing, given back when hidden, asked again when visible, released at the end
+                check(await ev("Kepesseg.wakeLockHeld()"), "Wake Lock is held while the game runs")
+                await ev("__visible(false)")
+                check(not await ev("Kepesseg.wakeLockHeld()"), "a hidden tab loses the lock")
+                await ev("__visible(true)")
+                await p.wait_for_timeout(50)
+                check(await ev("Kepesseg.wakeLockHeld()") and (await log())["wlRequest"] == 2, "visible again: asked again")
+                await ev("Kepesseg.wakeLock(false)")
+                await p.wait_for_timeout(50)
+                c = await log()
+                check(not await ev("Kepesseg.wakeLockHeld()") and c["wlRelease"] == 2, f"the menu releases the lock: {c}")
+                await ev("__visible(false); __visible(true)")
+                await p.wait_for_timeout(50)
+                check((await log())["wlRequest"] == 2, "after the game no lock is asked for")
+                # quality: slow frames step down, fast frames step back up slowly, a forced level wins
+                await ev("window.__qt = 1000")
+                check(await ev(FEED, [16, 3000]) == 2, "smooth frames keep full quality")
+                slow = await ev(FEED, [40, 3000])
+                check(slow == 1, f"slow frames (25 fps) lower the quality one step: {slow}")
+                check(await ev(FEED, [40, 2000]) == 1, "no second step down within the cooldown")
+                check(await ev(FEED, [40, 4000]) == 0, "still slow after the cooldown: one more step")
+                check(await ev(FEED, [16, 8000]) == 0, "a short good spell does not raise it (no flicker)")
+                check(await ev(FEED, [16, 12000]) == 1, "a long good spell raises it one step")
+                check(await ev(FEED, [5000, 20000]) == 1, "a long pause is not measured")
+                await ev("__pressure([{state: 'critical'}])")
+                check(await ev(FEED, [16, 7000]) == 0, "high CPU pressure lowers it even at good frame rates")
+                check(await ev("Kepesseg.setQuality(2), Kepesseg.quality()") == 2, "a forced level wins")
+        except Fail as e:
+            return [f"{mode}{' reduced' if reduced else ''}: {e}"] + r.errors
+        return [f"{mode}: {e}" for e in r.errors + r.external]
+
+
+async def test_capabilities(browser, base):
+    problems = []
+    for mode, reduced in [("ok", False), ("ok", True), ("missing", False), ("reject", False), ("throw", False)]:
+        problems += await caps_case(browser, base, mode, reduced)
+    return problems
+
+
 # ---------------------------------------------------------------- generators
 
 GEN_CHECK = r"""
@@ -2123,6 +2281,9 @@ async def main():
             print("== scenarios")
             await asyncio.gather(*(limited(name, run_scenario(browser, base, g, fn, seed))
                                    for g, name, fn, seed in SCENARIOS if not args or g in args))
+        if only in (None, "capabilities") and not args:
+            print("== browser capabilities (tools/shared/kepesseg.js)")
+            report("capabilities", await test_capabilities(browser, base))
         if only in (None, "generators") and (not args or {"gyemantbanya", "kincsvadasz"} & set(args)):
             print("== level generators")
             report("generators", await test_generators(browser, quick))
