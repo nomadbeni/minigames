@@ -110,7 +110,9 @@ button:not(:disabled):active{translate:0 1px}
      Kepesseg.wakeLock(be)    true: amíg tart a játék, a kijelző ne aludjon el; false: elengedi. Háttérbe tett
                               lap után magától újrakéri; 2 perc tétlenség után elengedi, a következő érintésre újra.
      Kepesseg.transition(fn)  fn a képernyőváltás DOM-módosítása; View Transitionnel fut, ha lehet, és nincs
-                              csökkentett mozgás. Különben (vagy hibánál) azonnal fut.
+                              csökkentett mozgás. Különben (vagy hibánál) azonnal fut. Az átmenet alatt (0,15 mp)
+                              a böngésző nem ad át érintést, ezért csak ablak MEGJELENÉSÉRE használd; a játékba
+                              visszavezető bezárás legyen azonnali, és hívja a Kepesseg.endTransition()-t.
      Kepesseg.quality(most)   képkockánként hívva a díszítő grafika szintje: 2 teljes, 1 kevesebb, 0 legkevesebb.
                               Csak látványra használd (részecske, háttér), játéklogikára soha.
      Tájolás: ha a <head>-ben <meta name="games:orientation" content="portrait"> (vagy landscape) áll, teljes
@@ -227,9 +229,10 @@ button:not(:disabled):active{translate:0 1px}
   function transition(fn){
     var done=false,run=function(){if(done)return;done=true;
       try{fn()}catch(e){setTimeout(function(){throw e},0)}};   /* a játék hibája ne vesszen el */
-    if(typeof d.startViewTransition!=='function'||calm()||d.visibilityState!=='visible'){run();return}
+    /* betöltés közben (első képernyő) nincs mit átúsztatni */
+    if(typeof d.startViewTransition!=='function'||calm()||d.visibilityState!=='visible'||d.readyState!=='complete'){run();return}
     if(!vtCss){vtCss=true;try{var st=d.createElement('style');
-      st.textContent='::view-transition-old(root),::view-transition-new(root){animation-duration:.18s}';d.head.appendChild(st)}catch(e){}}
+      st.textContent='::view-transition-old(root),::view-transition-new(root){animation-duration:.15s}';d.head.appendChild(st)}catch(e){}}
     try{
       var t=d.startViewTransition(run);vt=t;
       var clear=function(){if(vt===t)vt=null};
@@ -238,6 +241,9 @@ button:not(:disabled):active{translate:0 1px}
     }catch(e){run()}
     if(!done)setTimeout(run,250);                     /* ha a böngésző nem futtatná le, akkor is megtörténik */
   }
+  /* a futó átmenet azonnali vége: bezáráskor és bármilyen érintésre, gombnyomásra, hogy a játék ne várjon rá */
+  function endTransition(){var t=vt;vt=null;if(t)try{t.skipTransition()}catch(e){}}
+  ['pointerdown','keydown'].forEach(function(ev){addEventListener(ev,function(){if(vt)endTransition()},{capture:true,passive:true})});
 
   /* ---------- tájolás (Screen Orientation) ---------- */
   var ori=null,oriLocked=false;
@@ -284,7 +290,7 @@ button:not(:disabled):active{translate:0 1px}
   function setQuality(l){Q.forced=(l===0||l===1||l===2)?l:null}
 
   window.Kepesseg={haptic:haptic,hapticsOn:function(){return on},setHaptics:setHaptics,wakeLock:wakeLock,
-    wakeLockHeld:function(){return !!lock},transition:transition,quality:quality,setQuality:setQuality};
+    wakeLockHeld:function(){return !!lock},transition:transition,endTransition:endTransition,quality:quality,setQuality:setQuality};
   if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',initBtn);else initBtn();
 })();
 /* @end kepesseg */

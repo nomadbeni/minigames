@@ -1633,6 +1633,31 @@ async def sc_mahjong_keys(page):
     check(await page.locator("#ov").is_hidden(), "Escape opens and closes the menu")
 
 
+
+VT_SPY = ("(() => { const real = document.startViewTransition; window.__vt = 0; if (real) document.startViewTransition ="
+          " function (cb) { window.__vt++; return real.call(document, cb); }; })()")
+
+
+async def sc_mahjong_transition(page):
+    await page.evaluate(VT_SPY)
+    await page.locator('#ovc [data-m="c"]').click()
+    await page.locator('#ovc [data-l="kicsi"]').click()
+    check(await page.locator("#ov").is_hidden(), "going to the board is instant (no transition that would eat a tap)")
+    n = await page.evaluate("window.__vt")
+    check(n >= 1, f"the level picker opened with a View Transition: {n}")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("window.__vt") == n + 1, "the menu opens with a View Transition")
+    await page.locator("#ovc", has_text="Folytatás").wait_for(timeout=1000)
+    await page.keyboard.press("Escape")
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    check(await page.evaluate("__mahjong.G.h.length") == 1, "a pair can be taken right after the menu closes")
+    await page.emulate_media(reduced_motion="reduce")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("[window.__vt, document.getElementById('ov').hidden]") == [n + 1, False],
+          "reduced motion: the menu opens at once, without a transition")
+
 async def sc_mahjong_broken(page):
     check(await page.locator("#ovc", has_text="Klasszikus").is_visible(), "a broken save starts at the menu")
     check(await page.evaluate("({}).polluted") is None, "the broken save did not reach the object prototype")
@@ -1717,6 +1742,7 @@ SCENARIOS = [
     ("mahjong", "Mahjong: Time Rush adds time for a pair, running out ends it, New game", sc_mahjong_time, None),
     ("mahjong", "Mahjong: Connect refuses a pair that cannot be linked and is cleared", sc_mahjong_connect, None),
     ("mahjong", "Mahjong: the daily puzzle with the keyboard: cursor, pick, shuffle, hint, Escape", sc_mahjong_keys, None),
+    ("mahjong", "Mahjong: the menu fades in (View Transition), the board takes taps at once, reduced motion skips it", sc_mahjong_transition, None),
     ("mahjong", "Mahjong: a broken save starts at the menu", sc_mahjong_broken,
      {"mahjong-save": '{"game":{"m":"c","lay":"__proto__","f":[1],"h":[[0,0]],"lk":0},"stats":{"__proto__":{"polluted":1}}}'}),
 ]
