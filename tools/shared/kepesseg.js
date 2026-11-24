@@ -81,7 +81,13 @@
     btn.setAttribute('aria-label',on?'Rezgés: be':'Rezgés: ki');btn.title=on?'Rezgés: be':'Rezgés: ki';
     btn.style.opacity=on?'.75':'.45';
   }
-  function showBtn(){if(btn)btn.style.display=(phone()||pads().length)?'inline-flex':'none'}
+  function showBtn(){
+    if(!btn)return;
+    btn.style.display=(phone()||pads().length)?'inline-flex':'none';
+    /* ha nem fér ki egy sorba, a teljes képernyő gomb csak ikont mutat (ugyanaz a data-compact jelzés, amit a gomb szkriptje is ismer) */
+    var fs=d.querySelector('.fs-btn'),first=btn.parentNode&&btn.parentNode.firstElementChild;
+    if(fs&&first&&btn.style.display!=='none'&&btn.offsetTop>first.offsetTop+4){fs.dataset.compact='1';fs.textContent='⛶'}
+  }
   function initBtn(){
     btn=d.querySelector('.hap-btn');if(!btn)return;
     btn.addEventListener('click',function(){setHaptics(!on);if(on)haptic('hit');btn.blur()});

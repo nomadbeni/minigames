@@ -1234,6 +1234,24 @@ async def sc_doubler_swipe(page):
     check((await page.evaluate("__duplazo.vals()"))[15] == 16, "a swipe to the right merges the row")
 
 
+
+async def sc_blade_haptics(page):
+    await page.add_init_script(CAPS_MOCK + "('ok')")
+    await page.reload()
+    check(await page.locator(".hap-btn").is_visible(), "the vibration switch shows when a controller can rumble")
+    await page.locator('#card button[data-act="new"]').click()
+    hit = "__caps.rumble = []; __caps.vibrate = []; __kardvihar.G.pl.inv = 0; __kardvihar.hurtPlayer(1, 0, 0); __caps"
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [45] and c["vibrate"] == [], f"a hit on the knight rumbles the controller once, no phone buzz on a desktop: {c}")
+    await page.locator(".hap-btn").click()
+    await page.wait_for_timeout(150)
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [] and await page.evaluate("Kepesseg.hapticsOn()") is False, f"switched off: no rumble: {c}")
+    await page.reload()
+    await page.locator('#card button[data-act="new"]').click()
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [], f"the switch is remembered after a reload: {c}")
+
 async def sc_blade(page):
     await page.locator('#card button[data-act="new"]').click()
     check(await page.locator("#ov").is_hidden(), "New game closes the menu")
@@ -1659,6 +1677,7 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    ("kardvihar", "Blade Storm: a hit rumbles the controller, the switch turns it off and is remembered", sc_blade_haptics, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
     ("bombasz", "Bomb Maze: a bomb burns a crate and a monster, costs a life, reload, pause, one press one square, exit, game over, New game", sc_bomber, None),
