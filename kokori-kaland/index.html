@@ -101,8 +101,9 @@ button:not(:disabled):active{translate:0 1px}
                               visszavezető bezárás legyen azonnali, és hívja a Kepesseg.endTransition()-t.
      Kepesseg.quality(most)   képkockánként hívva a díszítő grafika szintje: 2 teljes, 1 kevesebb, 0 legkevesebb.
                               Csak látványra használd (részecske, háttér), játéklogikára soha.
-     Tájolás: ha a <head>-ben <meta name="games:orientation" content="portrait"> (vagy landscape) áll, teljes
-       képernyőn a böngésző abba a tájolásba zárol, kilépéskor felold. */
+     Tájolás: ha a <head>-ben <meta name="games:orientation" content="portrait"> (vagy landscape) áll, és a
+       készülék már így áll, teljes képernyőn ebben rögzíti (nem fordul el véletlenül), kilépéskor felold.
+       Ha másképp áll, nem zárol és nem forgat; ilyenkor a CSS-es elrendezés és a fekvo-jelzes segít. */
 (function(){
   if(window.Kepesseg)return;
   var d=document,nav=navigator,noop=function(){};
@@ -238,6 +239,7 @@ button:not(:disabled):active{translate:0 1px}
   function oriLock(){
     var o=window.screen&&screen.orientation,p=ori||(ori=oriPref());
     if(!p||!o||typeof o.lock!=='function')return;
+    if(String(o.type||'').split('-')[0]!==p)return;   /* csak a már meglévő tájolást rögzíti: soha nem forgatja el a képet */
     try{var r=o.lock(p);oriLocked=true;if(r&&r.then)r.then(noop,function(){oriLocked=false})}catch(e){oriLocked=false}
   }
   function oriUnlock(){
