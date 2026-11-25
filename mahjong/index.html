@@ -776,11 +776,14 @@ function hint(){
 }
 function mix(auto){
   if(!G||G.over)return;firstTouch();
-  if(G.kind==='s')G.f=reshuffle(G.T,G.on,G.f,newSeed()).f;else G.g=connShuffle(G.g,G.W,G.H,newSeed()).g;
+  let ver=true;const lk=G.lk;
+  if(G.kind==='s'){const r=reshuffle(G.T,G.on,G.f,newSeed());G.f=r.f;ver=r.ver}else G.g=connShuffle(G.g,G.W,G.H,newSeed()).g;
   G.sh++;G.lk=G.h.length;G.sel=-1;G.hint=null;
   if(G.m==='t')G.tl=Math.max(1,G.tl-10);
   SND.mix();msg(auto===true?'Nem maradt összeköthető pár, összekevertem a lapokat.':G.m==='t'?'Összekevertem a maradék lapokat. (−10 mp)':'Összekevertem a maradék lapokat. Továbbra is kirakható.','tip');
   updHud();req();writeSave();
+  // ha a maradék lapok helyzete miatt semmilyen keverés nem segít (pl. két lap egymáson), a visszalépés megmarad
+  if(!ver&&!pairsNow().length){G.lk=lk;updHud();writeSave();stuck(true)}
 }
 function fixCursor(){
   if(G.kind==='s'){if(G.cur>=0&&G.on[G.cur])return;const c=curCands();G.cur=c.length?c[0]:-1}
@@ -813,11 +816,12 @@ function lose(){
   showOv('end','<h2 id="ovt">Lejárt az idő!</h2><p class="sub">'+esc(modeLabel())+'</p><div class="stats"><div>'+done+'<small>Leszedett pár</small></div><div>'+left+'<small>Maradt</small></div><div>'+fmt(G.time)+'<small>Idő</small></div></div>'+
     '<p class="sub">Tipp: a keverés 10, a tipp 5 másodpercbe kerül.</p><div class="row"><button type="button" class="btn" data-a="menu">Menü</button><button type="button" class="btn hot" data-a="again">Új játék</button></div>');
 }
-function stuck(){
+function stuck(dead){
   if(!G||G.over)return;
   const can=G.h.length>G.lk;
-  showOv('stuck','<h2 id="ovt">Elakadtál</h2><p class="sub">Nincs több levehető pár. Keverd össze a maradék lapokat: a keverés után is biztosan kirakható.</p>'+
-    '<div class="row"><button type="button" class="btn" data-a="undo"'+(can?'':' disabled')+'>↶ Vissza</button><button type="button" class="btn hot" data-a="mix">⟳ Keverés</button></div>'+
+  showOv('stuck','<h2 id="ovt">Elakadtál</h2><p class="sub">'+(dead?'A maradék lapok úgy állnak egymáson, hogy keveréssel sem rakhatók ki. Lépj vissza egy-két párt, vagy kezdj új játékot.':'Nincs több levehető pár. Keverd össze a maradék lapokat: a keverés után is biztosan kirakható.')+'</p>'+
+    (dead?'<div class="row"><button type="button" class="btn hot" data-a="undo"'+(can?'':' disabled')+'>↶ Vissza</button></div>'
+         :'<div class="row"><button type="button" class="btn" data-a="undo"'+(can?'':' disabled')+'>↶ Vissza</button><button type="button" class="btn hot" data-a="mix">⟳ Keverés</button></div>')+
     '<div class="row"><button type="button" class="btn" data-a="again">Új játék</button><button type="button" class="btn" data-a="menu">Menü</button></div>');
 }
 function confetti(){

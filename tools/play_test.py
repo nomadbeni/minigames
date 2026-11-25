@@ -1536,20 +1536,46 @@ async def mj_tap(page, i, touch=False):
     await (page.touchscreen.tap(x, y) if touch else page.mouse.click(x, y))
 
 
+# The pair to take next. On a stacked board a small solver (depth-first, remembers dead positions, 2 s limit)
+# finds a way to clear what is left; if it runs out of time, the pair that leaves the most free pairs is taken.
+# `back` (steps taken back after a dead end) varies the choice. Connect boards take the offered pairs in turn.
+MJ_PICK = """back => { const M = __mahjong, G = M.G, ps = M.pairsNow(); if (!ps.length) return null;
+  if (G.kind !== 's') return ps[back % ps.length];
+  const seen = new Set(), t0 = performance.now();
+  const dfs = left => { if (!left) return true; if (performance.now() - t0 > 2000) return false;
+    const key = Array.prototype.join.call(G.on, ''); if (seen.has(key)) return false; seen.add(key);
+    for (const [a, b] of M.pairsNow()) { G.on[a] = G.on[b] = 0; const ok = dfs(left - 2); G.on[a] = G.on[b] = 1; if (ok) return true; }
+    return false; };
+  const left = Array.prototype.reduce.call(G.on, (s, x) => s + (x ? 1 : 0), 0);
+  for (const [a, b] of ps) { G.on[a] = G.on[b] = 0; const ok = dfs(left - 2); G.on[a] = G.on[b] = 1; if (ok) return [a, b]; }
+  const score = ps.map(([a, b]) => { G.on[a] = G.on[b] = 0; const n = M.pairsNow().length; G.on[a] = G.on[b] = 1; return n; });
+  const order = ps.map((p, i) => i).sort((x, y) => score[y] - score[x]);
+  return ps[order[back % order.length]]; }"""
+
+
 async def mj_play(page, touch=False, limit=300):
     """Takes the first pair the game offers until a window comes; the stuck window is answered with a shuffle."""
+    back = 0
     for _ in range(limit):
         if await page.locator("#ov").is_visible():
             t = await page.locator("#ovc").inner_text()
             if "Elakadtál" in t:
-                await page.locator('#ovc [data-a="mix"]').click()
-                continue
+                mix, undo = page.locator('#ovc [data-a="mix"]'), page.locator('#ovc [data-a="undo"]:not(:disabled)')
+                if await mix.count():
+                    await mix.click()
+                    continue
+                if await undo.count():        # shuffling cannot help (two tiles on each other): step back, try another pair
+                    await undo.click()
+                    await page.evaluate("(() => { const M = __mahjong, G = M.G;"
+                                        " while (M.pairsNow().length < 2 && G.h.length > G.lk) M.undo(); })()")
+                    back += 1
+                    continue
             return t
-        pairs = await page.evaluate("__mahjong.pairsNow()")
+        pairs = await page.evaluate(MJ_PICK, back)
         if not pairs:
             await page.wait_for_timeout(450)
             continue
-        a, b = pairs[0]
+        a, b = pairs
         await mj_tap(page, a, touch)
         await mj_tap(page, b, touch)
     return ""
@@ -1659,6 +1685,30 @@ async def sc_mahjong_transition(page):
     await page.keyboard.press("Escape")
     check(await page.evaluate("[window.__vt, document.getElementById('ov').hidden]") == [n + 1, False],
           "reduced motion: the menu opens at once, without a transition")
+
+
+async def sc_mahjong_dead(page):
+    await page.locator('#ovc [data-m="c"]').click()
+    await page.locator('#ovc [data-l="kicsi"]').click()
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    # leave only two matching tiles, one on top of the other: no shuffle can ever free the lower one
+    ok = await page.evaluate("""(() => { const M = __mahjong, G = M.G, n = G.T.n, live = [];
+      for (let i = 0; i < n; i++) if (G.on[i]) live.push(i);
+      for (const i of live) for (const j of live) { if (i === j) continue;
+        const on = G.on.slice(); on.fill(0); on[i] = on[j] = 1;
+        if (!M.isFree(G.T, on, i) && M.isFree(G.T, on, j)) { for (let k = 0; k < n; k++) G.on[k] = on[k]; G.f[j] = G.f[i]; M.draw(); return true; } }
+      return false; })()""")
+    check(ok, "the small tower has two tiles on top of each other")
+    check(await page.evaluate("__mahjong.pairsNow().length") == 0, "the stacked pair cannot be taken")
+    await page.locator("#mix").click()
+    await page.locator("#ovc", has_text="keveréssel sem").wait_for(timeout=5000)
+    check(await page.locator('#ovc [data-a="mix"]').count() == 0, "a shuffle that cannot help is not offered again")
+    undo = page.locator('#ovc [data-a="undo"]')
+    check(await undo.is_enabled(), "stepping back stays possible after the useless shuffle")
+    await undo.click()
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.h.length") == 0, "stepping back closes the window")
 
 async def sc_mahjong_broken(page):
     check(await page.locator("#ovc", has_text="Klasszikus").is_visible(), "a broken save starts at the menu")
@@ -1782,6 +1832,7 @@ SCENARIOS = [
     ("mahjong", "Mahjong: Connect refuses a pair that cannot be linked and is cleared", sc_mahjong_connect, None),
     ("mahjong", "Mahjong: the daily puzzle with the keyboard: cursor, pick, shuffle, hint, Escape", sc_mahjong_keys, None),
     ("mahjong", "Mahjong: the menu fades in (View Transition), the board takes taps at once, reduced motion skips it", sc_mahjong_transition, None),
+    ("mahjong", "Mahjong: two tiles left on each other: no useless shuffle offered, stepping back still works", sc_mahjong_dead, None),
     ("mahjong", "Mahjong: a broken save starts at the menu", sc_mahjong_broken,
      {"mahjong-save": '{"game":{"m":"c","lay":"__proto__","f":[1],"h":[[0,0]],"lk":0},"stats":{"__proto__":{"polluted":1}}}'}),
 ]
