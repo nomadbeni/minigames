@@ -108,6 +108,11 @@ button:not(:disabled):active{translate:0 1px}
                               csökkentett mozgás. Különben (vagy hibánál) azonnal fut. Az átmenet alatt (0,15 mp)
                               a böngésző nem ad át érintést, ezért csak ablak MEGJELENÉSÉRE használd; a játékba
                               visszavezető bezárás legyen azonnali, és hívja a Kepesseg.endTransition()-t.
+     Kepesseg.calm()          true, ha a felhasználó csökkentett mozgást kért (prefers-reduced-motion). Ilyenkor a
+                              játék ne rázza a képet, ne villantsa a teljes képernyőt (helyette vékony színes keret),
+                              ne villogtasson (helyette áttetsző rajz), és kevesebb részecskét rajzoljon.
+     Kepesseg.flash(ctx,w,h,szín,erő)   teljes képernyős villanás (erő 0..1 átlátszóság); csökkentett mozgásnál
+                              helyette vékony keret ugyanabban a színben. A rajz állapotát (alfa, szín) visszaállítja.
      Kepesseg.quality(most)   képkockánként hívva a díszítő grafika szintje: 2 teljes, 1 kevesebb, 0 legkevesebb.
                               Csak látványra használd (részecske, háttér), játéklogikára soha.
      Tájolás: ha a <head>-ben <meta name="games:orientation" content="portrait"> (vagy landscape) áll, és a
@@ -118,7 +123,8 @@ button:not(:disabled):active{translate:0 1px}
   var d=document,nav=navigator,noop=function(){};
   function now(){return (window.performance&&performance.now)?performance.now():Date.now()}
   function mq(q){try{return matchMedia(q).matches}catch(e){return false}}
-  function calm(){return mq('(prefers-reduced-motion: reduce)')}
+  var calmMq=null;try{calmMq=matchMedia('(prefers-reduced-motion: reduce)')}catch(e){}
+  function calm(){return !!(calmMq&&calmMq.matches)}   /* élő lekérdezés: a beállítás játék közben is válthat */
   function quiet(p){try{if(p&&typeof p.then==='function')p.then(noop,noop)}catch(e){}return p}
 
   /* ---------- rezgés ---------- */
@@ -286,8 +292,20 @@ button:not(:disabled):active{translate:0 1px}
   }
   function setQuality(l){Q.forced=(l===0||l===1||l===2)?l:null}
 
+  /* ---------- villanás, csökkentett mozgásnál keret ---------- */
+  function flash(c,w,h,col,a){
+    if(!c||!(a>0)||!(w>0)||!(h>0))return;
+    c.save();
+    try{
+      if(calm()){var lw=Math.max(3,Math.round(Math.min(w,h)/90));c.globalAlpha=Math.min(1,a*3+.3);c.strokeStyle=col;
+        c.lineWidth=lw;c.strokeRect(lw/2,lw/2,w-lw,h-lw)}
+      else{c.globalAlpha=Math.min(1,a);c.fillStyle=col;c.fillRect(0,0,w,h)}
+    }catch(e){}
+    c.restore();
+  }
+
   window.Kepesseg={haptic:haptic,hapticsOn:function(){return on},setHaptics:setHaptics,wakeLock:wakeLock,
-    wakeLockHeld:function(){return !!lock},transition:transition,endTransition:endTransition,quality:quality,setQuality:setQuality};
+    wakeLockHeld:function(){return !!lock},transition:transition,endTransition:endTransition,quality:quality,setQuality:setQuality,calm:calm,flash:flash};
   if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',initBtn);else initBtn();
 })();
 /* @end kepesseg */
@@ -545,6 +563,9 @@ function drawShip(s,alpha){
   ctx.fillStyle='#ffb347';ctx.beginPath();ctx.ellipse(3,0,4,2.6,0,0,7);ctx.fill();
   ctx.restore();ctx.globalAlpha=1;
 }
+/* villogás: a lejáró bónusz és a sérthetetlen hajó; csökkentett mozgásnál helyette áttetsző */
+function pickupAlpha(p){if(p.t>=2)return 1;if(Kepesseg.calm())return .45;return (p.t*6|0)%2?0:1}
+function shipAlpha(s){if(!(s.inv>0))return 1;if(Kepesseg.calm())return .5;return ((s.inv*8)|0)%2===0?.35:1}
 function drawSaucer(u){
   ctx.save();ctx.translate(u.x,u.y);
   ctx.fillStyle='#9dffb9';ctx.beginPath();ctx.ellipse(0,-4,7,6,0,Math.PI,0);ctx.fill();
@@ -562,9 +583,9 @@ function draw(){
   if(!G)return;
   for(const r of G.rocks)drawRock(r);
   for(const p of G.pickups){
-    const blink=p.t<2&&(p.t*6|0)%2;if(blink)continue;
+    const al=pickupAlpha(p);if(!al)continue;ctx.globalAlpha=al;
     ctx.fillStyle=p.kind==='S'?'#5ee6ff':'#ffb347';ctx.beginPath();ctx.arc(p.x,p.y,10,0,7);ctx.fill();
-    ctx.fillStyle='#06101c';ctx.font='700 12px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.kind,p.x,p.y+1);
+    ctx.fillStyle='#06101c';ctx.font='700 12px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.kind,p.x,p.y+1);ctx.globalAlpha=1;
   }
   if(G.saucer)drawSaucer(G.saucer);
   ctx.fillStyle='#ffe58a';for(const b of G.bullets){ctx.fillRect(b.x-1.6,b.y-1.6,3.2,3.2)}
@@ -573,9 +594,8 @@ function draw(){
   ctx.globalAlpha=1;
   const s=G.ship;
   if(s.alive){
-    const blink=s.inv>0&&((s.inv*8)|0)%2===0;
-    drawShip(s,blink?.35:1);
-    if(G.shield>0){ctx.strokeStyle=G.shield<1.5&&((G.shield*8)|0)%2?'rgba(94,230,255,.3)':'rgba(94,230,255,.8)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x,s.y,19,0,7);ctx.stroke()}
+    drawShip(s,shipAlpha(s));
+    if(G.shield>0){ctx.strokeStyle=G.shield<1.5&&(Kepesseg.calm()||((G.shield*8)|0)%2)?'rgba(94,230,255,.3)':'rgba(94,230,255,.8)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x,s.y,19,0,7);ctx.stroke()}
   }
   if(G.banner){
     ctx.globalAlpha=Math.min(1,G.banner.t*2);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
@@ -649,7 +669,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});
 addEventListener('pagehide',save);
 
 fit();hud();showMenu();requestAnimationFrame(t=>{last=t;frame(t)});
-if(window.__GAMES_TEST__)window.__kozapor={get G(){return G},keys,newGame,startWave,killShip,splitRock,loadSave,get H(){return H},W}; // csak a játékteszt (tools/play_test.py) kapcsolja be
+if(window.__GAMES_TEST__)window.__kozapor={get G(){return G},shipAlpha,pickupAlpha,keys,newGame,startWave,killShip,splitRock,loadSave,get H(){return H},W}; // csak a játékteszt (tools/play_test.py) kapcsolja be
 })();
 </script>
 
