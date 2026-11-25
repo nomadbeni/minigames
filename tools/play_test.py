@@ -10,6 +10,9 @@
   generators    the Gyémántbánya and Kincsvadász level generators (and the E-Útvesztő maze generator, the Mahjong boards), taken from the published pages,
                 make hundreds of levels; each must be found, be a valid puzzle and have exactly one
                 solution (checked by an independent solver)
+  perf          the games that draw the most (many objects or a 3D view) are played for 10 seconds at phone
+                size with the processor slowed down 4x; the average and the worst frame time are printed,
+                below 30 frames per second as a warning, not a failure (the CI machine's speed varies)
   sokoban       every Dobozmester level is proven solvable by a push-level breadth-first search with
                 dead-square and frozen-block pruning (--quick: the first 10 levels); hitting the state
                 or time limit is reported as a failure, never as a silent pass
@@ -22,9 +25,11 @@ Usage:
   python3 tools/play_test.py --only generators
   python3 tools/play_test.py --only capabilities   # the shared browser-capability module with mocked APIs
   python3 tools/play_test.py --only compat         # screen sizes (phone, handheld, desktop) and offline play
+  python3 tools/play_test.py --only perf           # frame rate of the busiest games on a slowed-down phone
 """
 import asyncio
 import json
+import os
 import re
 import sys
 import threading
@@ -68,13 +73,14 @@ def list_games():
 class Run:
     """One browser context with everything that went wrong in it."""
 
-    def __init__(self, browser, base, mobile=False, seed=None, hooks=True):
-        self.browser, self.base, self.mobile, self.seed, self.hooks = browser, base, mobile, seed, hooks
+    def __init__(self, browser, base, mobile=False, seed=None, hooks=True, scale=1):
+        self.browser, self.base, self.mobile, self.seed, self.hooks, self.scale = browser, base, mobile, seed, hooks, scale
         self.errors, self.external = [], []
 
     async def __aenter__(self):
         size = {"width": 390, "height": 780} if self.mobile else {"width": 1280, "height": 800}
-        self.ctx = await self.browser.new_context(viewport=size, has_touch=self.mobile, is_mobile=self.mobile)
+        self.ctx = await self.browser.new_context(viewport=size, has_touch=self.mobile, is_mobile=self.mobile,
+                                                  device_scale_factor=self.scale)
         if self.hooks:
             # The games only put their test helpers (window.__kigyo etc.) on the page when this is set.
             await self.ctx.add_init_script("window.__GAMES_TEST__ = true")
@@ -1819,6 +1825,7 @@ SCENARIOS = [
     ("kozapor", "Rock Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_rocks), None),
     ("kokori-kaland", "Stone Age Quest, fewest effects (adaptive quality 0): walking and saving work", low_quality(sc_caveman), None),
     ("horda", "Horde, fewest effects (adaptive quality 0): the squad fights, pause works", low_quality(sc_horde), None),
+    ("flipper", "Pinball, fewest effects (adaptive quality 0, no glow): drains and game over work", low_quality(sc_pinball), None),
     ("kardvihar", "Blade Storm: the screen stays on only while playing (pause, hidden tab, game over)", sc_blade_wakelock, None),
     ("kardvihar", "Blade Storm: a hit rumbles the controller, the switch turns it off and is remembered", sc_blade_haptics, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
@@ -2500,6 +2507,112 @@ def test_sokoban_levels(quick):
 
 # ---------------------------------------------------------------- main
 
+# ---------------------------------------------------------------- speed on a slow phone
+
+PERF_RATE = 4        # the processor is slowed down this many times (DevTools: Emulation.setCPUThrottlingRate)
+PERF_SECONDS = 10
+PERF_MIN_FPS = 30    # below this the result is a warning, not a failure: the CI machine's speed varies too
+
+# A second requestAnimationFrame loop next to the game's own: it only writes down how far apart the frames are.
+FRAME_METER = """(() => { const m = window.__meter = {d: []}; let last = 0;
+  const tick = t => { if (m.stop) return; if (last) m.d.push(t - last); last = t; requestAnimationFrame(tick); };
+  requestAnimationFrame(tick); })()"""
+
+
+async def perf_blade(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate("__kardvihar.startWave(9)")          # a late wave: many enemies at once
+
+
+async def perf_horde(page):
+    await page.locator("#go").click()
+
+
+async def perf_island(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate("__szigetrepulo.setView(1)")         # the chase view: the 3D landscape
+
+
+async def perf_pinball(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.locator('#card button[data-act="go"]').click()
+    await hold(page, "Space", 600)
+
+
+async def perf_rocks(page):
+    await page.locator('#card button[data-act="new"]').click()
+    await page.evaluate("__kozapor.startWave(8)")            # the most rocks a wave can have
+
+
+# game, name, start, what keeps the round going for the whole measurement (run every half second), keys pressed
+PERF_GAMES = [
+    ("kardvihar", "Blade Storm", perf_blade, "__kardvihar.G.pl.inv = 99", ["ArrowRight", "ArrowLeft"]),
+    ("horda", "Horde", perf_horde, "", ["ArrowLeft", "ArrowRight"]),
+    ("szigetrepulo", "Island Flyer", perf_island,
+     "(() => { const G = __szigetrepulo.G; G.inv = 99; G.fuel = 80; if (G.alt < 80) G.alt = 140; })()", ["ArrowLeft"]),
+    ("flipper", "Pinball", perf_pinball, "__flipper.G.balls = 3", ["Space"]),
+    ("kozapor", "Rock Storm", perf_rocks, "__kozapor.G.ship.inv = 99", ["Space", "ArrowLeft"]),
+]
+
+
+async def perf_case(browser, base, game, start, keep, keys):
+    """One game at phone size (pixel ratio 2) on a 4x slower processor; returns (measurement, problems)."""
+    async with Run(browser, base, mobile=True, scale=2) as r:
+        page = r.page
+        await r.goto(f"{game}/index.html")
+        await start(page)
+        cdp = await r.ctx.new_cdp_session(page)
+        await cdp.send("Emulation.setCPUThrottlingRate", {"rate": PERF_RATE})
+        await page.wait_for_timeout(1000)                      # settle in before measuring
+        await page.evaluate(FRAME_METER)
+        t0 = time.time()
+        while time.time() - t0 < PERF_SECONDS:
+            if keep:
+                await page.evaluate(keep)
+            for k in keys:
+                await hold(page, k, 150)
+            await page.wait_for_timeout(200)
+        d = await page.evaluate("(() => { __meter.stop = true; return __meter.d; })()")
+        info = await page.evaluate("""({q: window.Kepesseg ? Kepesseg.quality() : null,
+            low: window.__szigetrepulo ? __szigetrepulo.lowRes : null})""")
+        await cdp.send("Emulation.setCPUThrottlingRate", {"rate": 1})
+        if len(d) < 10:
+            return None, [f"only {len(d)} frames in {PERF_SECONDS} s: the game stopped drawing"] + r.errors
+        d.sort()
+        res = {"fps": 1000 * len(d) / sum(d), "avg": sum(d) / len(d), "p95": d[int(len(d) * .95)], "worst": d[-1],
+               "half": 1000 * len(d[len(d) // 2:]) / sum(d[len(d) // 2:])}
+        res.update(info)
+        return res, r.errors
+
+
+async def test_perf(browser, base, games):
+    """Run one at a time: games measured side by side would slow each other down."""
+    problems, slow = [], []
+    print(f"   {PERF_RATE}x slower processor, 390x780 at pixel ratio 2, {PERF_SECONDS} s of play each")
+    for game, name, start, keep, keys in PERF_GAMES:
+        if games and game not in games:
+            continue
+        try:
+            res, errs = await perf_case(browser, base, game, start, keep, keys)
+        except Exception as e:
+            res, errs = None, [f"{type(e).__name__}: {str(e).splitlines()[0]}"]
+        problems += [f"{game}: {e}" for e in errs]
+        if not res:
+            continue
+        extra = ("" if res["q"] is None else f", decoration level {res['q']}") + \
+                ("" if res["low"] is None else f", lower resolution step {res['low']}")
+        line = (f"{name:13} {res['fps']:5.1f} fps   average {res['avg']:5.1f} ms   95% under {res['p95']:5.1f} ms"
+                f"   worst {res['worst']:6.1f} ms{extra}")
+        bad = res["fps"] < PERF_MIN_FPS
+        print(("   WARN " if bad else "   ok   ") + line, flush=True)
+        if bad:
+            slow.append(f"{name}: {res['fps']:.0f} fps")
+    if slow and "GITHUB_ACTIONS" in os.environ:
+        print(f"::warning title=Slow on a weak phone::below {PERF_MIN_FPS} fps at {PERF_RATE}x CPU slowdown: "
+              + ", ".join(slow))
+    return problems
+
+
 async def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     quick = "--quick" in sys.argv
@@ -2544,6 +2657,9 @@ async def main():
             print("== compatibility: phone, handheld and desktop screens; offline")
             report("screens", await test_devices(browser, base))
             report("offline", await test_offline(browser))
+        if only in (None, "perf") and (not args or {g for g, *_ in PERF_GAMES} & set(args)):
+            print("== speed on a slow phone (warning only)")
+            report("speed", await test_perf(browser, base, args))
         if only in (None, "generators") and (not args or {"gyemantbanya", "kincsvadasz"} & set(args)):
             print("== level generators")
             report("generators", await test_generators(browser, quick))

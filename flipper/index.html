@@ -604,6 +604,7 @@ function drawFlip(f){
 }
 const IDLE={prog:{},ball:{x:377,y:FLOOR-R,state:'plunger'},charge:0,msgs:[],mult:1,saveT:0,shake:0,phase:'menu'};
 function draw(now){
+  const GL=reduce?0:QL===2?1:QL===1?.5:0;   // ragyogás (shadowBlur): lassú gépen előbb kisebb, aztán nincs
   const Q=G||IDLE;
   ctx.setTransform(S*dpr,0,0,S*dpr,0,0);
   const th=T?T.th:TABLES[0].theme;
@@ -621,7 +622,7 @@ function draw(now){
   ctx.fillText(T.d.name.toUpperCase(),200,430+(T.d.posts?60:0));ctx.globalAlpha=1;
   // falak
   ctx.lineCap='round';ctx.lineJoin='round';
-  ctx.shadowColor=th.glow;ctx.shadowBlur=reduce?0:8;
+  ctx.shadowColor=th.glow;ctx.shadowBlur=8*GL;
   ctx.strokeStyle=th.wall;ctx.lineWidth=4;
   for(const s of T.walls){if(s.sling)continue;ctx.lineWidth=s.post?6:4;line(s.ax,s.ay,s.bx,s.by)}
   ctx.lineWidth=3;line(T.gate.ax,T.gate.ay,T.gate.bx,T.gate.by);
@@ -652,15 +653,15 @@ function draw(now){
   for(const c of T.bumpers){
     const hit=c.hit>0;
     ctx.beginPath();ctx.arc(c.x,c.y,c.r+(hit?3:0),0,6.283);ctx.fillStyle=hit?'#fff':th.bump;
-    ctx.shadowColor=th.bump;ctx.shadowBlur=reduce?0:(hit?24:10);ctx.fill();ctx.shadowBlur=0;
+    ctx.shadowColor=th.bump;ctx.shadowBlur=(hit?24:10)*GL;ctx.fill();ctx.shadowBlur=0;
     ctx.beginPath();ctx.arc(c.x,c.y,c.r*.62,0,6.283);ctx.fillStyle=th.bump2;ctx.fill();
     ctx.beginPath();ctx.arc(c.x,c.y,c.r*.3,0,6.283);ctx.fillStyle=hit?th.bump:'#fff';ctx.fill();
   }
   // csillagok
   for(const s of T.stars){if(s.got)continue;const k=reduce?1:1+.12*Math.sin(now/200+s.x);
-    starPath(s.x,s.y,12*k,5.5*k);ctx.fillStyle=th.acc;ctx.shadowColor=th.acc;ctx.shadowBlur=reduce?0:12;ctx.fill();ctx.shadowBlur=0}
+    starPath(s.x,s.y,12*k,5.5*k);ctx.fillStyle=th.acc;ctx.shadowColor=th.acc;ctx.shadowBlur=12*GL;ctx.fill();ctx.shadowBlur=0}
   // ütők
-  ctx.fillStyle=th.flip;ctx.shadowColor=th.glow;ctx.shadowBlur=reduce?0:6;
+  ctx.fillStyle=th.flip;ctx.shadowColor=th.glow;ctx.shadowBlur=6*GL;
   for(const f of T.flippers){ctx.fillStyle=th.flip;drawFlip(f)}
   ctx.shadowBlur=0;
   // kilövő
@@ -800,9 +801,11 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ---------- főciklus ----------
 let last=performance.now(),acc=0,shownScore=-1;
+let QL=2;   // díszítő grafika szintje (Kepesseg.quality): 2 teljes, 1 kevesebb, 0 legkevesebb; a játékmenetre nincs hatása
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;
   if(G&&(G.phase==='play'||G.phase==='clearing')){
+    QL=Kepesseg.quality(now);   // csak játék közben mér
     keyState();acc+=dt;const h=1/120;
     while(acc>=h&&G&&(G.phase==='play'||G.phase==='clearing')){step(h);acc-=h}
     if(G&&G.score!==shownScore){shownScore=G.score;$('score').textContent=G.score.toLocaleString('hu-HU')}
