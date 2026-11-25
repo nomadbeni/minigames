@@ -72,7 +72,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 @media (prefers-reduced-motion:reduce){.cd{transition:none}.cd.hl,.slot.hl,.cd.hop{animation:none}.conf{display:none}}
 /* Felugró ablak */
-#ov{position:fixed;inset:0;z-index:2000;background:rgba(3,14,9,.78);display:grid;place-items:center;padding:12px}
+#ov{position:fixed;inset:0;z-index:900;background:rgba(3,14,9,.78);display:grid;place-items:center;padding:calc(env(safe-area-inset-top) + 64px) 12px 12px}
 #ovc{width:min(440px,100%);max-height:calc(100% - 8px);overflow:auto;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
 #ovc h2{margin:0 0 4px;font:400 26px/1.15 var(--title);color:var(--accent);text-align:center}
 #ovc p{margin:6px 0;font:400 16px/1.45 var(--font);color:var(--fg)}

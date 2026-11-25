@@ -73,7 +73,7 @@ python3 tools/build_site.py --check
 
 # 2. Böngészős füstteszt telefonméretben: nincs JS-hiba, nincs tiltott kérés,
 #    nincs oldalirányú görgetés, nincs képernyőről lelógó gomb.
-python3 tools/smoke_test.py            # vagy: python3 tools/smoke_test.py <mappa>
+python3 tools/smoke_test.py            # vagy: python3 tools/smoke_test.py <mappa> (a teljes képernyő gombot is megnyomja)
 
 # 3. Játékteszt: minden játék gépen és érintéssel, öt féle sérült mentéssel; valódi játékmenetek
 #    az olvasós játékokban; a pályagenerátorok több száz pályával. Új olvasós játékhoz írj

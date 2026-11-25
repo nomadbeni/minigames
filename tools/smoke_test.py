@@ -9,15 +9,22 @@ Chromium and checks:
   - the top bar (back link and fullscreen button) does not cover any visible text or control
   - a control below the visible area can be scrolled to (it has a scrolling ancestor)
   - every visible control is a touch target of at least 44×44 px (exceptions: TOUCH_EXCEPTIONS)
+  - the fullscreen button works: a tap enters fullscreen and the label changes to „Kilépés”. Headless
+    Chromium enters fullscreen but keeps the window size, so the test then makes the screen taller, as
+    a phone does when the browser bars go away, and runs the checks above again, plus: the biggest
+    canvas is on the screen and its picture is not stretched. A second tap leaves fullscreen, the label
+    changes back, and the checks run once more at the normal size.
 It does not play the games. Look at the screenshots, and play the changed game by hand.
 
-Screenshots go to _site/smoke/<page>-<width>x<height>.png (ignored by git).
+Screenshots go to _site/smoke/<page>-<width>x<height>.png, in fullscreen <page>-<width>x<height>-fs.png
+(ignored by git).
 
 Usage:
   pip install playwright && python3 -m playwright install chromium   # once
   python3 tools/smoke_test.py            # all pages
   python3 tools/smoke_test.py falbonto   # one game
 """
+import base64
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -28,6 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ALLOWED = {"fonts.googleapis.com", "fonts.gstatic.com"}
 SHOTS = ROOT / "_site" / "smoke"
 SIZES = [(400, 860), (360, 640)]
+FS_EXTRA = 80          # px a phone gains in fullscreen when the address bar and the bottom bar go away
 MIN_TOUCH = 44
 
 # Controls that may stay smaller than 44 px, each with its reason. Keys are "page selector";
@@ -126,6 +134,121 @@ CHECKS = r"""
 """
 
 
+# The biggest visible canvas (the playing field) must be on the screen and not stretched: the aspect ratio of
+# its picture (width × height attributes) must match the aspect ratio it is shown at. A canvas that is not
+# redrawn after a resize shows a squashed or blurred picture, or hangs off the screen.
+CANVAS = r"""
+() => {
+  const out = [];
+  const cs = [...document.querySelectorAll('canvas')].filter(c => {
+    const r = c.getBoundingClientRect(), s = getComputedStyle(c);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && c.closest('[hidden]') === null;
+  });
+  if (!cs.length) return out;
+  const area = c => { const r = c.getBoundingClientRect(); return r.width * r.height; };
+  const c = cs.sort((a, b) => area(b) - area(a))[0];
+  const r = c.getBoundingClientRect();
+  if (r.width < 40 || r.height < 40) return out;                 // a small icon, not a playing field
+  const nm = 'canvas' + (c.id ? '#' + c.id : '');
+  if (r.left < -1 || r.right > innerWidth + 1) out.push(`${nm} hangs off the side of the screen (${Math.round(r.left)}…${Math.round(r.right)} px)`);
+  const fit = getComputedStyle(c).objectFit;
+  if (c.width && c.height && !['contain', 'cover', 'scale-down'].includes(fit)) {
+    const want = c.width / c.height, shown = r.width / r.height;
+    if (Math.abs(shown / want - 1) > 0.015)
+      out.push(`${nm} is stretched: picture ${c.width}×${c.height}, shown at ${Math.round(r.width)}×${Math.round(r.height)} px`);
+  }
+  return out;
+}
+"""
+
+
+def check_layout(pg, w):
+    """The checks that run at every screen size: sideways scrolling, CHECKS and CANVAS."""
+    found = []
+    pg.evaluate("window.scrollTo(300, 0)")
+    if pg.evaluate("window.scrollX") > 0:
+        found.append(f"the page scrolls sideways at a {w}px screen")
+    pg.evaluate("window.scrollTo(0, 0)")
+    return found
+
+
+def is_fs(pg):
+    return pg.evaluate("!!(document.fullscreenElement || document.webkitFullscreenElement)")
+
+
+def fs_label(pg):
+    return pg.evaluate("(b => b ? (b.getAttribute('aria-label') || '') + ' | ' + b.textContent : null)"
+                       "(document.querySelector('.fs-btn'))")
+
+
+# counts fullscreenchange events: the button label changes on that event, after fullscreenElement is set
+FS_COUNT = """window.__fsChanges = 0;
+document.addEventListener('fullscreenchange', () => window.__fsChanges++);"""
+
+
+def tap(loc):
+    """Click like a finger would. Returns why it could not, e.g. which element covers the button."""
+    try:
+        loc.click(timeout=3000)
+        return ""
+    except Exception as e:
+        why = [ln.strip() for ln in str(e).splitlines() if "intercepts pointer events" in ln]
+        return why[0] if why else str(e).splitlines()[0]
+
+
+def wait_changes(pg, n, timeout=3000):
+    """Wait until n fullscreenchange events came. (wait_for_function would need eval, the page's CSP forbids it.)"""
+    for _ in range(timeout // 50):
+        if pg.evaluate("window.__fsChanges") >= n:
+            return True
+        pg.wait_for_timeout(50)
+    return False
+
+
+def set_size(pg, w, h):
+    """Resize the page. While the window is in fullscreen Playwright cannot resize it, so use the DevTools
+    protocol to change only the size the page sees."""
+    cdp = pg.context.new_cdp_session(pg)
+    cdp.send("Emulation.setDeviceMetricsOverride", {"width": w, "height": h, "deviceScaleFactor": 1, "mobile": False})
+    cdp.detach()
+
+
+def check_fullscreen(pg, w, h, shot, run_checks):
+    """Tap the fullscreen button, check the page at the taller fullscreen size, tap again to leave."""
+    found = []
+    btn = pg.locator(".fs-btn")
+    if not btn.count() or not btn.first.is_visible():
+        return []                       # the start page has none; a game removes it where the browser cannot do it
+    pg.evaluate(FS_COUNT)
+    if (err := tap(btn.first)):
+        return [f"the fullscreen button cannot be tapped: {err}"]
+    if not wait_changes(pg, 1) or not is_fs(pg):
+        return ["tapping the fullscreen button does not enter fullscreen"]
+    lab = fs_label(pg)
+    if "Kilépés" not in lab:
+        found.append(f"in fullscreen the button does not say „Kilépés”: {lab!r}")
+    set_size(pg, w, h + FS_EXTRA)
+    pg.wait_for_timeout(600)
+    found += [f"fullscreen {w}×{h + FS_EXTRA}: {x}" for x in run_checks()]
+    # Playwright would cut the picture at the old height, the DevTools protocol takes it at the new one
+    cdp = pg.context.new_cdp_session(pg)
+    shot.write_bytes(base64.b64decode(cdp.send("Page.captureScreenshot", {"format": "png"})["data"]))
+    cdp.detach()
+    if (err := tap(btn.first)):
+        found.append(f"in fullscreen the button cannot be tapped: {err}")
+    wait_changes(pg, 2)
+    if is_fs(pg):
+        found.append("tapping the button again does not leave fullscreen")
+        pg.evaluate("document.exitFullscreen && document.exitFullscreen().catch(() => {})")
+    lab = fs_label(pg)
+    if "Kilépés" in lab or "Teljes képernyő" not in lab:
+        found.append(f"after leaving fullscreen the button does not say „Teljes képernyő” again: {lab!r}")
+    set_size(pg, w, h)
+    pg.wait_for_timeout(600)
+    found += [f"after fullscreen: {x}" for x in run_checks()]
+    return found
+
+
 def pages(only):
     out = [ROOT / "index.html"] if not only else []
     for d in sorted(ROOT.iterdir()):
@@ -161,12 +284,13 @@ def main():
                 pg.on("request", on_request)
                 pg.goto(page_file.as_uri())
                 pg.wait_for_timeout(1200)
-                pg.evaluate("window.scrollTo(300, 0)")
-                if pg.evaluate("window.scrollX") > 0:
-                    found.append(f"the page scrolls sideways at a {w}px screen")
-                pg.evaluate("window.scrollTo(0, 0)")
-                found += pg.evaluate(CHECKS, {"minTouch": MIN_TOUCH, "exceptions": exceptions})
+
+                def run_checks(pg=pg, w=w):
+                    return (check_layout(pg, w) + pg.evaluate(CHECKS, {"minTouch": MIN_TOUCH, "exceptions": exceptions})
+                            + pg.evaluate(CANVAS))
+                found += run_checks()
                 pg.screenshot(path=str(SHOTS / f"{name}-{w}x{h}.png"))
+                found += check_fullscreen(pg, w, h, SHOTS / f"{name}-{w}x{h}-fs.png", run_checks)
                 ctx.close()
                 problems += [f"{w}×{h}: {x}" for x in dict.fromkeys(found)]
             status = "OK  " if not problems else "FAIL"
