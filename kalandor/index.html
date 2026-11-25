@@ -643,6 +643,8 @@ function victory(){K.addXP(60);overlay(`<h1>VÖLGY FELSZABADÍTVA</h1><p>Minden 
 let W=360,H=400,dpr=1,TS=32;
 function fit(){const r=$('#stage').getBoundingClientRect();W=r.width;H=r.height;dpr=Math.min(2,devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);TS=Math.max(28,Math.min(48,Math.floor(Math.min(W,H)/10)))}
 addEventListener('resize',fit);
+// a pálya mérete akkor is változhat, ha az ablaké nem (betöltődő betűtípus, többsoros fejléc)
+if(window.ResizeObserver)new ResizeObserver(fit).observe($('#stage'));
 const COL={'.':'#4f8f3a','f':'#4f8f3a','p':'#b99a62','T':'#2c5e2a','w':'#2e6db5','H':'#8a5a3a','D':'#5a3620','r':'#55803f','c':'#3a3340','#':'#1f1a25'};
 function tile(x,y,px,py){
   const c=M[y][x],s=TS;ctx.fillStyle=COL[c];ctx.fillRect(px,py,s,s);
