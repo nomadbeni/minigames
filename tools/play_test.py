@@ -1549,13 +1549,15 @@ async def mj_tap(page, i, touch=False):
     await (page.touchscreen.tap(x, y) if touch else page.mouse.click(x, y))
 
 
-# The pair to take next. On a stacked board a small solver (depth-first, remembers dead positions, 2 s limit)
-# finds a way to clear what is left; if it runs out of time, the pair that leaves the most free pairs is taken.
+# The pair to take next. On a stacked board a small solver (depth-first, remembers dead positions) finds a way to
+# clear what is left. It counts positions, not milliseconds, so a slow machine plays exactly like a fast one (a full
+# Small Tower needs at most ~100 000); past the budget, or on a board that cannot be cleared, the pair that leaves
+# the most free pairs is taken.
 # `back` (steps taken back after a dead end) varies the choice. Connect boards take the offered pairs in turn.
 MJ_PICK = """back => { const M = __mahjong, G = M.G, ps = M.pairsNow(); if (!ps.length) return null;
   if (G.kind !== 's') return ps[back % ps.length];
-  const seen = new Set(), t0 = performance.now();
-  const dfs = left => { if (!left) return true; if (performance.now() - t0 > 2000) return false;
+  const seen = new Set(); let budget = 400000;
+  const dfs = left => { if (!left) return true; if (--budget < 0) return false;
     const key = Array.prototype.join.call(G.on, ''); if (seen.has(key)) return false; seen.add(key);
     for (const [a, b] of M.pairsNow()) { G.on[a] = G.on[b] = 0; const ok = dfs(left - 2); G.on[a] = G.on[b] = 1; if (ok) return true; }
     return false; };
@@ -1577,10 +1579,10 @@ async def mj_play(page, touch=False, limit=300):
                 if await mix.count():
                     await mix.click()
                     continue
-                if await undo.count():        # shuffling cannot help (two tiles on each other): step back, try another pair
+                if await undo.count():        # shuffling cannot help (two tiles on each other): step back to the last checked shuffle, try another way
                     await undo.click()
                     await page.evaluate("(() => { const M = __mahjong, G = M.G;"
-                                        " while (M.pairsNow().length < 2 && G.h.length > G.lk) M.undo(); })()")
+                                        " while (G.h.length > G.lk) M.undo(); })()")
                     back += 1
                     continue
             return t
@@ -1603,7 +1605,7 @@ async def sc_mahjong(page):
     check(blocked >= 0, "the layout has a tile closed in from both sides")
     await mj_tap(page, blocked)
     check("be van zárva" in await page.locator("#msg").inner_text(), "a closed-in tile is refused with a message")
-    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    a, b = await page.evaluate(MJ_PICK, 0)    # a pair on the way to a clear board (any pair can leave it unclearable)
     await mj_tap(page, a)
     await mj_tap(page, b)
     check(len((await mj_save(page))["game"]["h"]) == 1, "two matching free tiles go away and the move is saved")
@@ -1722,6 +1724,24 @@ async def sc_mahjong_dead(page):
     check(await undo.is_enabled(), "stepping back stays possible after the useless shuffle")
     await undo.click()
     check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.h.length") == 0, "stepping back closes the window")
+    # a column of three and one more tile: no shuffle can clear it, but a random one may still leave a pair.
+    # Such a shuffle must not lock the steps before it, or that pair leads into a dead end with no way back.
+    a, b = await page.evaluate(MJ_PICK, 0)
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    ok = await page.evaluate("""(() => { const M = __mahjong, G = M.G, n = G.T.n;
+      for (let i = 0; i < n; i++) for (const j of G.T.A[i]) for (const k of G.T.A[j]) for (let m = 0; m < n; m++) {
+        if ([i, j, k].includes(m) || G.T.A[m].length || G.T.B[m].length) continue;
+        for (let q = 0; q < n; q++) G.on[q] = 0; G.on[i] = G.on[j] = G.on[k] = G.on[m] = 1;
+        G.f[i] = G.f[j] = G.f[k] = G.f[m] = 0; M.draw(); return true; }
+      return false; })()""")
+    check(ok, "the small tower has a column of three tiles and a tile beside it")
+    await page.locator("#mix").click()
+    await page.wait_for_timeout(200)
+    check(await page.evaluate("__mahjong.G.lk") == 0 and await page.locator("#undo").is_enabled(),
+          "a shuffle that cannot make the board clearable keeps the earlier steps undoable")
+    check("nem rakható ki" in await page.locator("#msg").inner_text() or await page.locator("#ovc", has_text="keveréssel sem").is_visible(),
+          "the player is told the shuffle did not help")
 
 async def sc_mahjong_broken(page):
     check(await page.locator("#ovc", has_text="Klasszikus").is_visible(), "a broken save starts at the menu")
