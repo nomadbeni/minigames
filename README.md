@@ -70,6 +70,10 @@ Az akciójátékok kontrollerrel (gamepad) is játszhatók gépen és Androidon.
 
 Menüben, szünetben és a játék végén a kar a gombok között lép, az A megnyomja a kijelöltet. Hogy az adott játékban melyik gomb mit csinál, azt a játék súgója írja ki („Kontroller: …”).
 
+### Hogyan kell?
+
+Minden akciójáték felső sávjában, a ⛶ gomb mellett ott a **?** gomb. Megállítja a játékot, és egy ablakban rövid sorokkal, jelekkel mutatja, mit csinál az adott játékban az érintés, a billentyű és a kontroller (három fül; az nyílik meg, amivel épp játszol). Gépen a <kbd>?</kbd> billentyű is megnyitja, az Esc vagy a kontroller Start gombja bezárja.
+
 **TV-n:** kösd a gépet a tévéhez (HDMI), a kontrollert USB-n vagy Bluetooth-on a géphez, nyisd meg a játékot, nyomj meg egy gombot a kontrolleren (a böngésző csak ezután látja), és kapcsold be a ⛶ Teljes képernyő gombot. Ha a kontroller él, rövid „Kontroller csatlakoztatva” felirat jelenik meg. iPhone-on a böngésző a kontrollert nem támogatja.
 
 Minden oldal Content-Security-Policy szabályt hordoz, így a böngésző maga tiltja le, ha egy oldal mégis más helyre próbálna kérést küldeni.
@@ -126,6 +130,8 @@ The games themselves are in Hungarian. See the table above for the list. Bike Sh
 **Privacy:** the games collect no data: no sign-up, analytics, cookies, ads or tracking, and nothing is sent anywhere. Progress and records stay in your browser (`localStorage`). Typefaces load from this site (`assets/fonts/`), except three in Falbontó, Kincsvadász and Betűbánya (Audiowide, Press Start 2P, VT323), which come from Google Fonts; for those three games Google sees the visitor's IP address when they load.
 
 **Search, Favourites, Continue:** the start page has a search box (names and descriptions, accents optional, Hungarian and English), then a Favourites shelf: tap ☆ Favourite at the bottom of any card to add up to 10 games, kept in the order you star them. A Continue shelf shows the last 3 games you opened. Both lists stay only in your browser (`localStorage`). The action games also work with a game controller on desktop and Android: stick or d-pad = arrow keys, A = Space, X = J, Y = K, B and RB = L, Start = Esc (pause), Select = Enter; menus are navigated with the stick and A. Each game's help names its own controller buttons. On a TV, connect the computer by HDMI, pair the controller with the computer, press a button once so the browser sees it, and use the full-screen button. Every page carries a Content-Security-Policy, so the browser itself blocks any request to another site.
+
+**How to play:** every action game has a **?** button in the top bar, next to ⛶. It pauses the game and shows, in short lines with symbols, what touch, keyboard and controller do in that game (three tabs; the one you are using opens first). The <kbd>?</kbd> key opens it too, Esc or the controller Start button closes it.
 
 **Offline:** the first visit to the start page stores the site's own files (start page, games, fonts, cover pictures) with a service worker (`sw.js`); after that the start page and every game also open without internet, and the site can be added to a phone's home screen. Nothing from other sites is stored or requested. A new version is offered with an **Update** button at the bottom of the start page. The cards show a small cover picture of each game (`assets/covers/`).
 

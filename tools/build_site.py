@@ -247,6 +247,14 @@ def check_policy():
             errors.append(f"{rel}: missing the '← Összes játék' home link")
         if 'class="fs-btn"' not in text:
             errors.append(f"{rel}: missing the '⛶ Teljes képernyő' fullscreen button (copy it from an existing game)")
+        # Every action game (the ones with controller support) has the same „Hogyan kell?” help (tools/shared/sugo.js).
+        if "/* @shared gamepad */" in text:
+            if "/* @shared sugo */" not in text:
+                errors.append(f"{rel}: action game without the „Hogyan kell?” help: add window.SUGO and the "
+                              "'sugo' shared block (copy them from an existing game)")
+            elif not re.search(r"window\.SUGO\s*=\s*\{[^}]*\b(erinto|gep|kontroller)\s*:\s*\[\s*\[", text):
+                errors.append(f"{rel}: the „Hogyan kell?” help has no content: window.SUGO needs erinto, gep "
+                              "and kontroller rows before the 'sugo' shared block")
         uses_hidden = re.search(r"\.hidden\s*=|\shidden[\s>]", text)
         if uses_hidden and not re.search(r"\[hidden\]\s*\{\s*display\s*:\s*none", text):
             errors.append(f"{rel}: uses the hidden attribute but has no [hidden]{{display:none!important}} rule")

@@ -60,7 +60,7 @@ Ez a tároló nyilvános, és minden, ami a `main` ágra kerül, néhány percen
 8. Borítókép a startlap kártyájához: `python3 tools/make_covers.py <mappa>` → `assets/covers/<mappa>.webp` (400×240, 40 KB alatt). Nézd meg a képet; ha üres vagy rossz pillanatot mutat (menü, játék vége), állítsd be a szkript `SHOTS` táblázatában. A `--check` leáll, ha hiányzik. Oldalikont és megosztási metát (`og:*`) ne írj a játékba, ezeket a `build_site.py` teszi be közzétételkor.
 9. Ha a játék a közös olvasásfejlesztő rendszert használja (rang, XP, felolvasó súgó), a meglévő játékokból vedd át, ne írj újat.
 10. A több játékba bemásolt közös kód (`/* @shared név */ … /* @end név */` közötti blokk, pl. `olvaso-kit`, `terv-nezegeto`) mintapéldánya a `tools/shared/<név>.js`. Ezt javítsd, utána futtasd a `python3 tools/sync_shared.py` parancsot, amely minden játékba bemásolja. A `--check` leáll, ha egy játék blokkja eltér a mintától.
-11. Új akciójátékba tedd be a `gamepad` közös blokkot (kontroller: a kar és a gombok billentyűkké fordulnak, menüben a gombok között lép). A játék billentyűzetkezelése maradjon a megszokott: nyilak, szóköz, J/K/L, Escape szünet.
+11. Új akciójátékba tedd be a `gamepad` közös blokkot (kontroller: a kar és a gombok billentyűkké fordulnak, menüben a gombok között lép). A játék billentyűzetkezelése maradjon a megszokott: nyilak, szóköz, J/K/L, Escape szünet. Mellé kell a „Hogyan kell?” súgó is: a `window.SUGO` adatlista (érintés, billentyű, kontroller, soronként [jel, rövid szöveg]) és a `sugo` közös blokk; egy meglévő játékból másold, és írd át a játék saját vezérlésére. A `--check` leáll, ha hiányzik.
 
 ## Kötelező ellenőrzés commit és push előtt
 
