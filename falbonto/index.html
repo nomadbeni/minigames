@@ -24,6 +24,7 @@
   color-scheme:dark;
 }
 [hidden]{display:none!important}
+@media (pointer:coarse),(hover:none){.desk{display:none}}
 html{box-sizing:border-box;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
@@ -612,6 +613,7 @@ function hide(){$('ov').hidden=true}
 function menu(){
   const s=loadSave();
   show(`<h2>Falbontó</h2><p>Húzd az ujjad bárhol a képernyőn, és az ütő követi. Koppintással indítod a labdát. Ahol a labda az ütőt éri, arra pattan vissza: középen meredeken, a szélén laposan.</p>
+    <p class="desk">Gépen: ← → vagy A, D: ütő · szóköz: indítás · Esc: szünet<br>Kontroller: kar ütő · A indítás · Start szünet</p>
     <div class="btns">${s?`<button class="b hot" data-act="cont">Folytatás · ${s.level}. pálya</button>`:''}
     <button class="b ${s?'':'hot'}" data-act="new">Új játék</button></div>
     ${best?`<p>Rekord: <b>${best.toLocaleString('hu-HU')}</b></p>`:''}${legend()}`);

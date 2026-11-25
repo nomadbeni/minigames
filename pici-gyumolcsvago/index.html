@@ -381,7 +381,7 @@ function renderMenu(){
   card.innerHTML=
     '<h2>Pici gyümölcsvágó</h2>'+
     '<canvas id="mini" width="480" height="168" aria-hidden="true"></canvas>'+
-    '<p>Koppints a gyümölcsre, vagy húzd át rajta az ujjad! Nincs veszítés, nincs időre menés.</p>'+
+    '<p>Koppints a gyümölcsre, vagy húzd át rajta az ujjad! Gépen bármelyik billentyű, kontrolleren bármelyik gomb is vág. Nincs veszítés, nincs időre menés.</p>'+
     '<p class="tot">Eddig <b id="tot">'+S.total+'</b> gyümölcs</p>'+
     '<div class="olbl">Sebesség</div>'+
     '<div class="opts">'+Object.keys(SPEEDS).map(k=>'<button type="button" class="b sm" data-speed="'+k+'" aria-pressed="'+(S.speed===k)+'">'+SPEEDS[k].name+'</button>').join('')+'</div>'+

@@ -627,7 +627,7 @@ function menu(){
   paused=true;
   const lv=own.vaz+own.gumi+own.kormany;
   overlay(`<h1>DOWNHILL</h1>
-   <div class="how"><span>⬅️➡️</span><span>Sávváltás: koppints balra vagy jobbra, vagy nyilak.</span><span>🪧</span><span>Kapu: a jó tábla felé menj.</span><span>⚡</span><span>Jó: turbó, pénz, ugrató.</span><span>🟫</span><span>Rossz: sár, kő, gödör.</span></div>
+   <div class="how"><span>⬅️➡️</span><span>Sávváltás: koppints balra vagy jobbra, vagy nyilak.</span><span>🪧</span><span>Kapu: a jó tábla felé menj.</span><span>⚡</span><span>Jó: turbó, pénz, ugrató.</span><span>🟫</span><span>Rossz: sár, kő, gödör.</span><span>🎮</span><span>Kontroller: kar balra-jobbra · Start szünet.</span></div>
    <p style="color:var(--muted);font-size:15px">A bringád a Bike Shopból jön. Tuning: ${lv}/9.</p>
    ${TRACKS.map((t,i)=>`<button class="btn" data-t="${i}">${t.n}<small>${t.d}${best[t.n]?' Rekord: '+best[t.n]+' mp':''}</small></button>`).join('')}
    <div class="row"><button class="btn" id="setB">⚙️ Beállítások</button>${K.sayBtn('Kapu: a jó tábla felé menj.')}</div>`);

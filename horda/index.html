@@ -648,7 +648,7 @@ function over(){
 function menu(){
   paused=true;if(G)G.over=true;G=null;draw();
   overlay(`<h1>HORDA</h1><p>Jönnek. Sokan. Az osztagod magától lő, te csak vezeted.</p>
-   <div class="how"><span>👆</span><span>Húzd jobbra-balra, vagy nyilak.</span><span>🚪</span><span>Kapu: olvasd el, melyik oldal erősít.</span><span>📦</span><span>Láda: lődd szét, új fegyver.</span><span>🧟</span><span>Ha zombi ér el, katonát veszítesz.</span></div>
+   <div class="how"><span>👆</span><span>Húzd jobbra-balra, vagy nyilak.</span><span>🚪</span><span>Kapu: olvasd el, melyik oldal erősít.</span><span>📦</span><span>Láda: lődd szét, új fegyver.</span><span>🧟</span><span>Ha zombi ér el, katonát veszítesz.</span><span>🎮</span><span>Kontroller: kar balra-jobbra · Start szünet.</span></div>
    <p style="margin:0">Szint:</p><div class="row toggle diffs">${DIFFS.map(d=>`<button class="btn" data-df="${d.k}" aria-pressed="${best.diff===d.k}">${d.n}${d.m>1?` <small>×${d.m}</small>`:''}</button>`).join('')}</div>
    <p style="color:var(--muted)">Rekord: <b>${recOf(best.diff).best}</b> · legjobb hullám: <b>${recOf(best.diff).wave}</b></p>
    <div class="row"><button class="btn hot" id="go">Indulás</button><button class="btn" id="setB">⚙️</button>${K.sayBtn('Kapu: olvasd el, melyik oldal erősít.')}</div>`);

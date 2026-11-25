@@ -657,7 +657,7 @@ function title(){
     <p>A Nagy Mamut elvitte a törzs ételét. Szedd vissza!</p>
     <div class="btns">${c?`<button class="btn hot" id="ovCont">Folytatás · ${c.lvl+1}. pálya</button><button class="btn" id="ovNew">Új játék</button>`:`<button class="btn hot" id="ovNew">Indul</button>`}</div>
     <p class="small">Pályák</p><div class="lv">${lv}</div>
-    <p class="keys">Gépen: ← → mozgás · Space vagy ↑ ugrás · J vagy X ütés · P szünet</p>`);
+    <p class="keys">Gépen: ← → mozgás · Space vagy ↑ ugrás · J vagy X ütés · P szünet<br>Kontroller: kar mozgás · A ugrás · X ütés · Start szünet</p>`);
   if(c)$('ovCont').onclick=()=>{audio();resume(c)};
   $('ovNew').onclick=()=>{audio();startLevel(0,false)};
   document.querySelectorAll('.lv button[data-l]').forEach(b=>b.onclick=()=>{audio();startLevel(+b.dataset.l,false)});
