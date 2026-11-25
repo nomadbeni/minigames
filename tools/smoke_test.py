@@ -249,6 +249,36 @@ def check_fullscreen(pg, w, h, shot, run_checks):
     return found
 
 
+def check_help(pg, shot, run_checks):
+    """Tap the „?” help button: the help window opens, every tab and button fits, „Értem” closes it."""
+    btn = pg.locator(".sugo-btn")
+    if not btn.count():
+        return []                       # only the action games have one; --check makes sure they do
+    if not btn.first.is_visible():
+        return ["the „?” help button is not visible"]
+    if (err := tap(btn.first)):
+        return [f"the „?” help button cannot be tapped: {err}"]
+    pg.wait_for_timeout(200)
+    if not pg.evaluate("!!document.querySelector('dialog.sugo[open]')"):
+        return ["tapping the „?” button does not open the help"]
+    found = []
+    n = pg.evaluate("document.querySelectorAll('dialog.sugo dt').length")
+    if not n:
+        found.append("the help window is empty")
+    for i in range(pg.locator("dialog.sugo [role=tab]").count()):
+        tap(pg.locator("dialog.sugo [role=tab]").nth(i))
+        if not pg.evaluate("document.querySelectorAll('dialog.sugo dt').length"):
+            found.append(f"help tab {i + 1} is empty")
+        found += [f"help tab {i + 1}: {x}" for x in run_checks()]
+    pg.screenshot(path=str(shot))
+    if (err := tap(pg.locator("dialog.sugo .sugo-ok"))):
+        found.append(f"the „Értem” button cannot be tapped: {err}")
+    pg.wait_for_timeout(200)
+    if pg.evaluate("!!document.querySelector('dialog.sugo[open]')"):
+        found.append("„Értem” does not close the help")
+    return found
+
+
 def pages(only):
     out = [ROOT / "index.html"] if not only else []
     for d in sorted(ROOT.iterdir()):
@@ -291,6 +321,7 @@ def main():
                 found += run_checks()
                 pg.screenshot(path=str(SHOTS / f"{name}-{w}x{h}.png"))
                 found += check_fullscreen(pg, w, h, SHOTS / f"{name}-{w}x{h}-fs.png", run_checks)
+                found += check_help(pg, SHOTS / f"{name}-{w}x{h}-sugo.png", run_checks)
                 ctx.close()
                 problems += [f"{w}×{h}: {x}" for x in dict.fromkeys(found)]
             status = "OK  " if not problems else "FAIL"
