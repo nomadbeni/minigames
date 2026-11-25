@@ -1301,9 +1301,16 @@ async def sc_blade(page):
     # one slime right in front of the knight, held in place: two sword hits defeat it
     await page.evaluate("""(() => { const K = __kardvihar, G = K.G, p = G.pl; G.toSpawn = []; G.en = []; K.spawn('slime');
         Object.assign(G.en[0], {x: p.x + 28, y: p.y, born: 0, stun: 99}); p.face = 0; p.inv = 99; })()""")
-    for _ in range(3):
+    # On a slow machine the game clock runs slower (at most 40 ms per frame): each swing waits until the
+    # sword is ready again, and the knocked-back slime is put back in front of the knight.
+    for _ in range(6):
+        if await page.evaluate("__kardvihar.G.score === 10"):
+            break
+        await wait_js(page, "__kardvihar.G.pl.atkT <= 0", timeout=2000)
+        await page.evaluate("""(() => { const G = __kardvihar.G, p = G.pl, e = G.en[0];
+            if (e && !e.dead) Object.assign(e, {x: p.x + 28, y: p.y, vx: 0, vy: 0, stun: 99}); p.face = 0; })()""")
         await page.keyboard.press("Space")
-        await page.wait_for_timeout(260)
+        await page.wait_for_timeout(100)
     await wait_js(page, "__kardvihar.G.score === 10 && __kardvihar.G.en.length === 0", timeout=2000)
     check(await txt(page, "#score") == "10", "the score shows the defeated slime")
     await wait_js(page, "__kardvihar.G.wave === 2", timeout=4000)
@@ -1328,17 +1335,24 @@ async def sc_blade(page):
     check(await page.evaluate("__kardvihar.G.pl.x") < x0 - 60, "the roll moves the knight far")
     await page.keyboard.press("Escape")
     await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
+    # wave 2 is already running: on a slow machine the knight may slash a slime (or take a hit) between the steps,
+    # so the reload is compared with the state at the pause, not with fixed numbers
+    state = "[__kardvihar.G.wave, __kardvihar.G.hp, __kardvihar.G.score, __kardvihar.G.P]"
+    paused = await page.evaluate(state)
+    check(paused[0] == 2 and paused[2] >= 10 and sum(paused[3].values()) >= 1, f"the paused game is in wave 2 with the skill: {paused}")
     await page.reload()
     await page.locator('#card button[data-act="cont"]').click()
-    got = await page.evaluate("[__kardvihar.G.wave, __kardvihar.G.hp, __kardvihar.G.score, __kardvihar.G.P]")
-    check(got[:3] == [2, 4, 10] and got[3] == perks, f"the game continues after a reload: {got}")
+    got = await page.evaluate(state)
+    check(got == paused, f"the game continues after a reload: {got} (paused: {paused})")
     # the fifth wave brings the golem
     await page.evaluate("__kardvihar.startWave(5)")
     check("golem" in await page.evaluate("__kardvihar.G.toSpawn"), "the fifth wave has the golem")
     await page.evaluate("(() => { const G = __kardvihar.G; G.hp = 1; G.pl.inv = 0; G.pl.dash = 0; __kardvihar.hurtPlayer(1, G.pl.x, G.pl.y + 10); })()")
     await page.locator("#ov h2", has_text="Elestél").wait_for(timeout=3000)
     check(await page.evaluate("localStorage.getItem('kardvihar-save')") is None, "the save is cleared at game over")
-    check(json.loads(await page.evaluate("localStorage.getItem('kardvihar-best')")) == {"score": 10, "wave": 5}, "the record is saved")
+    final = await page.evaluate("__kardvihar.G.score")
+    best = json.loads(await page.evaluate("localStorage.getItem('kardvihar-best')"))
+    check(final >= 10 and best == {"score": final, "wave": 5}, f"the record is saved: {best} (score {final})")
     await page.locator('#card button[data-act="new"]').click()
     check(await page.locator("#ov").is_hidden(), "New game closes the end window")
     check(await page.evaluate("[__kardvihar.G.score, __kardvihar.G.hp, __kardvihar.G.wave]") == [0, 5, 1], "a new game starts from zero")
@@ -1606,22 +1620,33 @@ async def sc_bomber(page):
     await page.locator("#ov h2", has_text="Szünet").wait_for(timeout=2000)
     await page.keyboard.press("Escape")
     check(await page.locator("#ov").is_hidden(), "Escape resumes the game")
-    # walking: one press is exactly one square, holding the key keeps walking square by square
+    # walking: one press is exactly one square, holding the key keeps walking square by square.
+    # The game slows its clock down on a slow machine (at most 50 ms per frame), so the test waits
+    # for the player to stand still on a square instead of waiting a fixed time.
+    async def settled():
+        await page.wait_for_timeout(150)
+        await wait_js(page, f"(p => p.x === p.tx && p.y === p.ty)({B}.G.p)", timeout=4000)
     x0 = await page.evaluate(f"{B}.G.p.x")
     await page.keyboard.press("ArrowRight")
-    await page.wait_for_timeout(600)
+    await settled()
     check(await page.evaluate(f"[{B}.G.p.x, {B}.G.p.y]") == [x0 + 1, 1], "one arrow press moves exactly one square")
     await page.keyboard.press("ArrowLeft")
     await page.keyboard.press("ArrowRight")
-    await page.wait_for_timeout(900)
+    await page.wait_for_timeout(300)
+    await settled()
     check(await page.evaluate(f"{B}.G.p.x") == x0 + 1, "two quick presses are two squares, there and back")
     await hold(page, "ArrowDown", 700)
-    await page.wait_for_timeout(500)
+    await settled()
     y1 = await page.evaluate(f"{B}.G.p.y")
     check(y1 == 1, f"a wall stops the step and the player stays on a square: {y1}")
     await page.evaluate(f"(() => {{ const G = {B}.G; G.p.x = G.p.tx = 1; G.p.y = G.p.ty = 1; }})()")
-    await hold(page, "ArrowRight", 500)
-    await page.wait_for_timeout(500)
+    # hold until the player is past the second square, then let go
+    await page.keyboard.down("ArrowRight")
+    try:
+        await wait_js(page, f"{B}.G.p.x >= 2.5", timeout=4000)
+    finally:
+        await page.keyboard.up("ArrowRight")
+    await settled()
     x1 = await page.evaluate(f"{B}.G.p.x")
     check(x1 >= 3 and x1 == int(x1), f"holding the key walks several squares and stops on a square: {x1}")
     # every monster gone, the player on the open exit: the level is cleared
