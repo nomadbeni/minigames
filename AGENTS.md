@@ -78,6 +78,8 @@ python3 tools/smoke_test.py            # vagy: python3 tools/smoke_test.py <mapp
 # 3. Játékteszt: minden játék gépen és érintéssel, öt féle sérült mentéssel; valódi játékmenetek
 #    az olvasós játékokban; a pályagenerátorok több száz pályával. Új olvasós játékhoz írj
 #    ide egy rövid jelenetet (SCENARIOS), új generátorhoz vedd fel a generátor-tesztbe.
+#    A sokat rajzoló játékokat 4× lassított processzorral is megméri (PERF_GAMES); 30 kép/mp alatt
+#    csak figyelmeztet, de nézd meg, és ha kell, könnyíts a játékon (Kepesseg.quality).
 python3 tools/play_test.py             # vagy: python3 tools/play_test.py <mappa>, --quick
 
 # 4. A commitok szerzője és üzenete tiszta:
