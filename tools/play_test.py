@@ -1087,8 +1087,14 @@ async def sc_rocks(page):
     # one rock right in front of the nose: holding Space has to split it
     await page.evaluate("""(() => { const G = __kozapor.G, s = G.ship; G.rocks.length = 1;
         Object.assign(G.rocks[0], {x: s.x, y: s.y - 70, vx: 0, vy: 0}); })()""")
-    await hold(page, "Space", 700)
-    await wait_js(page, "__kozapor.G.score >= 20 && __kozapor.G.rocks.length >= 2", timeout=3000)
+    # Space stays down only until the first split; the bullets still in flight are cleared, otherwise they can
+    # shoot the two halves to dust as well (on a slow runner this made the test flaky)
+    await page.keyboard.down("Space")
+    try:
+        await wait_js(page, "(G => G.score >= 20 && (G.bullets.length = 0, true))(__kozapor.G)", timeout=3000)
+    finally:
+        await page.keyboard.up("Space")
+    check(await page.evaluate("__kozapor.G.rocks.length") >= 2, "the big rock splits in two")
     check(await txt(page, "#score") != "0", "the score shows the hit")
     # a rock on the ship (after the start-up shield) takes a life
     await page.evaluate("""(() => { const G = __kozapor.G, s = G.ship; s.inv = 0;
@@ -1195,7 +1201,8 @@ async def sc_doubler(page):
     check(sum(1 for v in await page.evaluate("__duplazo.vals()") if v) == 2, "a new board starts with two tiles")
     await page.evaluate(DOUBLER_SET + "([2,2,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0])")
     await page.keyboard.press("ArrowLeft")
-    check((await page.evaluate("__duplazo.vals()"))[:2] == [4, 0], "two equal tiles merge into their double")
+    v = await page.evaluate("__duplazo.vals()")  # after the move one new tile (2 or 4) lands on a random empty cell
+    check(v[0] == 4 and sum(v) - 4 in (2, 4) and len([x for x in v if x]) == 2, "two equal tiles merge into their double")
     check(await txt(page, "#score") == "4", "the merge scores")
     await page.locator("#undoBtn").click()
     check((await page.evaluate("__duplazo.vals()"))[:2] == [2, 2], "undo brings the last position back")
