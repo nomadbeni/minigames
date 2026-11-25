@@ -20,6 +20,8 @@ Usage:
   python3 tools/play_test.py --quick         # fewer generated levels
   python3 tools/play_test.py horda csapda    # only these games (and their scenarios)
   python3 tools/play_test.py --only generators
+  python3 tools/play_test.py --only capabilities   # the shared browser-capability module with mocked APIs
+  python3 tools/play_test.py --only compat         # screen sizes (phone, handheld, desktop) and offline play
 """
 import asyncio
 import json
@@ -52,8 +54,8 @@ class QuietServer(ThreadingHTTPServer):
         pass   # the browser closing a connection early is not a test failure
 
 
-def start_server():
-    httpd = QuietServer(("127.0.0.1", 0), partial(Quiet, directory=str(ROOT)))
+def start_server(directory=ROOT):
+    httpd = QuietServer(("127.0.0.1", 0), partial(Quiet, directory=str(directory)))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -1234,6 +1236,52 @@ async def sc_doubler_swipe(page):
     check((await page.evaluate("__duplazo.vals()"))[15] == 16, "a swipe to the right merges the row")
 
 
+
+async def sc_blade_haptics(page):
+    await page.add_init_script(CAPS_MOCK + "('ok')")
+    await page.reload()
+    check(await page.locator(".hap-btn").is_visible(), "the vibration switch shows when a controller can rumble")
+    await page.locator('#card button[data-act="new"]').click()
+    hit = "__caps.rumble = []; __caps.vibrate = []; __kardvihar.G.pl.inv = 0; __kardvihar.hurtPlayer(1, 0, 0); __caps"
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [45] and c["vibrate"] == [], f"a hit on the knight rumbles the controller once, no phone buzz on a desktop: {c}")
+    await page.locator(".hap-btn").click()
+    await page.wait_for_timeout(150)
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [] and await page.evaluate("Kepesseg.hapticsOn()") is False, f"switched off: no rumble: {c}")
+    await page.reload()
+    await page.locator('#card button[data-act="new"]').click()
+    c = await page.evaluate(hit)
+    check(c["rumble"] == [], f"the switch is remembered after a reload: {c}")
+
+
+async def sc_blade_wakelock(page):
+    await page.add_init_script(CAPS_MOCK + "('ok')")
+    await page.reload()
+    held = lambda: page.evaluate("Kepesseg.wakeLockHeld()")
+    await page.wait_for_timeout(200)
+    check((await page.evaluate("__caps"))["wlRequest"] == 0, "the menu does not ask to keep the screen on")
+    await page.locator('#card button[data-act="new"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "a started game keeps the screen on")
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(100)
+    check(not await held(), "pause lets the screen sleep")
+    await page.locator('#card button[data-act="resume"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "going on keeps it on again")
+    await page.evaluate("__visible(false)")
+    check(not await held(), "a hidden tab gives the lock back (and the game pauses)")
+    await page.evaluate("__visible(true)")
+    await page.wait_for_timeout(100)
+    check(not await held(), "back to a paused game: no lock until the player goes on")
+    await page.locator('#card button[data-act="resume"]').click()
+    await page.wait_for_timeout(100)
+    check(await held(), "going on after the tab came back: locked again")
+    await page.evaluate("(() => { const G = __kardvihar.G; G.pl.inv = 0; G.pl.dash = 0; G.pl.spin = 0; G.hp = 1; __kardvihar.hurtPlayer(1, 0, 0); })()")
+    await page.wait_for_timeout(100)
+    check(await page.evaluate("__kardvihar.G.phase") == "over" and not await held(), "game over lets the screen sleep")
+
 async def sc_blade(page):
     await page.locator('#card button[data-act="new"]').click()
     check(await page.locator("#ov").is_hidden(), "New game closes the menu")
@@ -1488,20 +1536,46 @@ async def mj_tap(page, i, touch=False):
     await (page.touchscreen.tap(x, y) if touch else page.mouse.click(x, y))
 
 
+# The pair to take next. On a stacked board a small solver (depth-first, remembers dead positions, 2 s limit)
+# finds a way to clear what is left; if it runs out of time, the pair that leaves the most free pairs is taken.
+# `back` (steps taken back after a dead end) varies the choice. Connect boards take the offered pairs in turn.
+MJ_PICK = """back => { const M = __mahjong, G = M.G, ps = M.pairsNow(); if (!ps.length) return null;
+  if (G.kind !== 's') return ps[back % ps.length];
+  const seen = new Set(), t0 = performance.now();
+  const dfs = left => { if (!left) return true; if (performance.now() - t0 > 2000) return false;
+    const key = Array.prototype.join.call(G.on, ''); if (seen.has(key)) return false; seen.add(key);
+    for (const [a, b] of M.pairsNow()) { G.on[a] = G.on[b] = 0; const ok = dfs(left - 2); G.on[a] = G.on[b] = 1; if (ok) return true; }
+    return false; };
+  const left = Array.prototype.reduce.call(G.on, (s, x) => s + (x ? 1 : 0), 0);
+  for (const [a, b] of ps) { G.on[a] = G.on[b] = 0; const ok = dfs(left - 2); G.on[a] = G.on[b] = 1; if (ok) return [a, b]; }
+  const score = ps.map(([a, b]) => { G.on[a] = G.on[b] = 0; const n = M.pairsNow().length; G.on[a] = G.on[b] = 1; return n; });
+  const order = ps.map((p, i) => i).sort((x, y) => score[y] - score[x]);
+  return ps[order[back % order.length]]; }"""
+
+
 async def mj_play(page, touch=False, limit=300):
     """Takes the first pair the game offers until a window comes; the stuck window is answered with a shuffle."""
+    back = 0
     for _ in range(limit):
         if await page.locator("#ov").is_visible():
             t = await page.locator("#ovc").inner_text()
             if "Elakadtál" in t:
-                await page.locator('#ovc [data-a="mix"]').click()
-                continue
+                mix, undo = page.locator('#ovc [data-a="mix"]'), page.locator('#ovc [data-a="undo"]:not(:disabled)')
+                if await mix.count():
+                    await mix.click()
+                    continue
+                if await undo.count():        # shuffling cannot help (two tiles on each other): step back, try another pair
+                    await undo.click()
+                    await page.evaluate("(() => { const M = __mahjong, G = M.G;"
+                                        " while (M.pairsNow().length < 2 && G.h.length > G.lk) M.undo(); })()")
+                    back += 1
+                    continue
             return t
-        pairs = await page.evaluate("__mahjong.pairsNow()")
+        pairs = await page.evaluate(MJ_PICK, back)
         if not pairs:
             await page.wait_for_timeout(450)
             continue
-        a, b = pairs[0]
+        a, b = pairs
         await mj_tap(page, a, touch)
         await mj_tap(page, b, touch)
     return ""
@@ -1587,9 +1661,89 @@ async def sc_mahjong_keys(page):
     check(await page.locator("#ov").is_hidden(), "Escape opens and closes the menu")
 
 
+
+VT_SPY = ("(() => { const real = document.startViewTransition; window.__vt = 0; if (real) document.startViewTransition ="
+          " function (cb) { window.__vt++; return real.call(document, cb); }; })()")
+
+
+async def sc_mahjong_transition(page):
+    await page.evaluate(VT_SPY)
+    await page.locator('#ovc [data-m="c"]').click()
+    await page.locator('#ovc [data-l="kicsi"]').click()
+    check(await page.locator("#ov").is_hidden(), "going to the board is instant (no transition that would eat a tap)")
+    n = await page.evaluate("window.__vt")
+    check(n >= 1, f"the level picker opened with a View Transition: {n}")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("window.__vt") == n + 1, "the menu opens with a View Transition")
+    await page.locator("#ovc", has_text="Folytatás").wait_for(timeout=1000)
+    await page.keyboard.press("Escape")
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    check(await page.evaluate("__mahjong.G.h.length") == 1, "a pair can be taken right after the menu closes")
+    await page.emulate_media(reduced_motion="reduce")
+    await page.keyboard.press("Escape")
+    check(await page.evaluate("[window.__vt, document.getElementById('ov').hidden]") == [n + 1, False],
+          "reduced motion: the menu opens at once, without a transition")
+
+
+async def sc_mahjong_dead(page):
+    await page.locator('#ovc [data-m="c"]').click()
+    await page.locator('#ovc [data-l="kicsi"]').click()
+    a, b = (await page.evaluate("__mahjong.pairsNow()"))[0]
+    await mj_tap(page, a)
+    await mj_tap(page, b)
+    # leave only two matching tiles, one on top of the other: no shuffle can ever free the lower one
+    ok = await page.evaluate("""(() => { const M = __mahjong, G = M.G, n = G.T.n, live = [];
+      for (let i = 0; i < n; i++) if (G.on[i]) live.push(i);
+      for (const i of live) for (const j of live) { if (i === j) continue;
+        const on = G.on.slice(); on.fill(0); on[i] = on[j] = 1;
+        if (!M.isFree(G.T, on, i) && M.isFree(G.T, on, j)) { for (let k = 0; k < n; k++) G.on[k] = on[k]; G.f[j] = G.f[i]; M.draw(); return true; } }
+      return false; })()""")
+    check(ok, "the small tower has two tiles on top of each other")
+    check(await page.evaluate("__mahjong.pairsNow().length") == 0, "the stacked pair cannot be taken")
+    await page.locator("#mix").click()
+    await page.locator("#ovc", has_text="keveréssel sem").wait_for(timeout=5000)
+    check(await page.locator('#ovc [data-a="mix"]').count() == 0, "a shuffle that cannot help is not offered again")
+    undo = page.locator('#ovc [data-a="undo"]')
+    check(await undo.is_enabled(), "stepping back stays possible after the useless shuffle")
+    await undo.click()
+    check(await page.locator("#ov").is_hidden() and await page.evaluate("__mahjong.G.h.length") == 0, "stepping back closes the window")
+
 async def sc_mahjong_broken(page):
     check(await page.locator("#ovc", has_text="Klasszikus").is_visible(), "a broken save starts at the menu")
     check(await page.evaluate("({}).polluted") is None, "the broken save did not reach the object prototype")
+
+
+# Forces the lowest decorative quality from the first line of the page on (also after a reload).
+LOW_QUALITY = ("Object.defineProperty(window, 'Kepesseg', {configurable: true, get() { return this.__k; },"
+               " set(v) { v.setQuality(0); this.__k = v; }})")
+
+
+def low_quality(fn):
+    """The same play-through with the fewest effects: the game logic must not depend on the visual quality."""
+    async def run(page):
+        await page.add_init_script(LOW_QUALITY)
+        await page.reload()
+        check(await page.evaluate("Kepesseg.quality()") == 0, "the lowest quality is in effect")
+        await fn(page)
+        check(await page.evaluate("Kepesseg.quality()") == 0, "the lowest quality stayed in effect")
+    return run
+
+
+def with_caps(mode, fn):
+    """The same play-through while the modern APIs are missing, refuse, or throw (see CAPS_MOCK)."""
+    async def run(page):
+        await page.add_init_script(CAPS_MOCK + f"({json.dumps(mode)})")
+        await page.reload()
+        await fn(page)
+    return run
+
+
+CAPS_GAMES = [("kardvihar", "Blade Storm", sc_blade), ("tankorseg", "Tank Guard", sc_tank_over),
+              ("flipper", "Pinball", sc_pinball), ("horda", "Horde", sc_horde),
+              ("mahjong", "Mahjong", sc_mahjong), ("gyemantbanya", "Diamond Mine", sc_gems)]
+CAPS_MODES = {"missing": "missing", "reject": "refused", "throw": "throwing"}
 
 
 SCENARIOS = [
@@ -1659,6 +1813,14 @@ SCENARIOS = [
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),
     ("kardvihar", "Blade Storm: dragging on the arena moves, a tap slashes", sc_blade_touch, None),
+    *[(g, f"{name}: plays the same with {word} browser APIs (vibration, Wake Lock, View Transitions, orientation)",
+       with_caps(mode, fn), None) for g, name, fn in CAPS_GAMES for mode, word in CAPS_MODES.items()],
+    ("kardvihar", "Blade Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_blade), None),
+    ("kozapor", "Rock Storm, fewest effects (adaptive quality 0): the same play-through passes", low_quality(sc_rocks), None),
+    ("kokori-kaland", "Stone Age Quest, fewest effects (adaptive quality 0): walking and saving work", low_quality(sc_caveman), None),
+    ("horda", "Horde, fewest effects (adaptive quality 0): the squad fights, pause works", low_quality(sc_horde), None),
+    ("kardvihar", "Blade Storm: the screen stays on only while playing (pause, hidden tab, game over)", sc_blade_wakelock, None),
+    ("kardvihar", "Blade Storm: a hit rumbles the controller, the switch turns it off and is remembered", sc_blade_haptics, None),
     ("szigetrepulo", "Island Flyer: a ring, a roll bonus, a crash, reload, broken save, game over, New game, out of fuel", sc_island, None),
     ("szigetrepulo", "Island Flyer: the mouse steers, holding it boosts, a click rolls, K changes the view", sc_island_touch, None),
     ("bombasz", "Bomb Maze: a bomb burns a crate and a monster, costs a life, reload, pause, one press one square, exit, game over, New game", sc_bomber, None),
@@ -1669,6 +1831,8 @@ SCENARIOS = [
     ("mahjong", "Mahjong: Time Rush adds time for a pair, running out ends it, New game", sc_mahjong_time, None),
     ("mahjong", "Mahjong: Connect refuses a pair that cannot be linked and is cleared", sc_mahjong_connect, None),
     ("mahjong", "Mahjong: the daily puzzle with the keyboard: cursor, pick, shuffle, hint, Escape", sc_mahjong_keys, None),
+    ("mahjong", "Mahjong: the menu fades in (View Transition), the board takes taps at once, reduced motion skips it", sc_mahjong_transition, None),
+    ("mahjong", "Mahjong: two tiles left on each other: no useless shuffle offered, stepping back still works", sc_mahjong_dead, None),
     ("mahjong", "Mahjong: a broken save starts at the menu", sc_mahjong_broken,
      {"mahjong-save": '{"game":{"m":"c","lay":"__proto__","f":[1],"h":[[0,0]],"lk":0},"stats":{"__proto__":{"polluted":1}}}'}),
 ]
@@ -1684,6 +1848,256 @@ async def run_scenario(browser, base, game, fn, seed):
         except Exception as e:
             return [f"{type(e).__name__}: {str(e).splitlines()[0]}"] + r.errors
         return r.errors
+
+
+# ---------------------------------------------------------------- browser capabilities (tools/shared/kepesseg.js)
+
+# Mocks for the modern browser APIs, one mode per page: 'ok' (works), 'missing' (the browser does not have it),
+# 'reject' (the promise is refused) and 'throw' (the call throws). Everything the module asks for is logged in
+# window.__caps. __fs(on) and __visible(on) fake entering fullscreen and hiding the tab.
+CAPS_MOCK = r"""
+(mode => {
+  const log = window.__caps = {vibrate: [], rumble: [], wlRequest: 0, wlRelease: 0, vt: 0, lock: [], unlock: 0};
+  const def = (o, k, v) => { try { Object.defineProperty(o, k, {value: v, configurable: true, writable: true}); } catch (e) {} };
+  const fail = what => { if (mode === 'throw') throw new Error(what + ' throws');
+    return Promise.reject(new DOMException(what + ' refused', 'NotAllowedError')); };
+  window.__fs = on => { def(document, 'fullscreenElement', on ? document.documentElement : null);
+    document.dispatchEvent(new Event('fullscreenchange')); };
+  window.__visible = on => { def(document, 'visibilityState', on ? 'visible' : 'hidden'); def(document, 'hidden', !on);
+    if (!on && window.__sentinel) window.__sentinel.release();
+    document.dispatchEvent(new Event('visibilitychange')); };
+  if (mode === 'missing') {
+    def(navigator, 'vibrate', undefined); def(navigator, 'wakeLock', undefined); def(document, 'startViewTransition', undefined);
+    if (screen.orientation) { def(screen.orientation, 'lock', undefined); def(screen.orientation, 'unlock', undefined); }
+    def(window, 'PressureObserver', undefined);
+    return;
+  }
+  def(navigator, 'vibrate', p => { if (mode === 'throw') throw new Error('vibrate throws'); log.vibrate.push(p); return mode === 'ok'; });
+  const actuator = {effects: ['dual-rumble'], reset: () => Promise.resolve('complete'),
+    playEffect: (t, o) => { log.rumble.push(o.duration); return mode === 'ok' ? Promise.resolve('complete') : fail('playEffect'); }};
+  window.__pad = {id: 'test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+    buttons: Array.from({length: 17}, () => ({pressed: false, value: 0})), vibrationActuator: actuator};
+  def(navigator, 'getGamepads', () => [window.__pad]);
+  def(navigator, 'wakeLock', {request: () => { log.wlRequest++; if (mode !== 'ok') return fail('wakeLock');
+    const s = new EventTarget(); s.released = false;
+    s.release = () => { if (!s.released) { s.released = true; log.wlRelease++; s.dispatchEvent(new Event('release')); } return Promise.resolve(); };
+    window.__sentinel = s; return Promise.resolve(s); }});
+  def(document, 'startViewTransition', cb => { log.vt++; if (mode === 'throw') throw new Error('startViewTransition throws');
+    const done = new Promise(r => requestAnimationFrame(() => { cb(); r(); }));
+    const no = () => Promise.reject(new DOMException('skipped', 'AbortError'));
+    return {ready: mode === 'ok' ? done : no(), updateCallbackDone: done, finished: mode === 'ok' ? done : no(), skipTransition() {}}; });
+  if (screen.orientation) {
+    def(screen.orientation, 'lock', o => { log.lock.push(o); return mode === 'ok' ? Promise.resolve() : fail('lock'); });
+    def(screen.orientation, 'unlock', () => { log.unlock++; if (mode === 'throw') throw new Error('unlock throws'); });
+  }
+  def(window, 'PressureObserver', mode === 'throw' ? function () { throw new Error('PressureObserver throws'); }
+    : function (cb) { this.observe = () => { window.__pressure = cb; return mode === 'ok' ? Promise.resolve() : Promise.reject(new Error('no')); }; });
+})"""
+
+CAPS_PAGE = ('<!doctype html><html lang="hu"><head><meta charset="utf-8">'
+             '<meta name="games:orientation" content="portrait"></head><body>'
+             '<div class="top-bar"><button type="button" class="hap-btn" style="display:none">R</button></div>'
+             '<p id="screen">menu</p><script>{module}</script>'
+             '<script>window.__early = Kepesseg.haptic("hurt")</script></body></html>')
+
+# Feeds the quality meter fake frame times: ms per frame, for how long.
+FEED = "([ms, total]) => { let l; for (let t = 0; t < total; t += ms) l = Kepesseg.quality(window.__qt = (window.__qt || 1000) + ms); return l; }"
+
+
+async def caps_case(browser, base, mode, reduced=False):
+    module = (ROOT / "tools" / "shared" / "kepesseg.js").read_text(encoding="utf-8")
+    async with Run(browser, base, mobile=True, hooks=False) as r:
+        await r.ctx.add_init_script(CAPS_MOCK + f"({json.dumps(mode)})")
+        await r.ctx.route(f"{base}/__caps.html", lambda rt: rt.fulfill(
+            status=200, content_type="text/html", body=CAPS_PAGE.replace("{module}", module)))
+        if reduced:
+            await r.page.emulate_media(reduced_motion="reduce")
+        await r.goto("__caps.html")
+        p, ev = r.page, r.page.evaluate
+        log = lambda: ev("window.__caps")
+        try:
+            check(await ev("window.__early") is False, "no vibration before the first tap (page load)")
+            await p.touchscreen.tap(50, 200)                      # the first user gesture
+            shown = await ev("getComputedStyle(document.querySelector('.hap-btn')).display")
+            n = await ev("(async () => { let n = 0; Kepesseg.transition(() => n++); const now = n;"
+                         " await new Promise(r => setTimeout(r, 120)); return [now, n]; })()")
+            await ev("Kepesseg.wakeLock(true)")
+            await p.wait_for_timeout(50)
+            await ev("__fs(true)")
+            await ev("__fs(false)")
+            hit = await ev("Kepesseg.haptic('hurt')")
+            check(await ev("Kepesseg.haptic('nonsense') === false && Kepesseg.haptic(-5) === false"),
+                  "an unknown or negative pattern is ignored")
+            check(await ev(FEED, [16, 2000]) in (0, 1, 2), "the quality meter answers")
+            if mode == "missing":
+                check(shown == "none" and not hit, f"missing APIs: no vibration button, nothing vibrates ({shown}, {hit})")
+                check(n == [1, 1], f"missing View Transitions: the screen changes at once, once: {n}")
+                check(not await ev("Kepesseg.wakeLockHeld()"), "missing Wake Lock: nothing is held")
+            elif mode in ("reject", "throw"):
+                check(n[1] == 1, f"{mode}: the screen change still happens exactly once: {n}")
+                check(not await ev("Kepesseg.wakeLockHeld()"), f"{mode}: a refused Wake Lock is not counted as held")
+                c = await log()
+                check(c["wlRequest"] == 1, f"{mode}: Wake Lock was asked once: {c}")
+            elif reduced:
+                c = await log()
+                check(n == [1, 1] and c["vt"] == 0, f"reduced motion: no View Transition, instant change: {n} {c}")
+                check(await ev("Kepesseg.quality()") <= 1, "reduced motion: decorative effects are cut")
+            else:
+                c = await log()
+                check(n == [0, 1] and c["vt"] == 1, f"View Transition is used, the change runs once: {n} {c}")
+                check(c["lock"] == ["portrait"] and c["unlock"] == 1, f"orientation locks in fullscreen, unlocks after: {c}")
+                await ev("Object.defineProperty(screen.orientation, 'type', {value: 'landscape-primary', configurable: true}); __fs(true); __fs(false)")
+                c = await log()
+                check(c["lock"] == ["portrait"] and c["unlock"] == 1, f"held sideways: no lock, never turns the picture: {c}")
+                check(c["vibrate"] == [45] and c["rumble"] == [45], f"'hurt' vibrates the phone and the pad: {c}")
+                check(shown == "inline-flex", f"the vibration button shows on a touch screen: {shown}")
+                await p.wait_for_timeout(150)
+                many = await ev("[...Array(10)].map(() => Kepesseg.haptic('hit')).filter(Boolean).length")
+                check(many == 1, f"ten quick hits vibrate once: {many}")
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; __caps.rumble = []; Kepesseg.haptic('reward')")
+                await p.wait_for_timeout(200)
+                c = await log()
+                check(c["vibrate"] == [[25, 50, 25]] and c["rumble"] == [25, 25], f"a pattern reaches both outputs: {c}")
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; Kepesseg.haptic([5000])")
+                check((await log())["vibrate"] == [200], "a long pattern is cut to 200 ms")
+                # the switch: off stops everything and is remembered
+                await p.locator(".hap-btn").click()
+                await p.wait_for_timeout(150)
+                await ev("__caps.vibrate = []; __caps.rumble = []")
+                check(await ev("Kepesseg.haptic('boom')") is False, "switched off: nothing vibrates")
+                c = await log()
+                check(c["vibrate"] == [] and c["rumble"] == [], f"switched off: neither output is used: {c}")
+                check(await ev("localStorage.getItem('kepesseg:rezges')") == "0", "the switch is saved")
+                check(await p.locator(".hap-btn").get_attribute("aria-pressed") == "false", "the button shows off")
+                await ev("localStorage.setItem('kepesseg:rezges', '1')")
+                # Wake Lock: held while playing, given back when hidden, asked again when visible, released at the end
+                check(await ev("Kepesseg.wakeLockHeld()"), "Wake Lock is held while the game runs")
+                await ev("__visible(false)")
+                check(not await ev("Kepesseg.wakeLockHeld()"), "a hidden tab loses the lock")
+                await ev("__visible(true)")
+                await p.wait_for_timeout(50)
+                check(await ev("Kepesseg.wakeLockHeld()") and (await log())["wlRequest"] == 2, "visible again: asked again")
+                await ev("Kepesseg.wakeLock(false)")
+                await p.wait_for_timeout(50)
+                c = await log()
+                check(not await ev("Kepesseg.wakeLockHeld()") and c["wlRelease"] == 2, f"the menu releases the lock: {c}")
+                await ev("__visible(false); __visible(true)")
+                await p.wait_for_timeout(50)
+                check((await log())["wlRequest"] == 2, "after the game no lock is asked for")
+                # quality: slow frames step down, fast frames step back up slowly, a forced level wins
+                await ev("window.__qt = 1000")
+                check(await ev(FEED, [16, 3000]) == 2, "smooth frames keep full quality")
+                check(await ev(FEED, [40, 1500]) == 2, "a short slow spell (1.5 s) changes nothing")
+                slow = await ev(FEED, [40, 3000])
+                check(slow == 1, f"slow frames (25 fps) for a few seconds lower the quality one step: {slow}")
+                check(await ev(FEED, [40, 2000]) == 1, "no second step down within the cooldown")
+                check(await ev(FEED, [40, 4000]) == 0, "still slow after the cooldown: one more step")
+                check(await ev(FEED, [16, 8000]) == 0, "a short good spell does not raise it (no flicker)")
+                check(await ev(FEED, [16, 12000]) == 1, "a long good spell raises it one step")
+                check(await ev(FEED, [5000, 20000]) == 1, "a long pause is not measured")
+                await ev("__pressure([{state: 'critical'}])")
+                check(await ev(FEED, [16, 7000]) == 0, "high CPU pressure lowers it even at good frame rates")
+                check(await ev("Kepesseg.setQuality(2), Kepesseg.quality()") == 2, "a forced level wins")
+        except Fail as e:
+            return [f"{mode}{' reduced' if reduced else ''}: {e}"] + r.errors
+        return [f"{mode}: {e}" for e in r.errors + r.external]
+
+
+async def test_capabilities(browser, base):
+    problems = []
+    for mode, reduced in [("ok", False), ("ok", True), ("missing", False), ("reject", False), ("throw", False)]:
+        problems += await caps_case(browser, base, mode, reduced)
+    return problems
+
+
+
+# ---------------------------------------------------------------- compatibility (issue #53)
+
+# name, width, height, touch screen
+DEVICES = [("phone upright", 390, 780, True), ("phone on its side", 780, 390, True),
+           ("640×480 handheld (Anbernic-like)", 640, 480, True), ("720×720 square handheld", 720, 720, True),
+           ("desktop", 1280, 800, False)]
+DEVICE_GAMES = ["kardvihar", "horda", "flipper", "tankorseg", "mahjong", "pasziansz"]
+DEVICE_CHECK = """() => {
+  const vw = innerWidth, vh = innerHeight, out = [];
+  if (document.documentElement.scrollWidth > vw + 1) out.push('sideways scrolling');
+  for (const b of document.querySelectorAll('.top-bar a, .top-bar button')) {
+    const r = b.getBoundingClientRect();
+    if (r.width && getComputedStyle(b).display !== 'none' && (r.left < -1 || r.right > vw + 1 || r.top < -1 || r.bottom > vh + 1))
+      out.push('top bar button off screen: ' + (b.getAttribute('aria-label') || b.textContent).trim());
+  }
+  const h = document.querySelector('.rotate-hint'), meta = document.querySelector('meta[name="games:orientation"]');
+  return {problems: out, hint: !!h && !h.hidden, portrait: !!meta && meta.content === 'portrait',
+          type: screen.orientation ? screen.orientation.type : ''};
+}"""
+
+
+async def test_devices(browser, base):
+    problems = []
+    for game in DEVICE_GAMES:
+        for name, w, h, touch in DEVICES:
+            ctx = await browser.new_context(viewport={"width": w, "height": h}, screen={"width": w, "height": h},
+                                            has_touch=touch, is_mobile=touch)
+            await ctx.add_init_script(CAPS_MOCK + "('ok')")
+            page, errors = await ctx.new_page(), []
+            page.on("pageerror", lambda e: errors.append(f"JS error: {e}"))
+            try:
+                await page.goto(f"{base}/{game}/index.html", wait_until="load", timeout=20000)
+                await page.wait_for_timeout(300)
+                r = await page.evaluate(DEVICE_CHECK)
+                bad = list(r["problems"])
+                want_hint = r["portrait"] and touch and w > h and h <= 500
+                if r["hint"] != want_hint:
+                    bad.append(f"turn-the-phone hint {'shows' if r['hint'] else 'missing'} (portrait game: {r['portrait']})")
+                await page.evaluate("__fs(true); __fs(false)")       # into fullscreen and out again
+                lock = await page.evaluate("__caps.lock")
+                want = ["portrait"] if r["portrait"] and r["type"].startswith("portrait") else []
+                if lock != want:
+                    bad.append(f"orientation lock {lock}, expected {want} (screen: {r['type']})")
+                problems += [f"{game} on {name}: {x}" for x in bad + errors]
+            except Exception as e:
+                problems.append(f"{game} on {name}: {type(e).__name__}: {str(e).splitlines()[0]}")
+            await ctx.close()
+    return problems
+
+
+async def test_offline(browser):
+    """Builds the published site, lets the offline cache fill, then plays a game with the network off."""
+    import subprocess
+    out = subprocess.run([sys.executable, str(ROOT / "tools" / "build_site.py"), "--out", "_site"],
+                         cwd=ROOT, capture_output=True, text=True)
+    if out.returncode:
+        return ["building _site failed: " + (out.stdout + out.stderr).strip().splitlines()[-1]]
+    httpd, base = start_server(ROOT / "_site")
+    ctx = await browser.new_context(viewport={"width": 390, "height": 780}, has_touch=True, is_mobile=True)
+    page, problems = await ctx.new_page(), []
+    page.on("pageerror", lambda e: problems.append(f"JS error: {e}"))
+    try:
+        await page.goto(f"{base}/index.html", wait_until="load")
+        await page.wait_for_function("""async () => { for (const k of await caches.keys()) {
+            const c = await caches.open(k); if (await c.match('kardvihar/index.html') && await c.match('mahjong/index.html')) return true; }
+            return false; }""", timeout=60000, polling=500)
+        await page.evaluate("navigator.serviceWorker.ready.then(r => new Promise(ok => { const w = r.active;"
+                            " if (w.state === 'activated') ok(); else w.addEventListener('statechange', () => w.state === 'activated' && ok()); }))")
+        await ctx.set_offline(True)
+        await page.goto(f"{base}/kardvihar/index.html", wait_until="load")
+        await page.locator('#card button[data-act="new"]').click()
+        await page.wait_for_timeout(800)
+        ok = await page.evaluate("typeof Kepesseg === 'object' && (Kepesseg.haptic('hit'), Kepesseg.wakeLock(false), true)")
+        check(ok, "offline: the game runs and the capability module answers")
+        await page.goto(f"{base}/mahjong/index.html", wait_until="load")
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(300)
+        check(await page.locator("#ov").is_visible(), "offline: Mahjong opens with its menu")
+    except Fail as e:
+        problems.append(str(e))
+    except Exception as e:
+        problems.append(f"{type(e).__name__}: {str(e).splitlines()[0]}")
+    await ctx.close()
+    httpd.shutdown()
+    return problems
 
 
 # ---------------------------------------------------------------- generators
@@ -2123,6 +2537,13 @@ async def main():
             print("== scenarios")
             await asyncio.gather(*(limited(name, run_scenario(browser, base, g, fn, seed))
                                    for g, name, fn, seed in SCENARIOS if not args or g in args))
+        if only in (None, "capabilities") and not args:
+            print("== browser capabilities (tools/shared/kepesseg.js)")
+            report("capabilities", await test_capabilities(browser, base))
+        if only in (None, "compat") and not args:
+            print("== compatibility: phone, handheld and desktop screens; offline")
+            report("screens", await test_devices(browser, base))
+            report("offline", await test_offline(browser))
         if only in (None, "generators") and (not args or {"gyemantbanya", "kincsvadasz"} & set(args)):
             print("== level generators")
             report("generators", await test_generators(browser, quick))

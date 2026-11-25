@@ -9,6 +9,7 @@ Its card on the start page is built from tags in that page's <head>:
   <meta name="games:category" content="jatek | minecraft">   (optional, default: jatek)
   <meta name="games:title-en" content="English name">        (optional)
   <meta name="games:description-en" content="English text">  (optional)
+  <meta name="games:orientation" content="portrait">  (optional: portrait or landscape; locks in fullscreen)
 
 Usage:
   python3 tools/build_site.py            # refresh the game list inside index.html
@@ -238,6 +239,8 @@ def check_policy():
         for name in ("description", "games:category", "games:title-en", "games:description-en"):
             if not r.meta.get(name):
                 errors.append(f"{rel}: missing <meta name=\"{name}\">")
+        if r.meta.get("games:orientation") not in (None, "portrait", "landscape"):
+            errors.append(f"{rel}: games:orientation must be portrait or landscape (leave it out for a free one)")
         if r.meta.get("games:category") not in (None, "", "jatek", "minecraft"):
             errors.append(f"{rel}: games:category must be jatek or minecraft")
         if 'class="home-link"' not in text:
