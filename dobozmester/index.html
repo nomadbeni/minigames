@@ -381,9 +381,11 @@ function draw(){
     at(b,G.goal[b]&&!(a&&a.box===i&&e<1)?CRATE_OK:CRATE,dx,dy);
   });
   let wx=0,wy=0;if(a){wx=(a.from%G.w-a.to%G.w)*(1-e);wy=(Math.floor(a.from/G.w)-Math.floor(a.to/G.w))*(1-e)}
-  const bob=a&&Math.sin(e*Math.PI)>.5?-T/16:0;
-  at(G.p,WORKER[G.face],wx,wy+bob/T);
+  at(G.p,WORKER[G.face],wx,wy+workerBob(a,e));
 }
+/* lépéskor a munkás kicsit felugrik; csökkentett mozgásnál nem */
+let rmMq=null;try{rmMq=matchMedia('(prefers-reduced-motion: reduce)')}catch(e){}
+function workerBob(a,e){return a&&!(rmMq&&rmMq.matches)&&Math.sin(e*Math.PI)>.5?-1/16:0}
 const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
 function touchesInside(k){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const x=k%G.w+dx,y=Math.floor(k/G.w)+dy;if(x>=0&&y>=0&&x<G.w&&y<G.h&&G.inside[y*G.w+x])return true}return false}
 

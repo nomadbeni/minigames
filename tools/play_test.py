@@ -1446,6 +1446,140 @@ async def sc_island_calm(page):
     check(await page.evaluate(f"{T}.lowRes") == 2, "a fast moment does not switch back")
 
 
+# ---------------------------------------------------------------- reduced motion (prefers-reduced-motion: reduce)
+# Each scenario measures the same thing twice: with normal motion and, after a reload, with reduced motion.
+
+async def calm_twice(page, expr, start=None):
+    """Evaluates expr with normal motion, then again with reduced motion after a reload; start() runs first each time."""
+    got = []
+    for mode in ("no-preference", "reduce"):
+        if mode == "reduce":
+            await page.emulate_media(reduced_motion="reduce")
+            await page.reload()
+        calm = "window.Kepesseg ? Kepesseg.calm() : matchMedia('(prefers-reduced-motion: reduce)').matches"
+        check(await page.evaluate(calm) == (mode == "reduce"), f"the game sees the motion setting ({mode})")
+        if start:
+            await start(page)
+        got.append(await page.evaluate(expr))
+    return got
+
+
+FLASH_PROBE = """(() => { const c = document.createElement('canvas'); c.width = c.height = 100; const x = c.getContext('2d');
+  Kepesseg.flash(x, 100, 100, '#ff0000', .5); const a = (X, Y) => x.getImageData(X, Y, 1, 1).data[3];
+  return [a(50, 50), a(1, 1)]; })()"""
+FLASH_SPY = """(() => { window.__flashes = []; const f = Kepesseg.flash;
+  Kepesseg.flash = (...a) => { window.__flashes.push(a[3]); return f(...a); }; })()"""
+
+
+async def check_flash(page, what):
+    """The shared flash: a full-screen tint with normal motion, only a frame at the edge with reduced motion."""
+    centre, edge = await page.evaluate(FLASH_PROBE)
+    if await page.evaluate("Kepesseg.calm()"):
+        check(centre == 0 and edge > 200, f"reduced motion: {what} is a frame, not a full-screen flash ({centre}, {edge})")
+    else:
+        check(centre > 100 and edge > 100, f"{what} tints the whole screen with normal motion ({centre}, {edge})")
+
+
+async def sc_brawl_calm(page):
+    async def start(page):
+        await page.locator('[data-d="0"]').click()
+        await page.locator("#go").click()
+        await wait_js(page, "__bunyo.M && __bunyo.M.state !== undefined")
+    got = await calm_twice(page, "(() => { __bunyo.M.shake = 0; __bunyo.shake(.4); return __bunyo.M.shake; })()", start)
+    check(got[0] > 0 and got[1] == 0, f"a hit shakes the screen, except with reduced motion: {got}")
+
+
+async def sc_trap_calm(page):
+    got = await calm_twice(page, "(() => { __csapda.L.dead = 0; __csapda.L.parts = []; __csapda.die(); return __csapda.L.parts.length; })()")
+    check(got == [18, 6], f"a death throws fewer pieces with reduced motion: {got}")
+
+
+async def sc_sokoban_calm(page):
+    got = await calm_twice(page, "workerBob({}, .5)")
+    check(got[0] < 0 and got[1] == 0, f"the worker hops on a step, except with reduced motion: {got}")
+
+
+async def sc_maze_calm(page):
+    got = await calm_twice(page, "[0, .3, .6, .8].map(b => (__eutveszto.blink = b, __eutveszto.blinkOn()))")
+    check(len(set(got[0])) == 2 and got[1] == [True] * 4, f"the shadows and the player blink, except with reduced motion: {got}")
+
+
+async def sc_dungeon_calm(page):
+    got = await calm_twice(page, "[100, 450, 900].map(t => __kalandor.bobAt(t))")
+    check(any(v != 0 for v in got[0]) and got[1] == [0, 0, 0], f"items bob, except with reduced motion: {got}")
+
+
+async def sc_snake_calm(page):
+    async def start(page):
+        await page.locator('#card button[data-act="new"]').click()
+    for mode in ("normal", "reduce"):
+        if mode == "reduce":
+            await page.emulate_media(reduced_motion="reduce")
+            await page.reload()
+        await start(page)
+        await page.evaluate(FLASH_SPY)
+        await page.evaluate("__kigyo.over(false); __kigyo.draw()")
+        check(await page.evaluate("window.__flashes.length") > 0, f"a crash flashes through the shared flash ({mode})")
+        await check_flash(page, "the crash")
+
+
+async def sc_rocks_calm(page):
+    expr = "[__kozapor.shipAlpha({inv: 0}), ...[.1, .2, .3].map(i => __kozapor.shipAlpha({inv: i})), ...[.1, .25].map(t => __kozapor.pickupAlpha({t}))]"
+    got = await calm_twice(page, expr)
+    check(got[0][0] == 1 and len(set(got[0][1:4])) == 2 and 0 in got[0][4:],
+          f"the safe ship and an old bonus blink with normal motion: {got[0]}")
+    check(got[1] == [1, .5, .5, .5, .45, .45], f"reduced motion: no blinking, only see-through: {got[1]}")
+
+
+async def sc_arrows_calm(page):
+    got = await calm_twice(page, "[0, 150, 250, 350].map(d => __nyilak.flashOn({t0: 1000}, 1000 + d))")
+    check(len(set(got[0])) == 2 and got[1] == [True] * 4, f"crashed arrows blink red, except with reduced motion: {got}")
+
+
+async def sc_flap_calm(page):
+    for mode in ("normal", "reduce"):
+        if mode == "reduce":
+            await page.emulate_media(reduced_motion="reduce")
+            await page.reload()
+        await page.locator('#card button[data-act="new"]').click()
+        await page.evaluate(FLASH_SPY)
+        await page.keyboard.press("Space")
+        await page.evaluate("__szarny.G.y = __szarny.floorY() + 50")   # the bird hits the ground
+        await wait_js(page, "window.__flashes.length > 0", timeout=3000)
+        await check_flash(page, "the crash")
+
+
+async def sc_tank_calm(page):
+    async def start(page):
+        await page.locator("#go").click()
+        await page.evaluate("__tank.S.fort = 170")      # the last three seconds of the steel wall around the flag
+    got = await calm_twice(page, """(async () => { const S = __tank.S, seen = new Set();
+        for (let i = 0; i < 12; i++) { seen.add(__tank.BASE_RING.map(([x, y]) => S.cells[y * 26 + x]).join()); await new Promise(r => setTimeout(r, 60)); }
+        return seen.size; })()""", start)
+    check(got[0] > 1 and got[1] == 1, f"the ending steel wall blinks, except with reduced motion: {got}")
+
+
+async def sc_fleet_calm(page):
+    async def start(page):
+        await page.locator('#card button[data-act="new"]').click()
+    got = await calm_twice(page, "(() => { __urflotta.G.parts = []; __urflotta.killPlayer(); return __urflotta.G.parts.length; })()", start)
+    check(got[0] == 42 and got[1] == 14, f"a hit throws fewer sparks with reduced motion: {got}")
+
+
+async def sc_viewer_calm(page):
+    """The Minecraft plan viewer draws only on a click (no animation loop), and reduced motion keeps it that way."""
+    await page.emulate_media(reduced_motion="reduce")
+    await page.reload()
+    await page.locator("#rot").click()
+    await page.wait_for_timeout(100)
+    shot = "document.getElementById('isocv').toDataURL()"
+    a = await page.evaluate(shot)
+    await page.wait_for_timeout(600)
+    check(await page.evaluate(shot) == a, "the 3D view stands still between clicks")
+    check(await page.evaluate("document.getAnimations().filter(x => x.playState === 'running').length") == 0,
+          "no running CSS animation with reduced motion")
+
+
 async def sc_bomber(page):
     B = "__bombasz"
     await page.locator('#card button[data-act="new"]').click()
@@ -1842,6 +1976,18 @@ SCENARIOS = [
     ("kozapor", "Rock Storm: holding a touch button turns the ship, letting go stops it", sc_rocks_touch, None),
     ("urflotta", "Space Fleet: a shot downs an alien, a bullet takes a life, reload, landing ends it, New game", sc_fleet, None),
     ("szarnycsapas", "Wing Flap: tap to fly through gaps, pause keeps the bird in place, the ground ends it", sc_flap, None),
+    ("bunyo", "Brawl: reduced motion turns off the screen shake", sc_brawl_calm, None),
+    ("csapda", "Trap: reduced motion throws fewer pieces and the falling block does not shake", sc_trap_calm, None),
+    ("dobozmester", "Sokoban: reduced motion keeps the worker from hopping", sc_sokoban_calm, None),
+    ("e-utveszto", "E-Maze: reduced motion stops the blinking", sc_maze_calm, None),
+    ("kalandor", "Dungeon: reduced motion stops the bobbing", sc_dungeon_calm, None),
+    ("kigyo", "Snake: reduced motion turns the crash flash into a frame", sc_snake_calm, None),
+    ("kozapor", "Rock Storm: reduced motion draws see-through instead of blinking", sc_rocks_calm, None),
+    ("nyilak", "Arrows: reduced motion keeps crashed arrows red instead of blinking", sc_arrows_calm, None),
+    ("szarnycsapas", "Wing Flap: reduced motion turns the crash flash into a frame", sc_flap_calm, None),
+    ("tankorseg", "Tank Guard: reduced motion stops the blinking", sc_tank_calm, None),
+    ("urflotta", "Space Fleet: reduced motion throws fewer sparks", sc_fleet_calm, None),
+    ("hegyormi-var", "Minecraft plan viewer: no animation, also with reduced motion", sc_viewer_calm, None),
     ("duplazo", "Doubler: merge, undo, reload, 2048 win window, stuck window, New game", sc_doubler, None),
     ("duplazo", "Doubler: a mouse swipe moves the tiles", sc_doubler_swipe, None),
     ("kardvihar", "Blade Storm: slash a slime, next wave, a skill, a hit, a roll, reload, golem wave, death, New game", sc_blade, None),

@@ -109,6 +109,11 @@ button:not(:disabled):active{translate:0 1px}
                               csökkentett mozgás. Különben (vagy hibánál) azonnal fut. Az átmenet alatt (0,15 mp)
                               a böngésző nem ad át érintést, ezért csak ablak MEGJELENÉSÉRE használd; a játékba
                               visszavezető bezárás legyen azonnali, és hívja a Kepesseg.endTransition()-t.
+     Kepesseg.calm()          true, ha a felhasználó csökkentett mozgást kért (prefers-reduced-motion). Ilyenkor a
+                              játék ne rázza a képet, ne villantsa a teljes képernyőt (helyette vékony színes keret),
+                              ne villogtasson (helyette áttetsző rajz), és kevesebb részecskét rajzoljon.
+     Kepesseg.flash(ctx,w,h,szín,erő)   teljes képernyős villanás (erő 0..1 átlátszóság); csökkentett mozgásnál
+                              helyette vékony keret ugyanabban a színben. A rajz állapotát (alfa, szín) visszaállítja.
      Kepesseg.quality(most)   képkockánként hívva a díszítő grafika szintje: 2 teljes, 1 kevesebb, 0 legkevesebb.
                               Csak látványra használd (részecske, háttér), játéklogikára soha.
      Tájolás: ha a <head>-ben <meta name="games:orientation" content="portrait"> (vagy landscape) áll, és a
@@ -119,7 +124,8 @@ button:not(:disabled):active{translate:0 1px}
   var d=document,nav=navigator,noop=function(){};
   function now(){return (window.performance&&performance.now)?performance.now():Date.now()}
   function mq(q){try{return matchMedia(q).matches}catch(e){return false}}
-  function calm(){return mq('(prefers-reduced-motion: reduce)')}
+  var calmMq=null;try{calmMq=matchMedia('(prefers-reduced-motion: reduce)')}catch(e){}
+  function calm(){return !!(calmMq&&calmMq.matches)}   /* élő lekérdezés: a beállítás játék közben is válthat */
   function quiet(p){try{if(p&&typeof p.then==='function')p.then(noop,noop)}catch(e){}return p}
 
   /* ---------- rezgés ---------- */
@@ -287,8 +293,20 @@ button:not(:disabled):active{translate:0 1px}
   }
   function setQuality(l){Q.forced=(l===0||l===1||l===2)?l:null}
 
+  /* ---------- villanás, csökkentett mozgásnál keret ---------- */
+  function flash(c,w,h,col,a){
+    if(!c||!(a>0)||!(w>0)||!(h>0))return;
+    c.save();
+    try{
+      if(calm()){var lw=Math.max(3,Math.round(Math.min(w,h)/90));c.globalAlpha=Math.min(1,a*3+.3);c.strokeStyle=col;
+        c.lineWidth=lw;c.strokeRect(lw/2,lw/2,w-lw,h-lw)}
+      else{c.globalAlpha=Math.min(1,a);c.fillStyle=col;c.fillRect(0,0,w,h)}
+    }catch(e){}
+    c.restore();
+  }
+
   window.Kepesseg={haptic:haptic,hapticsOn:function(){return on},setHaptics:setHaptics,wakeLock:wakeLock,
-    wakeLockHeld:function(){return !!lock},transition:transition,endTransition:endTransition,quality:quality,setQuality:setQuality};
+    wakeLockHeld:function(){return !!lock},transition:transition,endTransition:endTransition,quality:quality,setQuality:setQuality,calm:calm,flash:flash};
   if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',initBtn);else initBtn();
 })();
 /* @end kepesseg */
