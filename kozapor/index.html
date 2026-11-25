@@ -88,7 +88,7 @@ button:not(:disabled):active{translate:0 1px}
       <button type="button" data-k="fire" class="fire" aria-label="Lövés">●</button>
     </div>
   </div>
-  <p class="hint desk">← → forgás · ↑ gáz · szóköz: lövés · Esc: szünet</p>
+  <p class="hint desk">← → forgás · ↑ gáz · szóköz: lövés · Esc: szünet<br>Kontroller: kar ← → forgás, ↑ gáz · A lövés · Start szünet</p>
 </div>
 <div id="ov" hidden><div class="card" id="card"></div></div>
 
@@ -603,7 +603,7 @@ function showMenu(){
   Kepesseg.wakeLock(false);
   const s=loadSave();
   showOv(`<h2>Kőzápor</h2><p>Forgasd a hajót, gyorsíts, és lődd szét a köveket! A nagy kő kettéhasad, a kicsi elporlad. A 2. hullámtól <b>csészealj</b> is vadászik rád.</p>${LEGEND}
-  <p>${matchMedia('(pointer:coarse)').matches?'Bal oldalt forgás, jobb oldalt gáz és lövés. Tartsd nyomva a lövést!':'← → forgás · ↑ gáz · szóköz: lövés'}</p>
+  <p>${matchMedia('(pointer:coarse)').matches?'Bal oldalt forgás, jobb oldalt gáz és lövés. Tartsd nyomva a lövést!':'← → forgás · ↑ gáz · szóköz: lövés<br>Kontroller: kar ← → forgás, ↑ gáz · A lövés'}</p>
   <div class="btns">${s?`<button class="b hot" type="button" data-act="cont">Folytatás · ${s.wave}. hullám</button>`:''}
   <button class="b ${s?'':'hot'}" type="button" data-act="new">Új játék</button></div>`);
 }

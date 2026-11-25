@@ -627,7 +627,7 @@ function menu(){
   paused=true;const unlocked=Object.keys(save.done).length;
   overlay(`<h1>CSAPDA</h1><p>Csak el kell jutni az ajtóig. Könnyű, nem? Olvasd el a táblát, mielőtt elindulsz.</p>
     <div class="lv">${LV.map((l,i)=>{const d=save.done[i];return `<button data-l="${i}" class="${d!=null?'done':''}" ${i>unlocked?'disabled':''}>${i+1}<small>${d!=null?'💀 '+d:i>unlocked?'🔒':'új'}</small></button>`}).join('')}</div>
-    <p class="keys">Gép: <kbd>←</kbd><kbd>→</kbd> vagy <kbd>A</kbd><kbd>D</kbd>, ugrás: <kbd>↑</kbd> <kbd>W</kbd> <kbd>Szóköz</kbd>, újra: <kbd>R</kbd>. Telefon: gombok lent.</p>
+    <p class="keys">Gép: <kbd>←</kbd><kbd>→</kbd> vagy <kbd>A</kbd><kbd>D</kbd>, ugrás: <kbd>↑</kbd> <kbd>W</kbd> <kbd>Szóköz</kbd>, újra: <kbd>R</kbd>. Telefon: gombok lent.<br>Kontroller: kar mozgás, A ugrás, Start menü.</p>
     <p style="color:var(--muted)">Összes halál: <b>${save.total}</b></p>
     <div class="row"><button class="btn hot" id="go">${unlocked?'Folytatás':'Start'}</button><button class="btn" id="setB">⚙️</button></div>`);
   $('#ovc').querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{closeOv();load(+b.dataset.l);paused=false});

@@ -727,7 +727,7 @@ $('#setBtn').onclick=function settings(){
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});
 fit();hud();requestAnimationFrame(frame);
 if(!S.intro){overlay(`<h1>DUNGEON</h1><p>A völgyet szörnyek lepték el. A kapitány embert keres, aki rendet tesz.</p>
-  <div class="how"><span>🕹️</span><span>Mozgás: nyilak, WASD, vagy a gombok.</span><span>❗</span><span>Felkiáltójel: menj neki, beszél.</span><span>🖼️</span><span>Mit kér? Válaszd a jó képet.</span><span>🧭</span><span>Ha jó, nyíl mutatja az utat.</span><span>⚔️</span><span>Szörnynek menni: harc.</span></div>
+  <div class="how"><span>🕹️</span><span>Mozgás: nyilak, WASD, vagy a gombok.</span><span>❗</span><span>Felkiáltójel: menj neki, beszél.</span><span>🖼️</span><span>Mit kér? Válaszd a jó képet.</span><span>🧭</span><span>Ha jó, nyíl mutatja az utat.</span><span>⚔️</span><span>Szörnynek menni: harc.</span><span>🎮</span><span>Kontroller: kar mozgás · A választ.</span></div>
   <button class="btn hot" id="go">Start</button>`,true);$('#go').onclick=()=>{S.intro=true;save();closeOv()}}
 })();
 </script>

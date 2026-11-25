@@ -675,7 +675,7 @@ function closeOv(){$('#ov').hidden=true}
 function menu(){
   paused=true;
   overlay(`<h1>ARENA</h1>
-   <div class="how"><span>🕹️</span><span>Mozgás: húzd az ujjad, vagy WASD / nyilak.</span><span>🎯</span><span>A lövés magától megy a legközelebbi robotra.</span><span>📦</span><span>Láda: a szóhoz válaszd a jó ikont, időre.</span><span>🌀</span><span>Maradj a körön belül, kint fogy az életed.</span><span>💣</span><span>Bomba: gomb vagy szóköz.</span></div>
+   <div class="how"><span>🕹️</span><span>Mozgás: húzd az ujjad, vagy WASD / nyilak.</span><span>🎯</span><span>A lövés magától megy a legközelebbi robotra.</span><span>📦</span><span>Láda: a szóhoz válaszd a jó ikont, időre.</span><span>🌀</span><span>Maradj a körön belül, kint fogy az életed.</span><span>💣</span><span>Bomba: gomb vagy szóköz.</span><span>🎮</span><span>Kontroller: kar mozgás · A bomba · Start szünet.</span></div>
    ${MODES.map((m,i)=>`<button class="btn" data-m="${i}" style="text-align:left">${m.n}<small>${m.d}${best[m.n]?' Rekord: '+best[m.n]:''}</small></button>`).join('')}
    <div class="row"><button class="btn" id="setB">⚙️ Beállítások</button>${K.sayBtn('Láda: a szóhoz válaszd a jó ikont, időre.')}</div>`);
   $('#ovc').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>start(+b.dataset.m));

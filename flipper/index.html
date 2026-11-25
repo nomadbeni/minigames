@@ -709,7 +709,7 @@ function tableButtons(){
   return '<div class="sub">Asztalválasztó</div><div class="tables">'+TABLES.map((t,i)=>
     '<button type="button" data-act="table" data-i="'+i+'"'+(i>unlocked?' disabled aria-label="'+t.name+', még zárva"':'')+'><span>'+(i+1)+'</span>'+(i>unlocked?'Zárva':t.name)+'</button>').join('')+'</div>';
 }
-const LEGEND='<div class="legend"><b>Bal oldal / ←</b><span>bal ütő</span><b>Jobb oldal / →</b><span>jobb ütő</span><b>Szóköz</b><span>kilövés (nyomva tartva), utána mindkét ütő</span><b>Esc</b><span>szünet</span></div>';
+const LEGEND='<div class="legend"><b>Bal oldal / ←</b><span>bal ütő</span><b>Jobb oldal / →</b><span>jobb ütő</span><b>Szóköz</b><span>kilövés (nyomva tartva), utána mindkét ütő</span><b>Esc</b><span>szünet</span><b>Kontroller</b><span>kar vagy X, B: bal és jobb ütő · A kilövés · Start szünet</span></div>';
 function showCard(kind,rec){
   Kepesseg.wakeLock(false);   // menüben, szünetben, a végén a kijelző elalhat
   const c=$('card');let h='';

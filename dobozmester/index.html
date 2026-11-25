@@ -404,7 +404,7 @@ function menu(){
     <p>Told az összes ládát a jelölt helyre. Húzni nem lehet, csak tolni, ezért gondold végig előre!</p>
     <div class="btns"><button class="btn hot" id="ovGo">${any||G.lvl>0?`Folytatás · ${G.lvl+1}. pálya`:'Indul'}</button></div>
     <p class="small">Pályák · a megoldott után nyílik a következő</p><div class="lv">${lv}</div>
-    <p class="keys">Telefonon: húzd az ujjad, koppints oda, ahova menni akarsz, vagy használd a gombokat.<br>Gépen: nyilak vagy WASD · Z vagy Backspace: vissza · R: újra</p>`);
+    <p class="keys">Telefonon: húzd az ujjad, koppints oda, ahova menni akarsz, vagy használd a gombokat.<br>Gépen: nyilak vagy WASD · Z vagy Backspace: vissza · R: újra<br>Kontroller: kar lépés · B vissza · Start menü</p>`);
   $('ovGo').onclick=()=>{audio();closeOv();draw()};
   document.querySelectorAll('.lv button[data-l]').forEach(b=>b.onclick=()=>{audio();closeOv();load(+b.dataset.l);draw()});
 }
@@ -415,7 +415,7 @@ addEventListener('keydown',e=>{
   if(!$('ov').hidden){if(e.code==='Escape'){closeOv();e.preventDefault()}return}
   audio();
   if(e.code in KEYS){e.preventDefault();tryMove(KEYS[e.code]);return}
-  if(e.code==='KeyZ'||e.code==='Backspace'||e.code==='KeyU'){e.preventDefault();undo()}
+  if(e.code==='KeyZ'||e.code==='Backspace'||e.code==='KeyU'||e.code==='KeyL'){e.preventDefault();undo()}   // L: a kontroller B gombja
   else if(e.code==='KeyR'){e.preventDefault();restart()}
   else if(e.code==='Escape'){menu()}
 });

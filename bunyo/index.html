@@ -782,7 +782,7 @@ function menu(){
     <div class="roster">${CAST.map(c=>`<button class="fc" data-c="${c.id}" aria-pressed="${pick===c.id}" ${save.unlocked.includes(c.id)?'':'disabled'}><img src="${portrait(c)}" alt=""><b>${save.unlocked.includes(c.id)?K.esc(c.n):'???'}</b></button>`).join('')}</div>
     <div id="info"></div>
     <div class="row toggle"><span style="color:var(--muted)">Nehézség:</span>${['Könnyű','Normál','Pro'].map((d,i)=>`<button class="btn" data-d="${i}" aria-pressed="${diff===i}" style="padding:8px 12px;font-size:16px;min-height:44px">${d}</button>`).join('')}</div>
-    <p class="keys">Gép: <kbd>A</kbd><kbd>D</kbd> mozgás, <kbd>W</kbd> ugrás, <kbd>S</kbd> véd, <kbd>J</kbd> üt, <kbd>K</kbd> rúg, <kbd>L</kbd> szuper. Telefon: gombok lent.</p>
+    <p class="keys">Gép: <kbd>A</kbd><kbd>D</kbd> mozgás, <kbd>W</kbd> ugrás, <kbd>S</kbd> véd, <kbd>J</kbd> üt, <kbd>K</kbd> rúg, <kbd>L</kbd> szuper. Telefon: gombok lent.<br>Kontroller: kar mozgás (fel ugrás, le véd), X üt, Y rúg, B szuper, Start szünet.</p>
     <div class="row"><button class="btn hot" id="go">Harc →</button><button class="btn" id="setB">⚙️</button></div>`);
   const info=()=>{const c=CAST.find(x=>x.id===pick);$('#info').innerHTML=`<div class="bio">${K.sentence(c.bio)} ${K.sayBtn(c.n+'. '+c.bio)}</div>
     <div class="stats"><span>Gyors</span><i style="width:${c.spd/1.3*100}%"></i><span>Erő</span><i style="width:${c.pow/1.35*100}%"></i><span>Élet</span><i style="width:${c.hp/140*100}%"></i></div>`};

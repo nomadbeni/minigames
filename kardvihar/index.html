@@ -89,7 +89,7 @@ button:not(:disabled):active{translate:0 1px}
     <button type="button" class="spin" data-k="spin" aria-label="Forgó csapás">Forgó</button>
     <button type="button" class="atk" data-k="atk" aria-label="Kardcsapás">KARD</button>
   </div>
-  <p class="hint desk">Nyilak/WASD mozgás · szóköz/J: kard · K: gurulás · L: forgó csapás · Esc: szünet</p>
+  <p class="hint desk">Nyilak/WASD mozgás · szóköz/J: kard · K: gurulás · L: forgó csapás · Esc: szünet<br>Kontroller: kar mozgás · A kard · Y gurulás · B forgó csapás · Start szünet</p>
 </div>
 <div id="ov" hidden><div class="card" id="card"></div></div>
 
@@ -737,7 +737,7 @@ function showMenu(){
   Kepesseg.wakeLock(false);
   const s=loadSave(),touch=matchMedia('(pointer:coarse)').matches;
   showOv(`<h2>Kardvihar</h2><p>Vagdosd szét a szörnyhullámokat! Három gyors csapás egymás után kombó, a harmadik nagyot üt. Gurulás közben semmi nem talál el. Ha megtelt a kék csík, jöhet a <b>forgó csapás</b>.</p>${legend()}
-  <p>${touch?'Húzd az ujjad a pályán a mozgáshoz, jobb lent a harci gombok.':'Nyilak/WASD · szóköz: kard · K: gurulás · L: forgó'}</p>
+  <p>${touch?'Húzd az ujjad a pályán a mozgáshoz, jobb lent a harci gombok.':'Nyilak/WASD · szóköz: kard · K: gurulás · L: forgó<br>Kontroller: kar mozgás · A kard · Y gurulás · B forgó'}</p>
   <div class="btns">${s?`<button class="b hot" type="button" data-act="cont">Folytatás · ${s.wave}. hullám</button>`:''}
   <button class="b ${s?'':'hot'}" type="button" data-act="new">Új játék</button></div>`);
 }

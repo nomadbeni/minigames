@@ -796,7 +796,7 @@ function menu(){
     <p class="small">Pálya választása</p><div class="lv">${lv}</div>
     <p class="small">A villogó piros tankot eltalálva bónusz jelenik meg:</p><div class="bon">${bon}</div>
     <p class="small">Rekord: ${SAVE.best} pont</p>
-    <p class="keys">Gépen: nyilak vagy WASD · Space vagy J: tűz · P: szünet</p>`);
+    <p class="keys">Gépen: nyilak vagy WASD · Space vagy J: tűz · P: szünet<br>Kontroller: kar mozgás · A tűz · Start szünet</p>`);
   $('go').onclick=()=>{audio();startStage(1,true)};
   document.querySelectorAll('.lv button[data-s]').forEach(b=>b.onclick=()=>{audio();startStage(+b.dataset.s,true)});
   document.querySelectorAll('.bon canvas').forEach(c=>{const x=c.getContext('2d');x.drawImage(BONUSSPR[c.dataset.b],0,0)});
